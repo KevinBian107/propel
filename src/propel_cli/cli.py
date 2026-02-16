@@ -176,6 +176,29 @@ def copytree_merge(src: Path, dst: Path) -> int:
     return count
 
 
+VALID_HOOK_EVENTS = {
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PermissionRequest",
+    "PostToolUse",
+    "PostToolUseFailure",
+    "Notification",
+    "SubagentStart",
+    "SubagentStop",
+    "Stop",
+    "TeammateIdle",
+    "TaskCompleted",
+    "PreCompact",
+    "SessionEnd",
+}
+
+
+def _is_new_format_group(entry: dict) -> bool:
+    """Check if a hook entry uses the new matcher+hooks format."""
+    return "hooks" in entry and isinstance(entry["hooks"], list)
+
+
 def merge_hooks_config(settings_path: Path, hooks_config: list[dict]) -> None:
     """Create or merge hook entries into .claude/settings.local.json.
 
@@ -190,6 +213,9 @@ def merge_hooks_config(settings_path: Path, hooks_config: list[dict]) -> None:
         ]
       }
     }
+
+    Also cleans up invalid event names and old-format entries left from
+    previous installs.
     """
     if settings_path.exists():
         try:
@@ -201,11 +227,22 @@ def merge_hooks_config(settings_path: Path, hooks_config: list[dict]) -> None:
 
     existing_hooks = settings.get("hooks", {})
 
+    # Remove invalid event names (e.g. SessionResume, PostClear, PostCompact)
+    for key in list(existing_hooks.keys()):
+        if key not in VALID_HOOK_EVENTS:
+            del existing_hooks[key]
+
+    # Remove old-format entries (flat {"command": "..."} without matcher+hooks)
+    for event in list(existing_hooks.keys()):
+        existing_hooks[event] = [
+            e for e in existing_hooks[event] if _is_new_format_group(e)
+        ]
+
+    # Add new hooks
     for hook in hooks_config:
         event = hook["event"]
         command = hook["command"]
 
-        # Build a matcher group in the new format
         matcher_group = {
             "matcher": "",
             "hooks": [{"type": "command", "command": command}],
