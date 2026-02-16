@@ -1,19 +1,44 @@
-"""Propel session management CLI.
+"""Propel CLI — init and session management for Claude Code research workflows.
 
 Adapted from scott-yj-yang/new-prompt with:
+- `propel init` to auto-scaffold .claude/ in any project
 - Auto-detection of project root via git rev-parse (no hardcoded paths)
 - Investigation artifact linking (scratch/ symlinks)
 - Session index maintenance (sessions/INDEX.md)
 """
 
+import json
 import os
 import re
+import shutil
 import subprocess
 import uuid
 from datetime import datetime
 from pathlib import Path
 
 import click
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def get_propel_root() -> Path:
+    """Locate the propel data root (skills/, agents/, commands/, hooks/).
+
+    Works for both editable installs (pip install -e .) and running from source.
+    Walks up from this file's directory until we find skills/ alongside src/.
+    """
+    current = Path(__file__).resolve().parent  # src/propel_cli/
+    for _ in range(5):
+        current = current.parent
+        if (current / "skills").is_dir() and (current / "agents").is_dir():
+            return current
+    raise FileNotFoundError(
+        "Could not locate Propel data directories (skills/, agents/). "
+        "Make sure you installed with `pip install -e .` from the propel directory."
+    )
 
 
 def get_project_root() -> Path:
@@ -27,7 +52,6 @@ def get_project_root() -> Path:
         )
         return Path(result.stdout.strip())
     except subprocess.CalledProcessError:
-        # Fallback to current directory if not in a git repo
         return Path.cwd()
 
 
@@ -83,7 +107,7 @@ def link_investigation(session_dir: Path) -> None:
         try:
             link_path.symlink_to(investigation.resolve())
         except OSError:
-            pass  # Symlinks may not work on all systems
+            pass
 
 
 def update_index(sessions_dir: Path, session_name: str, description: str) -> None:
@@ -124,7 +148,6 @@ def save_chat_history(session_id: str, session_dir: Path) -> bool:
     """Copy Claude Code chat history into the session directory."""
     claude_dir = get_claude_history_dir()
 
-    # Search for the session's chat history in Claude's project directories
     for project_dir in claude_dir.rglob("*"):
         if not project_dir.is_dir():
             continue
@@ -137,13 +160,149 @@ def save_chat_history(session_id: str, session_dir: Path) -> bool:
     return False
 
 
+def copytree_merge(src: Path, dst: Path) -> int:
+    """Copy src tree into dst, merging directories and overwriting files.
+
+    Returns the number of files copied.
+    """
+    count = 0
+    for item in src.rglob("*"):
+        if item.is_file():
+            rel = item.relative_to(src)
+            dest = dst / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, dest)
+            count += 1
+    return count
+
+
+def merge_hooks_config(settings_path: Path, hooks_config: list[dict]) -> None:
+    """Create or merge hook entries into .claude/settings.local.json."""
+    if settings_path.exists():
+        try:
+            settings = json.loads(settings_path.read_text())
+        except (json.JSONDecodeError, ValueError):
+            settings = {}
+    else:
+        settings = {}
+
+    existing_hooks = settings.get("hooks", {})
+
+    for hook in hooks_config:
+        event = hook["event"]
+        entry = {"command": hook["command"]}
+        if "description" in hook:
+            entry["description"] = hook["description"]
+
+        if event not in existing_hooks:
+            existing_hooks[event] = []
+
+        # Skip if an identical command is already registered
+        commands = [h.get("command", "") for h in existing_hooks[event]]
+        if entry["command"] not in commands:
+            existing_hooks[event].append(entry)
+
+    settings["hooks"] = existing_hooks
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+
+
+def ensure_gitignore_entries(project_root: Path, entries: list[str]) -> list[str]:
+    """Add entries to .gitignore if not already present. Returns entries added."""
+    gitignore = project_root / ".gitignore"
+    existing = ""
+    if gitignore.exists():
+        existing = gitignore.read_text()
+
+    added = []
+    lines_to_add = []
+    for entry in entries:
+        if entry not in existing:
+            lines_to_add.append(entry)
+            added.append(entry)
+
+    if lines_to_add:
+        suffix = "\n" if existing and not existing.endswith("\n") else ""
+        gitignore.write_text(existing + suffix + "\n".join(lines_to_add) + "\n")
+
+    return added
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
 @click.group()
 def cli():
-    """Propel session management — archive and index Claude Code sessions."""
+    """Propel — research workflow CLI for Claude Code."""
     pass
 
 
+# ---------------------------------------------------------------------------
+# propel init
+# ---------------------------------------------------------------------------
+
+
 @cli.command()
+def init():
+    """Set up .claude/ with Propel skills, agents, commands, and hooks."""
+    propel_root = get_propel_root()
+    project_root = get_project_root()
+    claude_dir = project_root / ".claude"
+
+    click.echo(f"Initializing Propel in {project_root}")
+    click.echo(f"Using Propel data from {propel_root}\n")
+
+    # Copy skills, agents, commands, hooks
+    dirs_to_copy = ["skills", "agents", "commands", "hooks"]
+    total_files = 0
+
+    for dirname in dirs_to_copy:
+        src = propel_root / dirname
+        dst = claude_dir / dirname
+        if src.is_dir():
+            count = copytree_merge(src, dst)
+            total_files += count
+            click.echo(f"  {dirname}/ — {count} files")
+        else:
+            click.echo(f"  {dirname}/ — not found in propel, skipped")
+
+    # Merge hooks into settings.local.json
+    hooks_json = propel_root / "hooks" / "hooks.json"
+    if hooks_json.exists():
+        hooks_config = json.loads(hooks_json.read_text()).get("hooks", [])
+        # Rewrite hook commands to use .claude/ relative paths
+        for hook in hooks_config:
+            hook["command"] = hook["command"].replace(
+                "bash hooks/", "bash .claude/hooks/"
+            )
+        settings_path = claude_dir / "settings.local.json"
+        merge_hooks_config(settings_path, hooks_config)
+        click.echo(f"\n  settings.local.json — hooks configured")
+
+    # Update .gitignore
+    added = ensure_gitignore_entries(project_root, ["scratch/", "sessions/"])
+    if added:
+        click.echo(f"  .gitignore — added {', '.join(added)}")
+    else:
+        click.echo(f"  .gitignore — already up to date")
+
+    click.echo(f"\nDone! {total_files} files installed into {claude_dir}/")
+    click.echo("Run `claude` to start using Propel.")
+
+
+# ---------------------------------------------------------------------------
+# propel session
+# ---------------------------------------------------------------------------
+
+
+@cli.group()
+def session():
+    """Manage Claude Code sessions — launch, save, and list."""
+    pass
+
+
+@session.command()
 @click.argument("description", nargs=-1, required=True)
 def launch(description: str):
     """Create a new session directory and launch Claude Code.
@@ -202,7 +361,7 @@ def launch(description: str):
         click.echo("Could not find chat history to save.")
 
 
-@cli.command()
+@session.command()
 @click.argument("session_id")
 @click.argument("session_dir", type=click.Path())
 def save(session_id: str, session_dir: str):
@@ -223,7 +382,7 @@ def save(session_id: str, session_dir: str):
         raise SystemExit(1)
 
 
-@cli.command(name="list")
+@session.command(name="list")
 def list_sessions():
     """List all recorded sessions."""
     sessions_dir = get_sessions_dir()
@@ -233,7 +392,7 @@ def list_sessions():
         click.echo(index_path.read_text())
     else:
         click.echo("No sessions recorded yet.")
-        click.echo(f"Create one with: propel-session launch \"my experiment\"")
+        click.echo('Create one with: propel session launch "my experiment"')
 
 
 if __name__ == "__main__":

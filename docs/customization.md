@@ -116,11 +116,12 @@ After modifying any file in `envs/` or `controllers/`, also dispatch sim-real-ga
 
 ## Project CLAUDE.md Integration
 
-Reference Propel in your project's CLAUDE.md:
+Reference Propel in your project's `CLAUDE.md`:
 
 ```markdown
 ## Workflow
 This project uses the Propel research workflow.
+Skills, agents, and commands are in .claude/ (installed via `propel init`).
 See propel documentation for the investigation → design → implement → validate pipeline.
 
 ## Project-Specific Notes

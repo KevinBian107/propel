@@ -31,14 +31,18 @@ At each gate, Claude stops and asks structured questions that reveal design assu
 ## Installation
 
 ```bash
-# Install the plugin
-claude plugin add propel
+# Clone and install
+git clone https://github.com/KevinBian107/propel.git
+cd propel && pip install -e .
 
-# (Optional) Install session management CLI
-cd propel/cli && pip install -e .
+# Initialize in any project
+cd /path/to/your/project
+propel init
 ```
 
-Skills auto-trigger based on what you say. No manual setup required.
+`propel init` copies all skills, agents, commands, and hooks into your project's `.claude/` directory, configures the session-start hook in `settings.local.json`, and adds `scratch/` and `sessions/` to `.gitignore`.
+
+Skills auto-trigger based on what you say. Once initialized, start Claude Code and go.
 
 ## Quick Start
 
@@ -89,13 +93,13 @@ See [docs/quickstart.md](docs/quickstart.md) for a 5-minute setup guide.
 
 ```bash
 # Create a new session and launch Claude Code
-propel-session launch "RVQ depth-2 rotation experiment"
+propel session launch "RVQ depth-2 rotation experiment"
 
 # List past sessions
-propel-session list
+propel session list
 
 # Save chat history
-propel-session save <session-id> <session-dir>
+propel session save <session-id> <session-dir>
 ```
 
 Sessions are stored in `sessions/` with chat history, prompt templates, and symlinks to investigation artifacts. See [docs/workflow.md](docs/workflow.md) for details.
@@ -105,7 +109,7 @@ Sessions are stored in `sessions/` with chat history, prompt templates, and syml
 - [Quick Start](docs/quickstart.md) — 5-minute setup
 - [Full Workflow](docs/workflow.md) — Walkthrough with all 5 gates
 - [Customization](docs/customization.md) — Adding project-specific agents/skills
-- [Design Document](DESIGN.md) — Full specification
+- [Design Document](../propel/DESIGN.md) — Full specification (in code-manual repo)
 
 ## Acknowledgments
 
@@ -115,7 +119,7 @@ Propel combines ideas from three sources:
 
 - **[code-manual](https://github.com/KevinBian107/code-manual)** — Research methodology, investigation skills, domain-specific agents, paper-alignment auditing, retrospective system. The investigation-first workflow, all auditor agents, and the literature skills originate from code-manual.
 
-- **[scott-yj-yang/new-prompt](https://github.com/scott-yj-yang/new-prompt)** — Session management CLI. The `propel-session` tool is adapted from new-prompt with auto-detection of project root, investigation artifact linking, and session indexing.
+- **[scott-yj-yang/new-prompt](https://github.com/scott-yj-yang/new-prompt)** — Session management CLI. The `propel session` tool is adapted from new-prompt with auto-detection of project root, investigation artifact linking, and session indexing.
 
 ## License
 

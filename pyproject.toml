@@ -3,10 +3,10 @@ requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "propel-session"
+name = "propel"
 version = "0.1.0"
-description = "Session management CLI for Propel research workflow"
-readme = "../README.md"
+description = "Research workflow CLI for Claude Code — skills, agents, and session management"
+readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-propel-session = "propel_cli.cli:cli"
+propel = "propel_cli.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]

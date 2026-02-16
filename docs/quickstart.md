@@ -2,33 +2,23 @@
 
 Get Propel running in 5 minutes.
 
-## 1. Install the Plugin
+## 1. Install Propel
 
 ```bash
-claude plugin add propel
+git clone https://github.com/KevinBian107/propel.git
+cd propel && pip install -e .
 ```
 
-This registers all skills, agents, and commands. Skills auto-trigger based on what you say — no additional configuration needed.
-
-## 2. (Optional) Install Session Management
+## 2. Initialize in Your Project
 
 ```bash
-cd propel/cli
-pip install -e .
+cd /path/to/your/project
+propel init
 ```
 
-This gives you the `propel-session` CLI for archiving and indexing Claude Code chat history.
+This copies all skills, agents, commands, and hooks into `.claude/`, configures the session-start hook in `settings.local.json`, and adds `scratch/` and `sessions/` to `.gitignore`.
 
-## 3. Add Scratch and Sessions to .gitignore
-
-```bash
-echo "scratch/" >> .gitignore
-echo "sessions/" >> .gitignore
-```
-
-Propel uses `scratch/` for investigation artifacts and `sessions/` for archived chat history. Both are working directories that shouldn't be committed.
-
-## 4. Start Working
+## 3. Start Working
 
 ```bash
 claude

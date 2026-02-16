@@ -18,13 +18,13 @@ Description: $ARGUMENTS
    - Print the session directory path
    - Print the session ID
    - Remind user to save session before `/clear`:
-     > "When you're done, run `propel-session save <session-id> <session-dir>` to archive the chat history."
+     > "When you're done, run `propel session save <session-id> <session-dir>` to archive the chat history."
 
-## If propel-session CLI is installed
+## If propel CLI is installed
 
 Use it directly:
 ```bash
-propel-session launch "$ARGUMENTS"
+propel session launch "$ARGUMENTS"
 ```
 
 ## If not installed
