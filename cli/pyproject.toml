@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "propel-session"
+version = "0.1.0"
+description = "Session management CLI for Propel research workflow"
+readme = "../README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Kevin Bian"}
+]
+dependencies = [
+    "click>=8.0",
+]
+
+[project.scripts]
+propel-session = "propel_cli.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]

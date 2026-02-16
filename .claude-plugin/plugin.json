@@ -1,0 +1,12 @@
+{
+  "name": "propel",
+  "version": "0.1.0",
+  "description": "Research-oriented agentic workflow for JAX/robotics/embodied AI. Enforces investigation-first methodology, paper-alignment auditing, human-in-the-loop gates, and structured experiment tracking.",
+  "author": "Kevin Bian",
+  "license": "MIT",
+  "homepage": "https://github.com/KevinBian107/code-manual/tree/master/propel",
+  "skills_dir": "skills",
+  "agents_dir": "agents",
+  "commands_dir": "commands",
+  "hooks": "hooks/hooks.json"
+}
