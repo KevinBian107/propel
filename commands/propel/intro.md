@@ -17,14 +17,16 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 
 ### Slash commands
 
+All Propel commands are namespaced under `/propel:`.
+
 | Command | What it does |
 |---------|-------------|
-| `/propel` | This command — shows what Propel can do |
-| `/primer` | Load project context after /clear (reads CLAUDE.md, README, project structure) |
-| `/new-session [description]` | Create a tracked session directory with UUID and index entry |
-| `/read-paper [path]` | Extract structured implementation reference from a paper |
-| `/debug-training [symptom]` | Diagnose training issues (NaN, plateau, mode collapse) |
-| `/trace-shapes [entry point]` | Quick shape annotation through a code path |
+| `/propel:intro` | This command — shows what Propel can do |
+| `/propel:primer` | Load project context after /clear (reads CLAUDE.md, README, project structure) |
+| `/propel:new-session [description]` | Create a tracked session directory with UUID and index entry |
+| `/propel:read-paper [path]` | Extract structured implementation reference from a paper |
+| `/propel:debug-training [symptom]` | Diagnose training issues (NaN, plateau, mode collapse) |
+| `/propel:trace-shapes [entry point]` | Quick shape annotation through a code path |
 
 ### Skills (auto-triggered)
 
@@ -58,6 +60,6 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 ### Tips
 
 - Start any new task by just describing what you want — Gate 0 will fire automatically
-- Use `/primer` after every `/clear` to reload context
+- Use `/propel:primer` after every `/clear` to reload context
 - Investigations go in `scratch/` — these are gitignored working directories
 - Say "retrospective" periodically to capture what worked and what didn't

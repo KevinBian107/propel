@@ -24,7 +24,9 @@ This copies all skills, agents, commands, and hooks into `.claude/`, configures 
 claude
 ```
 
-Describe what you want to do. Propel will:
+Run `/propel:intro` to see everything Propel gives you — all commands, skills, and agents with their triggers.
+
+Then just describe what you want to do. Propel will:
 
 1. **Ask scoping questions** (Gate 0) — before investigating
 2. **Scaffold an investigation** — in `scratch/{date}-{name}/README.md`
@@ -36,6 +38,9 @@ Describe what you want to do. Propel will:
 ## Example First Session
 
 ```
+You: /propel:intro
+Claude: [explains Propel, lists all commands, skills, and agents]
+
 You: I want to implement residual vector quantization from this paper [link]
 
 Claude: [Gate 0 fires — asks scoping questions one at a time]
@@ -64,17 +69,20 @@ Claude: [Gate 3 — presents audit results]
 
 ## Key Slash Commands
 
+All Propel commands are namespaced under `/propel:`.
+
 | Command | Use When |
 |---------|----------|
-| `/read-paper [path]` | Extract implementation reference from a paper |
-| `/debug-training [symptom]` | Diagnose training issues |
-| `/trace-shapes [entry point]` | Quick shape annotation |
-| `/primer` | Load project context after /clear |
-| `/new-session [description]` | Start a tracked session |
+| `/propel:intro` | First time using Propel, or need a refresher |
+| `/propel:read-paper [path]` | Extract implementation reference from a paper |
+| `/propel:debug-training [symptom]` | Diagnose training issues |
+| `/propel:trace-shapes [entry point]` | Quick shape annotation |
+| `/propel:primer` | Load project context after /clear |
+| `/propel:new-session [description]` | Start a tracked session |
 
 ## What to Do After /clear
 
-1. Run `/primer` to reload project context
+1. Run `/propel:primer` to reload project context
 2. Read your investigation README: `scratch/{investigation}/README.md`
 3. Check the plan for where you left off: `scratch/{investigation}/plan.md`
 4. Continue from the "Next Steps" section

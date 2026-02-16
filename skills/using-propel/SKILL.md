@@ -73,7 +73,7 @@ Check these in order. Use the FIRST one that matches:
 ### 5. Infrastructure Skills
 | Trigger | Skill |
 |---------|-------|
-| "new session", "archive this session" | Session management (/new-session) |
+| "new session", "archive this session" | Session management (/propel:new-session) |
 | "create a worktree", "experiment branch" | **using-git-worktrees** |
 
 ## Auditor Auto-Dispatch

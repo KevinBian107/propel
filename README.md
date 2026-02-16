@@ -83,11 +83,12 @@ See [docs/quickstart.md](docs/quickstart.md) for a 5-minute setup guide.
 
 | Command | Purpose |
 |---------|---------|
-| [/read-paper](commands/read-paper.md) | Extract structured reference from a paper |
-| [/debug-training](commands/debug-training.md) | Diagnose training issues |
-| [/trace-shapes](commands/trace-shapes.md) | Quick shape annotation through a code path |
-| [/primer](commands/primer.md) | Load project context |
-| [/new-session](commands/new-session.md) | Create and track a session |
+| [/propel:intro](commands/propel/intro.md) | Introduction to Propel — lists all commands, skills, and agents |
+| [/propel:read-paper](commands/propel/read-paper.md) | Extract structured reference from a paper |
+| [/propel:debug-training](commands/propel/debug-training.md) | Diagnose training issues |
+| [/propel:trace-shapes](commands/propel/trace-shapes.md) | Quick shape annotation through a code path |
+| [/propel:primer](commands/propel/primer.md) | Load project context |
+| [/propel:new-session](commands/propel/new-session.md) | Create and track a session |
 
 ## Session Management
 
