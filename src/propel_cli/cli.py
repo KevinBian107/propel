@@ -177,7 +177,20 @@ def copytree_merge(src: Path, dst: Path) -> int:
 
 
 def merge_hooks_config(settings_path: Path, hooks_config: list[dict]) -> None:
-    """Create or merge hook entries into .claude/settings.local.json."""
+    """Create or merge hook entries into .claude/settings.local.json.
+
+    Generates the current Claude Code hooks format:
+    {
+      "hooks": {
+        "EventName": [
+          {
+            "matcher": "",
+            "hooks": [{"type": "command", "command": "..."}]
+          }
+        ]
+      }
+    }
+    """
     if settings_path.exists():
         try:
             settings = json.loads(settings_path.read_text())
@@ -190,17 +203,24 @@ def merge_hooks_config(settings_path: Path, hooks_config: list[dict]) -> None:
 
     for hook in hooks_config:
         event = hook["event"]
-        entry = {"command": hook["command"]}
-        if "description" in hook:
-            entry["description"] = hook["description"]
+        command = hook["command"]
+
+        # Build a matcher group in the new format
+        matcher_group = {
+            "matcher": "",
+            "hooks": [{"type": "command", "command": command}],
+        }
 
         if event not in existing_hooks:
             existing_hooks[event] = []
 
         # Skip if an identical command is already registered
-        commands = [h.get("command", "") for h in existing_hooks[event]]
-        if entry["command"] not in commands:
-            existing_hooks[event].append(entry)
+        existing_commands = []
+        for group in existing_hooks[event]:
+            for h in group.get("hooks", []):
+                existing_commands.append(h.get("command", ""))
+        if command not in existing_commands:
+            existing_hooks[event].append(matcher_group)
 
     settings["hooks"] = existing_hooks
     settings_path.write_text(json.dumps(settings, indent=2) + "\n")

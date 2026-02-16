@@ -3,22 +3,12 @@
     {
       "event": "SessionStart",
       "command": "bash hooks/session-start.sh",
-      "description": "Inject Propel context on session start"
+      "description": "Inject Propel context on session start and resume"
     },
     {
-      "event": "SessionResume",
+      "event": "PreCompact",
       "command": "bash hooks/session-start.sh",
-      "description": "Inject Propel context on session resume"
-    },
-    {
-      "event": "PostClear",
-      "command": "bash hooks/session-start.sh",
-      "description": "Re-inject Propel context after /clear"
-    },
-    {
-      "event": "PostCompact",
-      "command": "bash hooks/session-start.sh",
-      "description": "Re-inject Propel context after /compact"
+      "description": "Re-inject Propel context before compaction"
     }
   ]
 }
