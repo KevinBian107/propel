@@ -18,15 +18,23 @@ propel init
 
 This copies all skills, agents, commands, and hooks into `.claude/`, configures the session-start hook in `settings.local.json`, and adds `scratch/` and `sessions/` to `.gitignore`.
 
-## 3. Start Working
+## 3. Start Claude and Run `/propel:intro`
 
 ```bash
 claude
 ```
 
-Run `/propel:intro` to see everything Propel gives you — all commands, skills, and agents with their triggers.
+Then inside Claude, run:
 
-Then just describe what you want to do. Propel will:
+```
+/propel:intro
+```
+
+This does two things:
+1. **Introduces Propel** — shows all commands, skills, and agents with their triggers
+2. **Drafts your CLAUDE.md** — scans your codebase and generates a project-specific `.claude/CLAUDE.md` with code style, conventions, and structure already filled in. You fill in the research-specific sections (research question, hypothesis, method) — these are the constraints that make Claude's output specific to your work instead of a generic average.
+
+Once your CLAUDE.md is set up, describe what you want to do. Propel will:
 
 1. **Ask scoping questions** (Gate 0) — before investigating
 2. **Scaffold an investigation** — in `scratch/{date}-{name}/README.md`

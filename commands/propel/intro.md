@@ -1,6 +1,12 @@
-Introduce the user to Propel and explain what's available.
+Introduce the user to Propel and generate a project-specific CLAUDE.md.
 
-## What to tell the user
+This command does two things:
+1. Explain what Propel is and what commands/skills/agents are available
+2. Analyze the codebase and draft a CLAUDE.md tailored to this project
+
+---
+
+## Part 1: Tell the user what Propel is
 
 Propel is a research workflow framework for Claude Code. It adds structured skills, specialized auditor agents, and slash commands that enforce an investigation-first methodology with human-in-the-loop gates.
 
@@ -21,7 +27,7 @@ All Propel commands are namespaced under `/propel:`.
 
 | Command | What it does |
 |---------|-------------|
-| `/propel:intro` | This command — shows what Propel can do |
+| `/propel:intro` | This command — introduces Propel and drafts your CLAUDE.md |
 | `/propel:primer` | Load project context after /clear (reads CLAUDE.md, README, project structure) |
 | `/propel:new-session [description]` | Create a tracked session directory with UUID and index entry |
 | `/propel:read-paper [path]` | Extract structured implementation reference from a paper |
@@ -63,3 +69,92 @@ All Propel commands are namespaced under `/propel:`.
 - Use `/propel:primer` after every `/clear` to reload context
 - Investigations go in `scratch/` — these are gitignored working directories
 - Say "retrospective" periodically to capture what worked and what didn't
+
+---
+
+## Part 2: Analyze the codebase and draft CLAUDE.md
+
+After presenting the intro above, do the following:
+
+### Step 1: Scan the project
+
+Use subagents or direct tools to gather:
+- Run `tree` (depth 3) to understand project structure
+- Read `README.md` if it exists
+- Read any existing `CLAUDE.md` or `.claude/CLAUDE.md`
+- Read `pyproject.toml`, `setup.py`, `setup.cfg`, `Cargo.toml`, `package.json`, or equivalent to identify the language, framework, and dependencies
+- Skim 2-3 key source files to identify patterns (code style, imports, architecture)
+- Check for `tests/`, `docs/`, config files, CI configuration
+- Identify the domain (ML/JAX/PyTorch/robotics/web/etc.) from imports and structure
+
+### Step 2: Draft CLAUDE.md
+
+Generate a project-specific `.claude/CLAUDE.md` that fills in these sections with concrete, specific content derived from the scan. Follow this structure:
+
+```markdown
+# CLAUDE.md
+
+This project uses the [Propel](https://github.com/KevinBian107/propel) research workflow.
+Skills, agents, and commands are in `.claude/` (installed via `propel init`).
+
+## Project Overview
+
+[What this project does, key packages/modules, how it fits into a larger ecosystem if applicable]
+
+## Code Style Requirements
+
+[Formatting tools (ruff, black, prettier), docstring style (Google, NumPy), type hint conventions, import order, framework-specific conventions (e.g. "use jax.numpy over numpy in JIT code")]
+
+## Development Workflow
+
+[Branching strategy, commit conventions, PR process, CI expectations — infer from existing git history and config]
+
+## Testing Rules
+
+[Test framework, fixture conventions, where tests live, mocking policy — infer from existing tests/]
+
+## Research Context
+
+[LEAVE AS PLACEHOLDER — ask the user to fill this in]
+<!-- What is this project's research context? What problem does it solve? -->
+
+## Research Question
+
+[LEAVE AS PLACEHOLDER — ask the user to fill this in]
+<!-- What are you testing or building? Be specific. -->
+
+## Hypothesis
+
+[LEAVE AS PLACEHOLDER — ask the user to fill this in]
+<!-- What do you expect to happen and why? -->
+
+## Method
+
+[LEAVE AS PLACEHOLDER — ask the user to fill this in]
+<!-- Which paper(s), equations, algorithmic choices? -->
+
+## Domain-Specific Pitfalls
+
+[Fill in what you can infer from the codebase — e.g. if it's JAX, mention broadcasting, PRNG threading, vmap semantics. If PyTorch, mention in-place ops, gradient detach. Then ask the user to add their own.]
+
+## Project Conventions
+
+[Fill in from the scan — directory structure, naming patterns, config system, what NOT to change]
+
+## Known Constraints
+
+[Fill in what you can infer — Python version, key dependency versions, hardware requirements. Ask user to add more.]
+
+## What "Correct" Means Here
+
+[LEAVE AS PLACEHOLDER — ask the user to fill this in]
+<!-- How do you verify correctness beyond "tests pass"? -->
+```
+
+### Step 3: Present and confirm
+
+1. Show the user the drafted CLAUDE.md
+2. Clearly mark which sections you filled in vs. which are placeholders for them
+3. Tell the user: "The sections I've filled in are based on scanning your codebase. The placeholder sections — Research Question, Hypothesis, Method, and What 'Correct' Means — are where **your domain expertise** matters most. Claude produces the mean of its training data; these sections are what make the output specific to your work."
+4. Ask: "Should I write this to `.claude/CLAUDE.md`? And would you like to fill in any of the placeholder sections now?"
+5. If they confirm, write the file. If `.claude/CLAUDE.md` already has non-template content, show a diff and ask before overwriting.
