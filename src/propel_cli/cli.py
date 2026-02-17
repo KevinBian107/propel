@@ -383,7 +383,7 @@ def init():
         click.echo(f"  CLAUDE.md — already exists, skipped")
 
     # Update .gitignore
-    added = ensure_gitignore_entries(project_root, ["scratch/", "sessions/", ".propel/"])
+    added = ensure_gitignore_entries(project_root, ["scratch/", "sessions/", ".propel/", ".claude/", "propel/"])
     if added:
         click.echo(f"  .gitignore — added {', '.join(added)}")
     else:
