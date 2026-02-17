@@ -8,7 +8,7 @@ Propel can auto-detect your project's coding conventions, domain context, and de
 
 ### How it works
 
-Run `/propel:intro` and accept the Part 3 offer, or say "customize Propel" at any time. Propel will:
+Run `/intro` and accept the Part 3 offer, or say "customize Propel" at any time. Propel will:
 
 1. **Scan project structure** — language, framework, dependencies, directory layout, build tools
 2. **Analyze code style** — naming conventions, import patterns, formatting, type hints, docstrings (from 5-10 source files)

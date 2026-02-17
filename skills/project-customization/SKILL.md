@@ -3,7 +3,7 @@ name: project-customization
 description: >
   [Propel] Builds a persistent project profile in .propel/ by analyzing code conventions,
   domain context, and development patterns. Use when the user says "customize Propel",
-  "analyze my project", "detect conventions", "update profile", or during /propel:intro
+  "analyze my project", "detect conventions", "update profile", or during /intro
   Part 3 (opt-in). Creates config.json, profile.md, conventions.md, and domain-context.md
   that Claude references silently on every session start.
 ---
@@ -14,7 +14,7 @@ Build a persistent, machine-readable project profile that Claude references on e
 
 ## When This Skill Activates
 
-- During `/propel:intro` Part 3 (opt-in offer)
+- During `/intro` Part 3 (opt-in offer)
 - User says "customize Propel", "analyze my project", "detect conventions", "update profile"
 - User says "refresh profile", "re-analyze project", "update conventions"
 
@@ -292,4 +292,4 @@ If confirmed → update only the changed sections in profile.md and conventions.
 
 - **Session-start hook** reads `.propel/profile.md` and injects it as `project_profile` in the JSON context
 - **using-propel skill** routes customization triggers to this skill
-- **/propel:intro** offers this as Part 3 (optional)
+- **/intro** offers this as Part 3 (optional)

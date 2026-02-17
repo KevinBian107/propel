@@ -1,4 +1,4 @@
-Diagnose the training issue described in $ARGUMENTS.
+[Propel] Diagnose the training issue described in $ARGUMENTS.
 
 $ARGUMENTS should describe the symptom, e.g.:
 - "NaN loss after 500 steps"

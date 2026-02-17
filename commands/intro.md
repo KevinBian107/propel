@@ -1,8 +1,9 @@
-Introduce the user to Propel and generate a project-specific CLAUDE.md.
+[Propel] Introduce the user to Propel and generate a project-specific CLAUDE.md.
 
-This command does two things:
+This command does three things:
 1. Explain what Propel is and what commands/skills/agents are available
 2. Analyze the codebase and draft a CLAUDE.md tailored to this project
+3. Offer automatic project customization (optional)
 
 ---
 
@@ -23,16 +24,14 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 
 ### Slash commands
 
-All Propel commands are namespaced under `/propel:`.
-
 | Command | What it does |
 |---------|-------------|
-| `/propel:intro` | This command — introduces Propel and drafts your CLAUDE.md |
-| `/propel:primer` | Load project context after /clear (reads CLAUDE.md, README, project structure) |
-| `/propel:new-session [description]` | Create a tracked session directory with UUID and index entry |
-| `/propel:read-paper [path]` | Extract structured implementation reference from a paper |
-| `/propel:debug-training [symptom]` | Diagnose training issues (NaN, plateau, mode collapse) |
-| `/propel:trace-shapes [entry point]` | Quick shape annotation through a code path |
+| `/intro` | This command — introduces Propel and drafts your CLAUDE.md |
+| `/primer` | Load project context after /clear (reads CLAUDE.md, README, project structure) |
+| `/new-session [description]` | Create a tracked session directory with UUID and index entry |
+| `/read-paper [path]` | Extract structured implementation reference from a paper |
+| `/debug-training [symptom]` | Diagnose training issues (NaN, plateau, mode collapse) |
+| `/trace-shapes [entry point]` | Quick shape annotation through a code path |
 
 ### Skills (auto-triggered)
 
@@ -45,11 +44,13 @@ All Propel commands are namespaced under `/propel:`.
 | Planning | writing-plans | "write the plan", "break into tasks" |
 | Implementation | subagent-driven-research | Say "go" after approving a plan |
 | Validation | research-validation | "validate this", "test the implementation" |
+| Verification | verification-before-completion | Auto-checks before claiming "done" or "fixed" |
 | Debugging | systematic-debugging | Bug reports, training failures |
 | Learning | retrospective | "retrospective", "capture learnings" |
 | Thinking | think-deeply | Challenges assumptions when you make leading statements |
 | Context | context-hygiene | "getting long" or auto after ~15 turns |
 | Git | using-git-worktrees | "create worktree", "experiment branch" |
+| Customization | project-customization | "customize Propel", "analyze my project", "detect conventions" |
 
 ### Auditor agents (auto-dispatched after code changes)
 
@@ -67,7 +68,7 @@ All Propel commands are namespaced under `/propel:`.
 ### Tips
 
 - Start any new task by just describing what you want — Gate 0 will fire automatically
-- Use `/propel:primer` after every `/clear` to reload context
+- Use `/primer` after every `/clear` to reload context
 - Investigations go in `scratch/` — these are gitignored working directories
 - Say "retrospective" periodically to capture what worked and what didn't
 

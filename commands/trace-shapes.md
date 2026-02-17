@@ -1,4 +1,4 @@
-Trace tensor shapes through the code path specified in $ARGUMENTS.
+[Propel] Trace tensor shapes through the code path specified in $ARGUMENTS.
 
 $ARGUMENTS should be an entry point (function name, file path, or description like "training forward pass" or "env.step through policy").
 

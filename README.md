@@ -67,7 +67,7 @@ propel init
 
 `propel init` copies all skills, agents, commands, and hooks into your project's `.claude/` directory, configures the session-start hook in `settings.local.json`, and adds `scratch/`, `sessions/`, and `.propel/` to `.gitignore`.
 
-Then start Claude and run `/propel:intro`. This introduces the framework, scans your codebase to draft a project-specific `.claude/CLAUDE.md`, and optionally builds a persistent project profile in `.propel/` that Claude references on every session — detecting code conventions, domain context, and development patterns automatically.
+Then start Claude and run `/intro`. This introduces the framework, scans your codebase to draft a project-specific `.claude/CLAUDE.md`, and optionally builds a persistent project profile in `.propel/` that Claude references on every session — detecting code conventions, domain context, and development patterns automatically.
 
 ## Quick Start
 
@@ -110,12 +110,12 @@ See [docs/quickstart.md](docs/quickstart.md) for a 5-minute setup guide.
 
 | Command | Purpose |
 |---------|---------|
-| [/propel:intro](commands/propel/intro.md) | Introduction to Propel — lists all commands, skills, and agents |
-| [/propel:read-paper](commands/propel/read-paper.md) | Extract structured reference from a paper |
-| [/propel:debug-training](commands/propel/debug-training.md) | Diagnose training issues |
-| [/propel:trace-shapes](commands/propel/trace-shapes.md) | Quick shape annotation through a code path |
-| [/propel:primer](commands/propel/primer.md) | Load project context |
-| [/propel:new-session](commands/propel/new-session.md) | Create and track a session |
+| [/intro](commands/intro.md) | [Propel] Introduction — lists all commands, skills, and agents |
+| [/read-paper](commands/read-paper.md) | [Propel] Extract structured reference from a paper |
+| [/debug-training](commands/debug-training.md) | [Propel] Diagnose training issues |
+| [/trace-shapes](commands/trace-shapes.md) | [Propel] Quick shape annotation through a code path |
+| [/primer](commands/primer.md) | [Propel] Load project context |
+| [/new-session](commands/new-session.md) | [Propel] Create and track a session |
 
 ## Session Management
 

@@ -1,4 +1,4 @@
-Extract a structured implementation reference from the paper provided in $ARGUMENTS.
+[Propel] Extract a structured implementation reference from the paper provided in $ARGUMENTS.
 
 The paper may be provided as PNG screenshots, a PDF path, or a URL. If PNGs, read all of them in order.
 

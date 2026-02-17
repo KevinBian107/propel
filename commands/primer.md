@@ -1,4 +1,4 @@
-# Prime Context for Claude Code
+[Propel] Prime Context for Claude Code
 
 Use the command `tree` to get an understanding of the project structure.
 

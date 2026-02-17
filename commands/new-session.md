@@ -1,4 +1,4 @@
-Create a new session directory for this experiment and set up session tracking.
+[Propel] Create a new session directory for this experiment and set up session tracking.
 
 Description: $ARGUMENTS
 

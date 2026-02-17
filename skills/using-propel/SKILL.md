@@ -74,7 +74,7 @@ Check these in order. Use the FIRST one that matches:
 | Trigger | Skill |
 |---------|-------|
 | "customize Propel", "analyze my project", "detect conventions", "update profile" | **project-customization** |
-| "new session", "archive this session" | Session management (/propel:new-session) |
+| "new session", "archive this session" | Session management (/new-session) |
 | "create a worktree", "experiment branch" | **using-git-worktrees** |
 
 ## Auditor Auto-Dispatch
