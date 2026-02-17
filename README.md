@@ -65,9 +65,9 @@ cd /path/to/your/project
 propel init
 ```
 
-`propel init` copies all skills, agents, commands, and hooks into your project's `.claude/` directory, configures the session-start hook in `settings.local.json`, and adds `scratch/` and `sessions/` to `.gitignore`.
+`propel init` copies all skills, agents, commands, and hooks into your project's `.claude/` directory, configures the session-start hook in `settings.local.json`, and adds `scratch/`, `sessions/`, and `.propel/` to `.gitignore`.
 
-Then start Claude and run `/propel:intro`. This introduces the framework and scans your codebase to draft a project-specific `.claude/CLAUDE.md` — filling in code style, conventions, and structure automatically, while leaving placeholders for the research-specific sections that only you can provide.
+Then start Claude and run `/propel:intro`. This introduces the framework, scans your codebase to draft a project-specific `.claude/CLAUDE.md`, and optionally builds a persistent project profile in `.propel/` that Claude references on every session — detecting code conventions, domain context, and development patterns automatically.
 
 ## Quick Start
 
@@ -91,6 +91,7 @@ See [docs/quickstart.md](docs/quickstart.md) for a 5-minute setup guide.
 | **Cross-cutting** | [think-deeply](skills/think-deeply/SKILL.md) | Confirmation-seeking statements, leading questions |
 | | [context-hygiene](skills/context-hygiene/SKILL.md) | >15 turns, "getting long" |
 | | [using-git-worktrees](skills/using-git-worktrees/SKILL.md) | "create worktree", "experiment branch" |
+| **Customization** | [project-customization](skills/project-customization/SKILL.md) | "customize Propel", "analyze my project", "detect conventions" |
 
 ## Agents (Auditors)
 
@@ -140,13 +141,23 @@ Sessions are stored in `sessions/` with chat history, prompt templates, and syml
 
 ## Acknowledgments
 
-Propel combines ideas from three sources:
+Propel combines ideas from multiple sources:
 
 - **[obra/superpowers](https://github.com/obra/superpowers)** — Plugin architecture, discipline enforcement, verification gates, micro-task planning. Propel's plugin structure, hook system, and "check skills before acting" pattern come directly from Superpowers.
 
 - **[code-manual](https://github.com/KevinBian107/code-manual)** — Research methodology, investigation skills, domain-specific agents, paper-alignment auditing, retrospective system. The investigation-first workflow, all auditor agents, and the literature skills originate from code-manual.
 
 - **[scott-yj-yang/new-prompt](https://github.com/scott-yj-yang/new-prompt)** — Session management CLI. The `propel session` tool is adapted from new-prompt with auto-detection of project root, investigation artifact linking, and session indexing.
+
+- **[Talmo's sleap-io](https://github.com/talmolab/sleap-io/blob/main/.claude/skills/investigation/SKILL.md?plain=1)** — Investigation skill template. The structured scratch/ investigation pattern with living READMEs originates from Talmo's sleap-io project.
+
+- **[Sionic AI's experiment registry](https://huggingface.co/blog/sionic-ai/claude-code-skills-training)** — Retrospective skill and `/advise` + `/retrospective` workflow for capturing experiment learnings into a reusable registry.
+
+- **[brunoasm's claude skills](https://github.com/brunoasm/my_claude_skills)** — Think-deeply anti-sycophancy skill and PDF extraction skill.
+
+- **[Weizhena's Deep-Research workflow](https://github.com/Weizhena/Deep-Research-skills)** — Structured literature review with human-in-the-loop checkpoints.
+
+- **[Context Engineering Template](https://github.com/coleam00/context-engineering-intro/blob/main/claude-code-full-guide/README.md)** — Basic Claude Code usage patterns and context engineering principles.
 
 ## License
 

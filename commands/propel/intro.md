@@ -152,6 +152,32 @@ Skills, agents, and commands are in `.claude/` (installed via `propel init`).
 <!-- How do you verify correctness beyond "tests pass"? -->
 ```
 
+---
+
+## Part 3: Project Customization (Optional)
+
+After drafting CLAUDE.md, offer automatic project profiling:
+
+### Present the offer
+
+Tell the user:
+
+> **Optional: Automatic Project Profiling**
+>
+> Propel can analyze your codebase to build a persistent project profile — detecting code conventions, domain context, commit patterns, and development workflows. This takes ~2-3 minutes and creates a `.propel/` directory (gitignored) that Claude references silently on every session start.
+>
+> The profile means you don't have to re-explain your conventions each session. It captures things like: "this project uses snake_case, Google docstrings, pytest fixtures in conftest.py, and conventional commits."
+>
+> **Would you like to run the analysis now?**
+
+### Handle response
+
+- **Yes** → Activate the **project-customization** skill. It will run 6 analysis phases and present findings for confirmation before writing anything.
+- **No** → Tell the user: "You can run this anytime by saying 'customize Propel' or 'analyze my project'."
+- **`.propel/` already exists and is recent** (check `.propel/config.json` timestamp, <7 days old) → Offer: "You have an existing project profile from [date]. Would you like to (A) run a delta check for changes, or (B) do a full re-analysis?"
+
+---
+
 ### Step 3: Present and confirm
 
 1. Show the user the drafted CLAUDE.md

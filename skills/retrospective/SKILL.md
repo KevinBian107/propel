@@ -1,7 +1,7 @@
 ---
 name: retrospective
 description: >
-  Captures experiment learnings into a reusable skill registry after a session.
+  [Propel] Captures experiment learnings into a reusable skill registry after a session.
   Use when the user says "retrospective", "capture what we learned", "save this for next time",
   "what did we learn", "log this experiment", or at the end of a training/debugging session.
   Extracts what worked, what failed, hyperparameters, and creates a registry entry.

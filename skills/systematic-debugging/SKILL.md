@@ -1,7 +1,7 @@
 ---
 name: systematic-debugging
 description: >
-  Root-cause-first debugging with a 3-strike limit and ML-specific diagnostics.
+  [Propel] Root-cause-first debugging with a 3-strike limit and ML-specific diagnostics.
   Use when the user reports a bug, training failure, unexpected behavior, or when
   /debug-training identifies an issue that needs deeper investigation. Combines
   Superpowers' root-cause-first discipline with research-specific diagnostic patterns

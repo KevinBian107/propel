@@ -1,7 +1,7 @@
 ---
 name: context-hygiene
 description: >
-  Enforces /clear discipline and context management for long research sessions.
+  [Propel] Enforces /clear discipline and context management for long research sessions.
   Auto-activates when the conversation exceeds ~15 substantive turns, or when the
   user says "getting long", "context is large", "should I clear". Prevents context
   degradation by ensuring living READMEs are updated, retrospectives are captured,

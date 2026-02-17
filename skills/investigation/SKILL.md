@@ -1,7 +1,7 @@
 ---
 name: investigation
 description: >
-  Scaffolds a structured investigation in scratch/ for empirical research and documentation.
+  [Propel] Scaffolds a structured investigation in scratch/ for empirical research and documentation.
   Use when the user says "start an investigation" or wants to: trace code paths or data flow
   ("trace from X to Y", "what touches X", "follow the wiring"), document system architecture
   comprehensively ("document how the system works", "archeology"), investigate bugs

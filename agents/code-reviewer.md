@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: "General code quality reviewer with research-awareness. Reviews code for correctness, readability, maintainability, and performance — with additional awareness of paper-to-code alignment and JAX/ML-specific patterns. Call this agent as part of the subagent-driven-research pipeline after implementation, or explicitly when you want a code review. Provide it with the files to review and a description of what they implement."
+description: "[Propel] General code quality reviewer with research-awareness. Reviews code for correctness, readability, maintainability, and performance — with additional awareness of paper-to-code alignment and JAX/ML-specific patterns. Call this agent as part of the subagent-driven-research pipeline after implementation, or explicitly when you want a code review. Provide it with the files to review and a description of what they implement."
 tools: Read, Grep, Glob
 ---
 

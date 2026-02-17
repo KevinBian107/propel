@@ -1,6 +1,6 @@
 ---
 name: jax-logic-auditor
-description: "JAX data flow and logic specialist. Proactively audits JAX code for correctness in scan, vmap, pmap, jit, and parallel environment logic. Call this agent when implementing or modifying JAX-based components — provide it with the relevant source files and describe what changed. It traces data flow through JAX transformations, catches axis/dimension mismatches, and identifies where new code may break existing JAX constraints."
+description: "[Propel] JAX data flow and logic specialist. Proactively audits JAX code for correctness in scan, vmap, pmap, jit, and parallel environment logic. Call this agent when implementing or modifying JAX-based components — provide it with the relevant source files and describe what changed. It traces data flow through JAX transformations, catches axis/dimension mismatches, and identifies where new code may break existing JAX constraints."
 tools: Read, Grep, Glob
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: using-propel
 description: >
-  Meta-skill that activates before any action to check for applicable Propel skills.
+  [Propel] Meta-skill that activates before any action to check for applicable Propel skills.
   This is the entry point for the Propel research workflow. It ensures the correct skill
   is activated for every user request — investigation before implementation, gates before
   phase transitions, auditors after code changes. Always check this skill first.
@@ -73,6 +73,7 @@ Check these in order. Use the FIRST one that matches:
 ### 5. Infrastructure Skills
 | Trigger | Skill |
 |---------|-------|
+| "customize Propel", "analyze my project", "detect conventions", "update profile" | **project-customization** |
 | "new session", "archive this session" | Session management (/propel:new-session) |
 | "create a worktree", "experiment branch" | **using-git-worktrees** |
 

@@ -1,7 +1,7 @@
 ---
 name: verification-before-completion
 description: >
-  Ensures no completion claims are made without fresh verification evidence.
+  [Propel] Ensures no completion claims are made without fresh verification evidence.
   Activates when Claude is about to claim something is "done", "working", "fixed",
   "complete", or "ready". Requires that the claim be backed by concrete, recent evidence —
   not assumptions, cached results, or "it should work because I implemented it correctly."

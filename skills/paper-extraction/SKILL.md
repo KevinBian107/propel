@@ -1,7 +1,7 @@
 ---
 name: paper-extraction
 description: >
-  Batch-processes multiple papers to build a structured literature database.
+  [Propel] Batch-processes multiple papers to build a structured literature database.
   Use when the user says "process these papers", "build a paper database",
   "extract from these PDFs", "organize these references", or provides multiple
   papers to catalog. Creates structured entries with BibTeX metadata for each paper.

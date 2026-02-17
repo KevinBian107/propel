@@ -1,7 +1,7 @@
 ---
 name: research-design
 description: >
-  Proposes an implementation approach based on investigation findings and paper references.
+  [Propel] Proposes an implementation approach based on investigation findings and paper references.
   Use when the user says "propose how to", "design the implementation", "plan the architecture",
   "how should we implement". REQUIRES a completed investigation (Gate 1 passed) — refuses to
   proceed without one. Reads investigation README + paper notes, proposes paper-equation-to-code

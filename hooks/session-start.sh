@@ -43,6 +43,27 @@ print(json.dumps(paths))
       echo '[]'
     fi
   ),
+  "project_profile": $(
+    PROFILE_FILE=".propel/profile.md"
+    if [ -f "$PROFILE_FILE" ]; then
+      CONFIG_FILE=".propel/config.json"
+      ENABLED=true
+      if [ -f "$CONFIG_FILE" ]; then
+        ENABLED=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE')).get('enabled', True))" 2>/dev/null || echo "true")
+      fi
+      if [ "$ENABLED" = "True" ] || [ "$ENABLED" = "true" ]; then
+        python3 -c '
+import sys, json
+content = open("'"$PROFILE_FILE"'").read()
+print(json.dumps(content))
+'
+      else
+        echo 'null'
+      fi
+    else
+      echo 'null'
+    fi
+  ),
   "registry_entries": $(
     if [ -d "scratch/registry" ]; then
       find scratch/registry -maxdepth 1 -mindepth 1 -type d 2>/dev/null \

@@ -1,7 +1,7 @@
 ---
 name: research-validation
 description: >
-  Validates research code implementations through four domain-specific gates: shape, gradient,
+  [Propel] Validates research code implementations through four domain-specific gates: shape, gradient,
   overfit, and regression. Use when the user says "validate this", "test the implementation",
   "check if this works", or auto-triggers after implementation tasks complete. Does NOT enforce
   test-first (research code often can't be TDD'd meaningfully). Instead enforces validation

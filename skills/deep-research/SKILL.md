@@ -1,7 +1,7 @@
 ---
 name: deep-research
 description: >
-  Conducts a structured literature review or technical survey with human checkpoints.
+  [Propel] Conducts a structured literature review or technical survey with human checkpoints.
   Use when the user says "survey", "literature review", "what's the state of",
   "what approaches exist for", "compare methods for", "find papers on",
   "what has been tried for", or wants to understand the landscape of a technique

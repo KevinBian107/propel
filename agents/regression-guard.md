@@ -1,6 +1,6 @@
 ---
 name: regression-guard
-description: "Backward compatibility and regression specialist. Proactively audits new code changes to ensure they don't break existing pipelines, alter established behavior, or change outputs of untouched code paths. Call this agent before merging any feature branch — provide it with the diff or list of changed files and a description of what the change is supposed to do. It traces every touchpoint between new and existing code to find unintended side effects."
+description: "[Propel] Backward compatibility and regression specialist. Proactively audits new code changes to ensure they don't break existing pipelines, alter established behavior, or change outputs of untouched code paths. Call this agent before merging any feature branch — provide it with the diff or list of changed files and a description of what the change is supposed to do. It traces every touchpoint between new and existing code to find unintended side effects."
 tools: Read, Grep, Glob, Bash
 ---
 

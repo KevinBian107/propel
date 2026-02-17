@@ -1,6 +1,6 @@
 ---
 name: env-researcher
-description: "Simulation environment specialist. Identifies and deeply researches the simulation environment(s) used in a project — MuJoCo/MJX, robosuite, Meta-World, Isaac Gym/Sim, dm_control, Gymnasium, Brax, or custom environments. Fetches and reads official documentation, API references, and known gotchas so that later implementation work is grounded in how the environment actually works, not how Claude guesses it works. Call this agent at the start of an investigation when the project involves a simulation environment, or when the user asks about environment behavior, observation/action spaces, physics parameters, or sim-to-real considerations."
+description: "[Propel] Simulation environment specialist. Identifies and deeply researches the simulation environment(s) used in a project — MuJoCo/MJX, robosuite, Meta-World, Isaac Gym/Sim, dm_control, Gymnasium, Brax, or custom environments. Fetches and reads official documentation, API references, and known gotchas so that later implementation work is grounded in how the environment actually works, not how Claude guesses it works. Call this agent at the start of an investigation when the project involves a simulation environment, or when the user asks about environment behavior, observation/action spaces, physics parameters, or sim-to-real considerations."
 tools: Read, Grep, Glob, WebSearch, WebFetch, Task
 ---
 

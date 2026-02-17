@@ -1,7 +1,7 @@
 ---
 name: writing-plans
 description: >
-  Breaks a design proposal into micro-tasks with exact file paths, verification steps, and
+  [Propel] Breaks a design proposal into micro-tasks with exact file paths, verification steps, and
   auditor assignments. Use after research-design has produced an approved design (Gate 2 passed).
   Each task is 2-5 minutes of work with clear verification criteria. Tasks specify which
   auditors run after completion. Output saved to investigation scratch directory.

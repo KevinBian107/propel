@@ -1,7 +1,7 @@
 ---
 name: think-deeply
 description: >
-  Activates critical thinking mode to prevent sycophantic agreement.
+  [Propel] Activates critical thinking mode to prevent sycophantic agreement.
   Use when the user makes confirmation-seeking statements ("this should work, right?",
   "I think X is the issue"), leading questions ("isn't it better to..."), binary framings
   ("should we do A or B?"), or expresses strong opinions about a technical approach.

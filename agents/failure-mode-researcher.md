@@ -1,6 +1,6 @@
 ---
 name: failure-mode-researcher
-description: "Failure mode research specialist. Proactively investigates training failures, unexpected model behavior, and performance issues by searching the internet for similar problems across domains (ML, robotics, RL, control theory, signal processing, etc.) and synthesizing actionable solutions. Call this agent when you encounter a failure mode you can't explain — provide the symptom, what you've tried, and any relevant logs or metrics. This agent can delegate to other subagents (Silent Bug Detector, JAX Logic Auditor, Data Flow Tracer, etc.) if the investigation reveals the need for a deeper code-level audit."
+description: "[Propel] Failure mode research specialist. Proactively investigates training failures, unexpected model behavior, and performance issues by searching the internet for similar problems across domains (ML, robotics, RL, control theory, signal processing, etc.) and synthesizing actionable solutions. Call this agent when you encounter a failure mode you can't explain — provide the symptom, what you've tried, and any relevant logs or metrics. This agent can delegate to other subagents (Silent Bug Detector, JAX Logic Auditor, Data Flow Tracer, etc.) if the investigation reveals the need for a deeper code-level audit."
 tools: Read, Grep, Glob, WebSearch, WebFetch, Task
 ---
 

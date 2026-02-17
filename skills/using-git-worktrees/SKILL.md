@@ -1,7 +1,7 @@
 ---
 name: using-git-worktrees
 description: >
-  Guides the use of git worktrees for experiment branch isolation.
+  [Propel] Guides the use of git worktrees for experiment branch isolation.
   Use when the user says "create a worktree", "experiment branch", "isolate this experiment",
   "work on a separate branch", or when starting a new implementation that could break
   existing functionality. Ensures worktrees are properly set up with dependencies installed

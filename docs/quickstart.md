@@ -30,9 +30,10 @@ Then inside Claude, run:
 /propel:intro
 ```
 
-This does two things:
+This does three things:
 1. **Introduces Propel** — shows all commands, skills, and agents with their triggers
 2. **Drafts your CLAUDE.md** — scans your codebase and generates a project-specific `.claude/CLAUDE.md` with code style, conventions, and structure already filled in. You fill in the research-specific sections (research question, hypothesis, method) — these are the constraints that make Claude's output specific to your work instead of a generic average.
+3. **Offers project customization** (optional) — analyzes your codebase to build a persistent profile in `.propel/` that captures naming conventions, domain context, commit patterns, and more. Claude references this silently on every session start, so you don't have to re-explain your conventions. Takes ~2-3 minutes; you can also run it anytime by saying "customize Propel".
 
 Once your CLAUDE.md is set up, describe what you want to do. Propel will:
 

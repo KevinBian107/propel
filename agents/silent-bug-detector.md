@@ -1,6 +1,6 @@
 ---
 name: silent-bug-detector
-description: "Silent bug detection specialist. Proactively scans code for bugs that won't crash but will produce wrong results — the model trains, loss decreases, but the output is subtly incorrect. Call this agent after implementing or modifying model components, loss functions, data pipelines, or training loops. Provide it with the relevant source files. It checks for broadcasting bugs, wrong reduction axes, data leakage, stale statistics, off-by-one errors, and dozens of other patterns that cause silent failures in AI/robotics code."
+description: "[Propel] Silent bug detection specialist. Proactively scans code for bugs that won't crash but will produce wrong results — the model trains, loss decreases, but the output is subtly incorrect. Call this agent after implementing or modifying model components, loss functions, data pipelines, or training loops. Provide it with the relevant source files. It checks for broadcasting bugs, wrong reduction axes, data leakage, stale statistics, off-by-one errors, and dozens of other patterns that cause silent failures in AI/robotics code."
 tools: Read, Grep, Glob
 ---
 

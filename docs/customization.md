@@ -2,6 +2,40 @@
 
 How to add project-specific agents, skills, and commands to Propel.
 
+## Automatic Project Profiling
+
+Propel can auto-detect your project's coding conventions, domain context, and development patterns, creating a persistent profile that Claude references on every session start.
+
+### How it works
+
+Run `/propel:intro` and accept the Part 3 offer, or say "customize Propel" at any time. Propel will:
+
+1. **Scan project structure** — language, framework, dependencies, directory layout, build tools
+2. **Analyze code style** — naming conventions, import patterns, formatting, type hints, docstrings (from 5-10 source files)
+3. **Detect domain** — classify from imports; optionally delegate to env-researcher or deep-research agents for detailed context
+4. **Analyze git history** — commit style, branch naming, active areas, team size
+5. **Read existing conventions** — CLAUDE.md, CONTRIBUTING.md, CI configs, linter configs, editor configs
+6. **Present profile for confirmation** — you review and approve before anything is written
+
+### Output files (in `.propel/`, gitignored)
+
+| File | Purpose |
+|------|---------|
+| `config.json` | Enabled/disabled flag, timestamps, analysis hash, detected domain/framework |
+| `profile.md` | Main reference (~100 lines) — project identity, style, patterns, active areas |
+| `conventions.md` | Detailed naming, import, formatting, type hint, and testing conventions with examples |
+| `domain-context.md` | Domain-specific context from agent delegation (only if applicable) |
+
+### Keeping it current
+
+On subsequent runs, Propel hashes key project files and compares against the stored hash. If nothing changed, it confirms the profile is current. If files changed, it re-analyzes only the affected categories and shows you a diff before updating.
+
+### Toggle or remove
+
+- **Disable**: Set `"enabled": false` in `.propel/config.json`
+- **Remove**: Delete the `.propel/` directory entirely
+- **Re-enable**: Say "customize Propel" to run a fresh analysis
+
 ## Adding Project-Specific Agents
 
 Propel's agents are defaults. You can add project-specific agents in your own `.claude/agents/` directory — they take precedence over Propel's.

@@ -1,7 +1,7 @@
 ---
 name: subagent-driven-research
 description: >
-  Orchestrates the implementation of approved plans using subagents for implementation,
+  [Propel] Orchestrates the implementation of approved plans using subagents for implementation,
   spec review, paper alignment review, and domain auditing. Use when the user has approved
   a plan (Gate 2 passed) and says "go", "implement this", "start building", or when the
   writing-plans skill has produced a task list. Executes one component at a time with

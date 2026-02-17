@@ -1,6 +1,6 @@
 ---
 name: paper-alignment-auditor
-description: "Paper-to-implementation alignment specialist. Proactively audits code implementations against their source paper's equations, algorithms, and architecture descriptions. Call this agent after implementing components from a paper — provide it with the paper (as PNGs for figures) and the relevant source files. It produces a discrepancy report: what matches, what diverges, and what's ambiguous."
+description: "[Propel] Paper-to-implementation alignment specialist. Proactively audits code implementations against their source paper's equations, algorithms, and architecture descriptions. Call this agent after implementing components from a paper — provide it with the paper (as PNGs for figures) and the relevant source files. It produces a discrepancy report: what matches, what diverges, and what's ambiguous."
 tools: Read, Grep, Glob
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: data-flow-tracer
-description: "Data flow tracing specialist. Proactively traces how data moves from input to output through any codebase — framework agnostic (PyTorch, NumPy, TensorFlow, pure Python, C++, etc.). Call this agent when you need to understand or verify how data transforms through a pipeline, model, or system. Provide the entry point and the relevant source files. It builds a complete annotated map of every transformation from raw input to final output."
+description: "[Propel] Data flow tracing specialist. Proactively traces how data moves from input to output through any codebase — framework agnostic (PyTorch, NumPy, TensorFlow, pure Python, C++, etc.). Call this agent when you need to understand or verify how data transforms through a pipeline, model, or system. Provide the entry point and the relevant source files. It builds a complete annotated map of every transformation from raw input to final output."
 tools: Read, Grep, Glob
 ---
 
