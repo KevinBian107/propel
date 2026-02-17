@@ -59,6 +59,7 @@ All Propel commands are namespaced under `/propel:`.
 | jax-logic-auditor | After JAX code changes |
 | silent-bug-detector | After model/loss/data changes |
 | regression-guard | After any code change |
+| env-researcher | During investigation of environment-dependent code |
 | data-flow-tracer | Explicit invocation only |
 | failure-mode-researcher | Explicit invocation only |
 | code-reviewer | During review stage |

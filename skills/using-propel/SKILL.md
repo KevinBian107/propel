@@ -86,6 +86,7 @@ After implementing or modifying code, these auditors run automatically:
 | JAX code (scan, vmap, pmap, jit) | jax-logic-auditor |
 | Model/loss/data code | silent-bug-detector |
 | Any code change | regression-guard |
+| Environment interaction code (obs/action spaces, wrappers, reset, step) | env-researcher |
 | Deep trace needed (explicit only) | data-flow-tracer |
 
 ## Key Principles

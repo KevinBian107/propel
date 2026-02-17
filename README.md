@@ -101,6 +101,7 @@ See [docs/quickstart.md](docs/quickstart.md) for a 5-minute setup guide.
 | [silent-bug-detector](agents/silent-bug-detector.md) | Scan for 11 silent failure categories | Yes — after model/loss/data changes |
 | [data-flow-tracer](agents/data-flow-tracer.md) | End-to-end tensor annotation | No — explicit invocation |
 | [regression-guard](agents/regression-guard.md) | Verify existing configs unchanged | Yes — after any code change |
+| [env-researcher](agents/env-researcher.md) | Deep-dive simulation env docs (MuJoCo, robosuite, Isaac, etc.) | Yes — during investigation of env-dependent code |
 | [failure-mode-researcher](agents/failure-mode-researcher.md) | Internet search for training failures | No — explicit invocation |
 | [code-reviewer](agents/code-reviewer.md) | General code quality with research awareness | No — invoked during review stage |
 
