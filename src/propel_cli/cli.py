@@ -284,6 +284,39 @@ def ensure_gitignore_entries(project_root: Path, entries: list[str]) -> list[str
     return added
 
 
+def _cleanup_stale_files(claude_dir: Path, propel_root: Path) -> None:
+    """Remove files from previous installs that no longer exist in propel source.
+
+    For each Propel-managed directory, any file in the installed .claude/ copy
+    that doesn't have a corresponding file in the current propel source gets
+    removed. This handles renames (e.g. commands moved into a subdirectory).
+    """
+    dirs_to_check = ["skills", "agents", "commands", "hooks"]
+    removed = 0
+
+    for dirname in dirs_to_check:
+        src = propel_root / dirname
+        dst = claude_dir / dirname
+        if not dst.is_dir() or not src.is_dir():
+            continue
+
+        for installed_file in list(dst.rglob("*")):
+            if not installed_file.is_file():
+                continue
+            rel = installed_file.relative_to(dst)
+            if not (src / rel).exists():
+                installed_file.unlink()
+                removed += 1
+
+        # Remove empty directories left behind
+        for d in sorted(dst.rglob("*"), reverse=True):
+            if d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+
+    if removed:
+        click.echo(f"  Cleaned up {removed} stale file(s) from previous install\n")
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -309,6 +342,9 @@ def init():
 
     click.echo(f"Initializing Propel in {project_root}")
     click.echo(f"Using Propel data from {propel_root}\n")
+
+    # Clean up stale files from previous installs before copying
+    _cleanup_stale_files(claude_dir, propel_root)
 
     # Copy skills, agents, commands, hooks
     dirs_to_copy = ["skills", "agents", "commands", "hooks"]
@@ -336,6 +372,15 @@ def init():
         settings_path = claude_dir / "settings.local.json"
         merge_hooks_config(settings_path, hooks_config)
         click.echo(f"\n  settings.local.json — hooks configured")
+
+    # Create CLAUDE.md template if one doesn't exist
+    claude_md = claude_dir / "CLAUDE.md"
+    template = propel_root / "templates" / "CLAUDE.md"
+    if not claude_md.exists() and template.exists():
+        shutil.copy2(template, claude_md)
+        click.echo(f"  CLAUDE.md — template created (fill in your research context!)")
+    elif claude_md.exists():
+        click.echo(f"  CLAUDE.md — already exists, skipped")
 
     # Update .gitignore
     added = ensure_gitignore_entries(project_root, ["scratch/", "sessions/"])

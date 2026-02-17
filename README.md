@@ -1,18 +1,43 @@
 # Propel
 
-An agentic research skills framework for JAX/robotics/embodied AI development. Propel is a Claude Code plugin that enforces a structured research-to-implementation workflow for scientific computing.
+A structured constraint framework for Claude Code in research workflows.
 
-## What Propel Does
+## Why Constraints Matter
 
-Propel takes the insight that Claude needs **process discipline, not just prompts** and rebuilds it for research workflows where:
+An unconstrained LLM produces the mean of its training data. Ask Claude to "implement RVQ" and you'll get a plausible-looking average of every RVQ implementation it's seen — not the one that matches your paper, your architecture, your constraints. The output compiles, but it's noisy: wrong assumptions baked in, silent numerical bugs, design decisions made without asking.
 
-- **Understanding precedes design** — you read papers before you code
-- **Verification is domain-specific** — "does this match equation 3?" matters more than "do the tests pass?"
-- **Failure is silent** — the model trains, loss decreases, but the output is subtly wrong
+**The fix isn't better prompts — it's structured constraints.**
 
-The framework enforces five human-in-the-loop gates at every phase transition, dispatches specialized auditors after every code change, and maintains living documentation across `/clear` boundaries.
+This is the core insight behind [obra/superpowers](https://github.com/obra/superpowers): when you constrain an LLM with domain-specific rules, verification gates, and forced checkpoints, the output goes from "plausible average" to "precisely what you need." Propel applies this to research workflows where the cost of undetected noise is highest.
 
-## The Five Gates
+## What Only You Can Provide
+
+Propel's constraints are necessary but not sufficient. The framework forces Claude to stop and ask, but **the quality of the output depends entirely on what you bring to those checkpoints**:
+
+- **Your research question** — what are you actually testing? Not "implement X" but "test whether X improves Y under condition Z"
+- **Your hypothesis** — what do you expect to happen and why? This is what auditors verify against
+- **Your method** — which paper, which equations, which specific algorithmic choices? Claude can't infer these from context
+- **Your domain tricks** — the things that only work in your specific setup, the pitfalls that aren't in any paper, the configurations that look correct but silently fail
+
+Claude is a powerful executor. But it doesn't know what you know. Every Propel gate is designed to extract your specific insight before Claude acts on it — Gate 0 asks your research intent, Gate 1 validates its understanding against yours, Gate 2 confirms the plan matches your method. Skip these and you're back to the noisy mean.
+
+### Encoding Your Domain Knowledge
+
+Propel gives you three places to embed the expertise that makes the difference:
+
+| Where | What to Put There | Why It Matters |
+|-------|-------------------|----------------|
+| **Project CLAUDE.md** | Research context, conventions, known pitfalls, what "correct" means for your project | Read on every session — sets the baseline constraints |
+| **Custom agents** | Domain-specific auditors that check what matters in *your* field (see [customization](docs/customization.md)) | Automated verification tuned to your failure modes |
+| **Gate 0 answers** | Your actual research question, hypothesis, success criteria, scope boundaries | The single biggest lever — this is where the mean becomes specific |
+
+The more specific your constraints, the less noise in the output. A generic "implement the loss function" gets you the average loss function. "Implement equation 7 from [paper], using stop-gradient on the codebook as in section 3.2, with straight-through estimator for the backward pass" gets you what you actually need.
+
+## How Propel Constrains
+
+Propel enforces five human-in-the-loop gates, dispatches domain-specific auditors after every code change, and maintains living documentation across `/clear` boundaries.
+
+### The Five Gates
 
 ```
  GATE 0          GATE 1            GATE 2           GATE 3          GATE 4
