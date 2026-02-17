@@ -8,6 +8,77 @@ This guide walks through the complete Propel research workflow with all five gat
 User idea → Gate 0 → Investigation → Gate 1 → Design → Gate 2 → Implementation → Gate 3 (loop) → Debug → Gate 4 → Retrospective
 ```
 
+## How Propel Ensures Claude Follows the Workflow
+
+An unconstrained Claude will skip straight to implementation when you say "implement X." Propel prevents this through a layered injection system — here's exactly how it works.
+
+### The mechanism
+
+```
+propel init
+  ↓
+Copies skills/, agents/, commands/, hooks/ into .claude/
+Merges hook config into .claude/settings.local.json
+  ↓
+User starts `claude`
+  ↓
+SessionStart hook fires → runs session-start.sh
+  ↓
+Injects full using-propel/SKILL.md content as JSON into Claude's context
+(Also injects: active investigations, project profile, registry entries)
+  ↓
+Claude's context now contains:
+  1. The gate protocol (5 mandatory gates)
+  2. The skill routing table (which skill for which trigger)
+  3. The auditor dispatch rules (which agent after which code change)
+  4. Active investigation state (scratch/ READMEs)
+  5. Project profile (.propel/profile.md, if it exists)
+```
+
+### What each layer does
+
+| Layer | What it provides | How it gets into context |
+|-------|-----------------|------------------------|
+| **SessionStart hook** | Injects using-propel skill + investigation state on every session start, resume, and compaction | `.claude/settings.local.json` → hooks config |
+| **PreCompact hook** | Re-injects context before Claude compresses old messages, so the instructions survive compaction | Same hook, different trigger |
+| **Skill descriptions** | Claude Code loads all `.claude/skills/*/SKILL.md` descriptions into the system prompt — Claude matches triggers against what the user says | Built-in Claude Code feature |
+| **Agent descriptions** | Claude Code loads all `.claude/agents/*.md` descriptions — Claude dispatches agents based on description match | Built-in Claude Code feature |
+| **CLAUDE.md** | Project-level instructions read on every session | Built-in Claude Code feature |
+| **Project profile** | `.propel/profile.md` injected by hook — conventions Claude should follow silently | SessionStart hook reads it |
+
+### Why this works (and what it can't guarantee)
+
+**This is prompt-based, not mechanically enforced.** There is no code-level gate that blocks Claude from skipping Gate 0. Claude follows the workflow because:
+
+1. The hook injects the full routing table into context before Claude sees your first message
+2. The using-propel skill description says "activates before any action" — Claude Code's skill matching prioritizes this
+3. The instructions are specific and structured (routing tables, not vague guidelines)
+4. The PreCompact hook re-injects on compaction, so instructions survive long sessions
+
+**In practice, this is reliable.** Claude Code's skill system is designed for exactly this pattern — skills with trigger descriptions that Claude matches against user input. The hook injection adds a second layer of certainty by putting the full instructions directly in context.
+
+**When it might slip:**
+- Very long sessions where context is heavily compressed (the PreCompact hook mitigates this)
+- If the user explicitly says "skip the gates, just do it" (Claude will usually comply)
+- Ambiguous requests that don't clearly match any routing table trigger
+
+**If Claude skips a gate**, you can say: "You skipped Gate 0 — go back and ask scoping questions." Claude will see the instructions in its context and correct. You can also run `/primer` to reload full project context.
+
+### The reinforcement loop
+
+The system is designed so that multiple independent signals all point Claude toward the same behavior:
+
+```
+Skill description match → "activates before any action"
+Hook injection → full routing table in context
+CLAUDE.md → "This project uses the Propel research workflow"
+Auditor dispatch rules → agents auto-run after code changes
+```
+
+No single layer is critical. If one fails, the others still constrain Claude. This redundancy is intentional — it's the difference between "please follow this process" and having the process embedded in every layer of Claude's context.
+
+---
+
 ## Phase 1: Literature (Optional Starting Point)
 
 If you're implementing from a paper, start by extracting a reference:
