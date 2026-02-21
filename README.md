@@ -88,7 +88,7 @@ propel init
 
 `propel init` copies all skills, agents, commands, and hooks into your project's `.claude/` directory, configures the session-start hook in `settings.local.json`, and adds `scratch/`, `sessions/`, `.propel/`, `.claude/`, and `propel/` to `.gitignore`.
 
-Then start Claude and run `/intro`. This introduces the framework, scans your codebase to draft a project-specific `.claude/CLAUDE.md`, and optionally builds a persistent project profile in `.propel/` that Claude references on every session — detecting code conventions, domain context, and development patterns automatically.
+Then start Claude and run `/intro`. If you have an existing codebase, this scans it to draft a project-specific `.claude/CLAUDE.md` and optionally builds a persistent project profile. If you're starting from an empty repo, it seeds a minimal CLAUDE.md that grows progressively as you work — Gate 0 answers fill in research context, first code written fills in conventions, investigations fill in domain pitfalls. No need to fill out 12 sections before writing your first line of code.
 
 ## Quick Start
 

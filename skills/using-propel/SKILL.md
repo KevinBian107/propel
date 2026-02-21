@@ -180,6 +180,34 @@ After implementing or modifying code, these auditors run automatically:
 | Environment interaction code (obs/action spaces, wrappers, reset, step) | env-researcher |
 | Deep trace needed (explicit only) | data-flow-tracer |
 
+## Progressive CLAUDE.md Building
+
+When the project CLAUDE.md contains `<!-- PENDING -->` markers (seeded in an empty repo via `/intro` Path B), Propel enriches it progressively as the user works. After each gate exit, check whether any PENDING section can now be filled in.
+
+### When to enrich
+
+| Gate / Event | Sections to fill in | Source |
+|-------------|---------------------|--------|
+| **Gate 0 exit** (scope confirmed) | Research Context, Research Question, Hypothesis, Method, What "Correct" Means Here | User's answers to scoping questions |
+| **Gate 1 exit** (investigation complete) | Domain-Specific Pitfalls, Known Constraints | Investigation findings, surprises, framework-specific issues discovered |
+| **First code written** (any file creation/edit outside scratch/) | Code Style Requirements, Project Conventions | Infer from the code just written — naming, imports, structure |
+| **First test written** | Testing Rules | Infer from test framework, fixture patterns, file locations |
+| **Git conventions emerge** (3+ commits) | Development Workflow | Infer from commit message style, branch names |
+| **Retrospective** | Refine any section with new learnings | Failed attempts, what "correct" actually meant |
+
+### How to enrich
+
+1. Read `.claude/CLAUDE.md`
+2. Find sections still containing `<!-- PENDING -->` markers
+3. Replace the marker with concrete content derived from the event
+4. **Briefly note to the user**: "Updated CLAUDE.md: filled in [section name] based on [source]."
+5. Do NOT ask for permission for each update — these are non-disruptive background enrichments. The user can edit them later.
+6. If a section already has content (user filled it in manually), do NOT overwrite it. Only fill in PENDING markers.
+
+### When to stop
+
+Once no `<!-- PENDING -->` markers remain, progressive building is complete. The CLAUDE.md is now equivalent to one generated via the full scan path. At that point, tell the user: "Your CLAUDE.md is fully populated. You can now run 'customize Propel' for deeper project profiling if you want."
+
 ## Key Principles
 
 1. **Investigate before you build.** No implementation without a documented investigation in scratch/.

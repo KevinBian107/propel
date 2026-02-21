@@ -64,6 +64,20 @@ print(json.dumps(content))
       echo 'null'
     fi
   ),
+  "empty_repo": $(
+    # A repo is "empty" if there are no source files to scan — just Propel scaffolding
+    SOURCE_COUNT=$(find . -maxdepth 3 \
+      \( -name "*.py" -o -name "*.js" -o -name "*.ts" -o -name "*.rs" -o -name "*.go" \
+         -o -name "*.java" -o -name "*.cpp" -o -name "*.c" -o -name "*.jl" -o -name "*.r" -o -name "*.R" \) \
+      -not -path "./.claude/*" -not -path "./scratch/*" -not -path "./.propel/*" \
+      -not -path "./sessions/*" -not -path "./node_modules/*" -not -path "./.git/*" \
+      2>/dev/null | head -1 | wc -l)
+    if [ "$SOURCE_COUNT" -eq 0 ]; then
+      echo 'true'
+    else
+      echo 'false'
+    fi
+  ),
   "mode": $(
     MODE_FILE=".propel/mode.json"
     if [ -f "$MODE_FILE" ]; then

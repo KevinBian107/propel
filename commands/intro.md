@@ -107,9 +107,13 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 
 ## Part 2: Analyze the codebase and draft CLAUDE.md
 
-After presenting the intro above, do the following:
+After presenting the intro above, check whether this is an **empty repo** or an **existing codebase**. The hook injects `"empty_repo": true/false` — or you can check directly: are there any source files (`.py`, `.js`, `.ts`, `.rs`, etc.) outside of `.claude/`, `scratch/`, and `.propel/`?
 
-### Step 1: Scan the project
+### Path A: Existing codebase — Scan and draft
+
+If the repo has source files, scan and draft a full CLAUDE.md immediately.
+
+#### Step 1: Scan the project
 
 Use subagents or direct tools to gather:
 - Run `tree` (depth 3) to understand project structure
@@ -120,7 +124,7 @@ Use subagents or direct tools to gather:
 - Check for `tests/`, `docs/`, config files, CI configuration
 - Identify the domain (ML/JAX/PyTorch/robotics/web/etc.) from imports and structure
 
-### Step 2: Draft CLAUDE.md
+#### Step 2: Draft CLAUDE.md
 
 Generate a project-specific `.claude/CLAUDE.md` that fills in these sections with concrete, specific content derived from the scan. Follow this structure:
 
@@ -184,11 +188,106 @@ Skills, agents, and commands are in `.claude/` (installed via `propel init`).
 <!-- How do you verify correctness beyond "tests pass"? -->
 ```
 
+### Path B: Empty/new repo — Seed and grow progressively
+
+If the repo has no source files (fresh `git init` + `propel init`, or brand new project), do NOT try to scan — there's nothing to scan. Instead, seed a minimal CLAUDE.md and tell the user it will grow as they work.
+
+#### Step 1: Ask what they're building
+
+Since there's no code to analyze, ask the user directly:
+
+> This looks like a new project — no source files yet. Instead of scanning, I'll seed a CLAUDE.md that grows as we work. A few quick questions:
+>
+> 1. **What is this project?** (one sentence — e.g., "A JAX implementation of residual VQ for robot policy learning")
+> 2. **What language/framework?** (e.g., Python/JAX, Python/PyTorch, Rust, TypeScript)
+> 3. **Anything else I should know upfront?** (optional — papers, constraints, conventions you want to enforce)
+
+Wait for answers before proceeding.
+
+#### Step 2: Write the seed CLAUDE.md
+
+Write a minimal `.claude/CLAUDE.md` with only what the user told you. Leave everything else as explicit `<!-- PENDING -->` markers that signal "this will be filled in as we work":
+
+```markdown
+# CLAUDE.md
+
+This project uses the [Propel](https://github.com/KevinBian107/propel) research workflow.
+Skills, agents, and commands are in `.claude/` (installed via `propel init`).
+
+## Project Overview
+
+[User's one-sentence description]
+
+## Language & Framework
+
+[What the user said — e.g., "Python 3.11, JAX 0.4, Flax"]
+
+## Code Style Requirements
+
+<!-- PENDING: Will be filled in when code style emerges during implementation -->
+
+## Development Workflow
+
+<!-- PENDING: Will be filled in as git conventions are established -->
+
+## Testing Rules
+
+<!-- PENDING: Will be filled in when tests are first written -->
+
+## Research Context
+
+<!-- PENDING: Will be captured from Gate 0 answers -->
+
+## Research Question
+
+<!-- PENDING: Will be captured from Gate 0 answers -->
+
+## Hypothesis
+
+<!-- PENDING: Will be captured from Gate 0 answers -->
+
+## Method
+
+<!-- PENDING: Will be captured from Gate 0 / investigation -->
+
+## Domain-Specific Pitfalls
+
+[If the user specified a framework, fill in known pitfalls for that framework. Otherwise: PENDING]
+
+## Project Conventions
+
+<!-- PENDING: Will emerge as code is written -->
+
+## Known Constraints
+
+[Anything the user mentioned upfront]
+
+## What "Correct" Means Here
+
+<!-- PENDING: Will be captured from Gate 0 answers -->
+```
+
+#### Step 3: Explain progressive building
+
+Tell the user:
+
+> I've created a seed CLAUDE.md with what you told me. As we work, Propel will fill it in automatically:
+>
+> - **Gate 0 answers** → Research Context, Research Question, Hypothesis, Method
+> - **First code written** → Code Style, Project Conventions
+> - **First tests** → Testing Rules
+> - **Investigation findings** → Domain-Specific Pitfalls, Known Constraints
+> - **Retrospectives** → What "Correct" Means Here
+>
+> You'll see a brief note each time a section is updated. You can also fill in any section manually at any time.
+
+Skip Part 3 (project customization) for empty repos — there's nothing to profile yet. Tell the user: "Once you have some code, say 'customize Propel' to build a full project profile."
+
 ---
 
 ## Part 3: Project Customization (Optional)
 
-After drafting CLAUDE.md, offer automatic project profiling:
+After drafting CLAUDE.md (Path A only — skip for empty repos), offer automatic project profiling:
 
 ### Present the offer
 

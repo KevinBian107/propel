@@ -77,6 +77,7 @@ Claude's context now contains:
   4. Active investigation state (scratch/ READMEs)
   5. Project profile (.propel/profile.md, if it exists)
   6. Current mode + mode_selection_needed (.propel/mode.json)
+  7. Empty repo flag (whether to use progressive CLAUDE.md building)
 ```
 
 ### What each layer does
@@ -90,6 +91,7 @@ Claude's context now contains:
 | **CLAUDE.md** | Project-level instructions read on every session | Built-in Claude Code feature |
 | **Project profile** | `.propel/profile.md` injected by hook — conventions Claude should follow silently | SessionStart hook reads it |
 | **Mode state** | `.propel/mode.json` injected by hook — controls which skills and gates are active | SessionStart hook reads it |
+| **Empty repo flag** | `empty_repo` boolean — triggers progressive CLAUDE.md building instead of scan-and-draft | SessionStart hook checks for source files |
 
 ### Why this works (and what it can't guarantee)
 
