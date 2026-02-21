@@ -1,9 +1,38 @@
-[Propel] Introduce the user to Propel and generate a project-specific CLAUDE.md.
+[Propel] Introduce the user to Propel, select a mode, and generate a project-specific CLAUDE.md.
 
-This command does three things:
+This command does four things:
+0. Let the user choose a mode (Researcher, Engineer, or Trainer)
 1. Explain what Propel is and what commands/skills/agents are available
 2. Analyze the codebase and draft a CLAUDE.md tailored to this project
 3. Offer automatic project customization (optional)
+
+---
+
+## Part 0: Mode Selection
+
+Before anything else, present the three Propel modes:
+
+> **How do you want to work today?**
+>
+> 1. **Researcher** — "I want to understand the problem space before building anything."
+>    Literature reviews, investigations, and deep research. Gates 0 and 1 only.
+>
+> 2. **Engineer** — "I know what I want to build and I'm ready for the full workflow."
+>    All skills, gates, and auditors. The complete Propel pipeline. *(Default)*
+>
+> 3. **Trainer** — "My code is ready, I just need to get training running."
+>    Training execution, runtime bug fixing, and monitoring. Gate 4 (runtime only).
+>
+> Which mode? (You can switch anytime with `/switch`)
+
+After the user chooses:
+1. Create `.propel/` directory if it doesn't exist
+2. Write `.propel/mode.json`: `{"mode": "<name>", "switched_at": "<ISO 8601>", "previous_mode": null}`
+3. Deliver the mode-specific welcome (see `/switch` command for welcome text)
+4. If Trainer Mode: immediately scan for training commands (trainer-mode Phase 1), then skip to Part 3
+5. If Researcher or Engineer: continue to Part 1
+
+If the user says "just go" or skips, default to Engineer Mode and continue.
 
 ---
 
@@ -16,8 +45,8 @@ Propel is a research workflow framework for Claude Code. It adds structured skil
 Propel enforces five gates at every phase transition. You (Claude) stop and ask the user structured questions before moving to the next phase — never "shall I proceed?" but "should we [A] or [B]?"
 
 ```
-Intake → Investigation → Design → Implementation → Debug
-  G0         G1            G2          G3             G4
+Intake → Investigation → Design → Implementation → Debug → Training → Retrospective
+  G0         G1            G2          G3             G4     Trainer      All
 ```
 
 Skills auto-trigger based on what the user says. You don't need to memorize triggers — just describe what you want to do.
@@ -31,6 +60,7 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 | `/new-session [description]` | Create a tracked session directory with UUID and index entry |
 | `/read-paper [path]` | Extract structured implementation reference from a paper |
 | `/debug-training [symptom]` | Diagnose training issues (NaN, plateau, mode collapse) |
+| `/switch [mode]` | Switch between modes (researcher, engineer, trainer) |
 | `/trace-shapes [entry point]` | Quick shape annotation through a code path |
 
 ### Skills (auto-triggered)
@@ -50,6 +80,7 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 | Thinking | think-deeply | Challenges assumptions when you make leading statements |
 | Context | context-hygiene | "getting long" or auto after ~15 turns |
 | Git | using-git-worktrees | "create worktree", "experiment branch" |
+| Training | trainer-mode | "train", "launch training", "run training" (Trainer Mode) |
 | Customization | project-customization | "customize Propel", "analyze my project", "detect conventions" |
 
 ### Auditor agents (auto-dispatched after code changes)

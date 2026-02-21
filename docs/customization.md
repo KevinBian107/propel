@@ -163,3 +163,68 @@ See propel documentation for the investigation → design → implement → vali
 - Paper references are in `docs/papers/` — use /read-paper to extract them
 - Training scripts expect wandb to be configured
 ```
+
+## Customizing Mode Behavior
+
+Propel's three modes (Researcher, Engineer, Trainer) have default skill/gate assignments, but you can override these in your project's `CLAUDE.md`.
+
+### Expanding Trainer Mode
+
+By default, Trainer Mode only fixes runtime bugs and refuses logic changes. If your workflow involves frequent hyperparameter adjustments during training (not code changes, just config values), you can expand its scope:
+
+```markdown
+## Propel Mode Overrides
+
+### Trainer Mode
+- Allow Trainer Mode to adjust hyperparameters in config files (learning rate, batch size, warmup steps)
+- These are config-only changes, not code changes — Trainer Mode can handle them
+- Architecture, loss, and data pipeline changes still require /switch engineer
+```
+
+### Abbreviating Gates in Researcher Mode
+
+For follow-up research questions in an established investigation, full Gate 0 intake may be unnecessary:
+
+```markdown
+## Propel Mode Overrides
+
+### Researcher Mode
+- For follow-up questions within an active investigation, Gate 0 can be abbreviated to a single scope confirmation
+- For new investigations, full Gate 0 is still mandatory
+```
+
+### Adding Skills to a Mode
+
+If your project needs a specific skill available in a mode where it's normally inactive:
+
+```markdown
+## Propel Mode Overrides
+
+### Researcher Mode
+- Also activate using-git-worktrees — we use worktrees to isolate different research branches
+```
+
+### Restricting Engineer Mode
+
+For teams that want to enforce a more structured workflow:
+
+```markdown
+## Propel Mode Overrides
+
+### Engineer Mode
+- Require a retrospective after every implementation session (not just suggested at ~20 turns)
+- Gate 0 may not be abbreviated — full scoping required for all tasks
+```
+
+### Mode defaults in CLAUDE.md
+
+You can set a default mode so new sessions don't need to ask:
+
+```markdown
+## Propel Mode Overrides
+
+### Default Mode
+- Default to trainer mode — this project is in the training phase
+```
+
+This writes `.propel/mode.json` automatically on first session start, skipping the mode selection interaction.

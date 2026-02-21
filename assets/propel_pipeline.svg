@@ -1,0 +1,226 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 420" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <linearGradient id="gate0" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </linearGradient>
+    <linearGradient id="gate1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0891b2"/>
+      <stop offset="100%" stop-color="#0e7490"/>
+    </linearGradient>
+    <linearGradient id="gate2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <linearGradient id="gate3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="gate4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#dc2626"/>
+      <stop offset="100%" stop-color="#b91c1c"/>
+    </linearGradient>
+    <linearGradient id="trainer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e85d04"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </linearGradient>
+    <linearGradient id="retro" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+    <!-- Mode tag gradients -->
+    <linearGradient id="modeR" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="modeE" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="modeT" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#f97316"/>
+    </linearGradient>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.12"/>
+    </filter>
+    <filter id="shadowSm" x="-4%" y="-4%" width="108%" height="116%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1160" height="420" rx="18" fill="#f8fafc"/>
+  <rect x="1" y="1" width="1158" height="418" rx="17" fill="none" stroke="#e2e8f0" stroke-width="1"/>
+
+  <!-- Title -->
+  <text x="580" y="36" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2933" letter-spacing="0.04em">PROPEL — HUMAN-IN-THE-LOOP RESEARCH WORKFLOW</text>
+
+  <!-- ========== GATE BADGES (top row) ========== -->
+  <!-- Gate 0 -->
+  <rect x="20" y="56" width="140" height="28" rx="14" fill="url(#gate0)" filter="url(#shadowSm)"/>
+  <text x="90" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 0 — Intake</text>
+
+  <!-- Gate 1 -->
+  <rect x="182" y="56" width="140" height="28" rx="14" fill="url(#gate1)" filter="url(#shadowSm)"/>
+  <text x="252" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 1 — Investigate</text>
+
+  <!-- Gate 2 -->
+  <rect x="344" y="56" width="140" height="28" rx="14" fill="url(#gate2)" filter="url(#shadowSm)"/>
+  <text x="414" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 2 — Design</text>
+
+  <!-- Gate 3 -->
+  <rect x="506" y="56" width="140" height="28" rx="14" fill="url(#gate3)" filter="url(#shadowSm)"/>
+  <text x="576" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 3 — Implement</text>
+
+  <!-- Gate 4 -->
+  <rect x="668" y="56" width="140" height="28" rx="14" fill="url(#gate4)" filter="url(#shadowSm)"/>
+  <text x="738" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 4 — Debug</text>
+
+  <!-- Training badge -->
+  <rect x="830" y="56" width="140" height="28" rx="14" fill="url(#trainer)" filter="url(#shadowSm)"/>
+  <text x="900" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">TRAINING</text>
+
+  <!-- Retrospective badge -->
+  <rect x="992" y="56" width="140" height="28" rx="14" fill="url(#retro)" filter="url(#shadowSm)"/>
+  <text x="1062" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">RETROSPECTIVE</text>
+
+  <!-- ========== VERTICAL DASHED LINES (gate to box) ========== -->
+  <line x1="90" y1="84" x2="90" y2="130" stroke="#7c3aed" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
+  <line x1="252" y1="84" x2="252" y2="130" stroke="#0891b2" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
+  <line x1="414" y1="84" x2="414" y2="130" stroke="#059669" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
+  <line x1="576" y1="84" x2="576" y2="130" stroke="#d97706" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
+  <line x1="738" y1="84" x2="738" y2="130" stroke="#dc2626" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
+  <line x1="900" y1="84" x2="900" y2="130" stroke="#e85d04" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
+  <line x1="1062" y1="84" x2="1062" y2="130" stroke="#6366f1" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
+
+  <!-- ========== STAGE BOXES ========== -->
+  <!-- Box 0: User Idea -->
+  <rect x="20" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#7c3aed" stroke-width="2" filter="url(#shadow)"/>
+  <text x="90" y="168" text-anchor="middle" font-size="28">&#x1F4A1;</text>
+  <text x="90" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">User Idea</text>
+  <text x="90" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Define scope &amp; goals</text>
+
+  <!-- Box 1: Investigation -->
+  <rect x="182" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#0891b2" stroke-width="2" filter="url(#shadow)"/>
+  <text x="252" y="168" text-anchor="middle" font-size="28">&#x1F52C;</text>
+  <text x="252" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Investigation</text>
+  <text x="252" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Research &amp; analysis</text>
+
+  <!-- Box 2: Design -->
+  <rect x="344" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#059669" stroke-width="2" filter="url(#shadow)"/>
+  <text x="414" y="168" text-anchor="middle" font-size="28">&#x1F4D0;</text>
+  <text x="414" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Design + Plan</text>
+  <text x="414" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Architecture &amp; approach</text>
+
+  <!-- Box 3: Implement -->
+  <rect x="506" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#d97706" stroke-width="2" filter="url(#shadow)"/>
+  <text x="576" y="168" text-anchor="middle" font-size="28">&#x2699;&#xFE0F;</text>
+  <text x="576" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Implement</text>
+  <text x="576" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Component by component</text>
+
+  <!-- Box 4: Debug -->
+  <rect x="668" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#dc2626" stroke-width="2" filter="url(#shadow)"/>
+  <text x="738" y="168" text-anchor="middle" font-size="28">&#x1F41B;</text>
+  <text x="738" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Debug</text>
+  <text x="738" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Diagnose &amp; validate</text>
+
+  <!-- Box 5: Training -->
+  <rect x="830" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#e85d04" stroke-width="2" filter="url(#shadow)"/>
+  <text x="900" y="168" text-anchor="middle" font-size="28">&#x1F680;</text>
+  <text x="900" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Training</text>
+  <text x="900" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Launch &amp; monitor</text>
+
+  <!-- Box 6: Retrospective -->
+  <rect x="992" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#6366f1" stroke-width="2" filter="url(#shadow)"/>
+  <text x="1062" y="168" text-anchor="middle" font-size="28">&#x1F4DD;</text>
+  <text x="1062" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Retrospective</text>
+  <text x="1062" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Capture learnings</text>
+
+  <!-- ========== ARROWS BETWEEN BOXES ========== -->
+  <line x1="160" y1="180" x2="174" y2="180" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="182,180 174,175 174,185" fill="#94a3b8"/>
+
+  <line x1="322" y1="180" x2="336" y2="180" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="344,180 336,175 336,185" fill="#94a3b8"/>
+
+  <line x1="484" y1="180" x2="498" y2="180" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="506,180 498,175 498,185" fill="#94a3b8"/>
+
+  <line x1="646" y1="180" x2="660" y2="180" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="668,180 660,175 660,185" fill="#94a3b8"/>
+
+  <line x1="808" y1="180" x2="822" y2="180" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="830,180 822,175 822,185" fill="#94a3b8"/>
+
+  <line x1="970" y1="180" x2="984" y2="180" stroke="#94a3b8" stroke-width="2"/>
+  <polygon points="992,180 984,175 984,185" fill="#94a3b8"/>
+
+  <!-- ========== MODE TAGS (below boxes) ========== -->
+  <!-- Gate 0: Researcher + Engineer -->
+  <rect x="28" y="242" width="56" height="18" rx="9" fill="url(#modeR)"/>
+  <text x="56" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Researcher</text>
+  <rect x="88" y="242" width="56" height="18" rx="9" fill="url(#modeE)"/>
+  <text x="116" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Engineer</text>
+
+  <!-- Gate 1: Researcher + Engineer -->
+  <rect x="190" y="242" width="56" height="18" rx="9" fill="url(#modeR)"/>
+  <text x="218" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Researcher</text>
+  <rect x="250" y="242" width="56" height="18" rx="9" fill="url(#modeE)"/>
+  <text x="278" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Engineer</text>
+
+  <!-- Gate 2: Engineer only -->
+  <rect x="386" y="242" width="56" height="18" rx="9" fill="url(#modeE)"/>
+  <text x="414" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Engineer</text>
+
+  <!-- Gate 3: Engineer only -->
+  <rect x="548" y="242" width="56" height="18" rx="9" fill="url(#modeE)"/>
+  <text x="576" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Engineer</text>
+
+  <!-- Gate 4: Engineer + Trainer -->
+  <rect x="696" y="242" width="56" height="18" rx="9" fill="url(#modeE)"/>
+  <text x="724" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Engineer</text>
+  <rect x="756" y="242" width="44" height="18" rx="9" fill="url(#modeT)"/>
+  <text x="778" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Trainer</text>
+
+  <!-- Training: Trainer -->
+  <rect x="878" y="242" width="44" height="18" rx="9" fill="url(#modeT)"/>
+  <text x="900" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Trainer</text>
+
+  <!-- Retrospective: All modes -->
+  <rect x="1008" y="242" width="56" height="18" rx="9" fill="url(#modeR)"/>
+  <text x="1036" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Researcher</text>
+  <rect x="1068" y="242" width="56" height="18" rx="9" fill="url(#modeE)"/>
+  <text x="1096" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Engineer</text>
+  <rect x="1038" y="262" width="44" height="18" rx="9" fill="url(#modeT)"/>
+  <text x="1060" y="274" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Trainer</text>
+
+  <!-- ========== TRAINER MODE SHORTCUT ARROW ========== -->
+  <!-- Curved arrow from Training box back through pipeline showing Trainer Mode shortcut -->
+  <path d="M 900 130 Q 900 105 848 105 Q 770 105 738 130" stroke="#e85d04" stroke-width="1.5" stroke-dasharray="5,3" fill="none" opacity="0.6"/>
+  <text x="820" y="100" text-anchor="middle" font-size="9" fill="#c2410c" font-style="italic">runtime fix loop</text>
+
+  <!-- ========== BOTTOM INFO PANELS ========== -->
+  <!-- Mode legend -->
+  <rect x="20" y="296" width="340" height="104" rx="12" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="190" y="318" text-anchor="middle" font-size="12" font-weight="600" fill="#475569" letter-spacing="0.03em">THREE MODES</text>
+
+  <rect x="36" y="330" width="10" height="10" rx="5" fill="url(#modeR)"/>
+  <text x="52" y="340" font-size="11" fill="#475569" font-weight="500">Researcher</text>
+  <text x="120" y="340" font-size="10" fill="#64748b">— Literature &amp; investigation (Gates 0-1)</text>
+
+  <rect x="36" y="350" width="10" height="10" rx="5" fill="url(#modeE)"/>
+  <text x="52" y="360" font-size="11" fill="#475569" font-weight="500">Engineer</text>
+  <text x="108" y="360" font-size="10" fill="#64748b">— Full pipeline, all gates (default)</text>
+
+  <rect x="36" y="370" width="10" height="10" rx="5" fill="url(#modeT)"/>
+  <text x="52" y="380" font-size="11" fill="#475569" font-weight="500">Trainer</text>
+  <text x="100" y="380" font-size="10" fill="#64748b">— Launch training, runtime bugs (Gate 4)</text>
+
+  <!-- Gate info panel -->
+  <rect x="380" y="296" width="760" height="104" rx="12" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1"/>
+  <text x="760" y="318" text-anchor="middle" font-size="12" font-weight="600" fill="#475569" letter-spacing="0.03em">EACH GATE: Human checkpoint — Claude pauses, asks structured questions, reveals assumptions</text>
+  <text x="760" y="340" text-anchor="middle" font-size="11" fill="#64748b">Domain auditors verify paper alignment · trace tensor shapes · detect silent bugs · check regressions</text>
+  <text x="760" y="362" text-anchor="middle" font-size="11" fill="#64748b">Trainer Mode: scan commands · launch in screen · fix runtime errors (CUDA, OOM, paths) · monitor runs</text>
+  <text x="760" y="384" text-anchor="middle" font-size="11" fill="#64748b">Switch anytime with /switch researcher · /switch engineer · /switch trainer</text>
+</svg>

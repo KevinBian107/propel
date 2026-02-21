@@ -64,6 +64,25 @@ print(json.dumps(content))
       echo 'null'
     fi
   ),
+  "mode": $(
+    MODE_FILE=".propel/mode.json"
+    if [ -f "$MODE_FILE" ]; then
+      cat "$MODE_FILE" | python3 -c '
+import sys, json
+data = json.load(sys.stdin)
+print(json.dumps(data))
+'
+    else
+      echo 'null'
+    fi
+  ),
+  "mode_selection_needed": $(
+    if [ -f ".propel/mode.json" ]; then
+      echo 'false'
+    else
+      echo 'true'
+    fi
+  ),
   "registry_entries": $(
     if [ -d "scratch/registry" ]; then
       find scratch/registry -maxdepth 1 -mindepth 1 -type d 2>/dev/null \

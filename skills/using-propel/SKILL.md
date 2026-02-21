@@ -9,6 +9,93 @@ description: >
 
 # Using Propel — Research Workflow Controller
 
+## Mode System
+
+Propel has three modes that filter which skills and gates are active. Check for mode state FIRST before any other action.
+
+### Mode Selection (on session start)
+
+If the hook injects `"mode_selection_needed": true` (no `.propel/mode.json` exists), present mode selection as the FIRST interaction before anything else:
+
+> **Welcome to Propel. How do you want to work today?**
+>
+> 1. **Researcher** — "I want to understand the problem space before building anything."
+>    Literature reviews, investigations, and deep research. Gates 0 and 1 only.
+>
+> 2. **Engineer** — "I know what I want to build and I'm ready for the full workflow."
+>    All skills, gates, and auditors. The complete Propel pipeline.
+>
+> 3. **Trainer** — "My code is ready, I just need to get training running."
+>    Training execution, runtime bug fixing, and monitoring. Gate 4 (runtime only).
+>
+> Which mode? (Or just describe what you want to do and I'll suggest one.)
+
+After the user chooses, write `.propel/mode.json`:
+```json
+{"mode": "<name>", "switched_at": "<ISO 8601>", "previous_mode": null}
+```
+
+**Default behavior**: If the user doesn't choose and just describes a task, default to **Engineer Mode** (backward compatible with the full pipeline). Write the mode file silently and proceed.
+
+### Mode-Specific Welcomes
+
+**Researcher Mode:**
+> Active skills: investigation, deep-research, paper-extraction, think-deeply, retrospective, context-hygiene, project-customization.
+> Active gates: Gate 0 (Intake), Gate 1 (Post-Investigation).
+>
+> What's the research question driving this session?
+
+**Engineer Mode:**
+> Full pipeline active — all skills, gates, and auditors.
+> Intake → Investigation → Design → Implementation → Validation → Debugging → Retrospective.
+>
+> What are you working on? What outcome would make this session successful?
+
+**Trainer Mode:**
+> Active skills: trainer-mode, think-deeply, retrospective, context-hygiene, project-customization.
+> Active gate: Gate 4 (runtime bugs only).
+>
+> Let me scan your project for training commands...
+
+Then immediately activate the **trainer-mode** skill Phase 1.
+
+### Mode-Aware Skill Routing
+
+Before routing to any skill, check the current mode. If the triggered skill is not active in the current mode, inform the user and suggest the appropriate mode.
+
+| Skill | Researcher | Engineer | Trainer |
+|-------|:----------:|:--------:|:-------:|
+| investigation | Yes | Yes | — |
+| deep-research | Yes | Yes | — |
+| paper-extraction | Yes | Yes | — |
+| think-deeply | Yes | Yes | Yes |
+| retrospective | Yes | Yes | Yes |
+| context-hygiene | Yes | Yes | Yes |
+| project-customization | Yes | Yes | Yes |
+| research-design | — | Yes | — |
+| writing-plans | — | Yes | — |
+| subagent-driven-research | — | Yes | — |
+| research-validation | — | Yes | — |
+| verification-before-completion | — | Yes | — |
+| systematic-debugging | — | Yes | — |
+| using-git-worktrees | — | Yes | — |
+| trainer-mode | — | — | Yes |
+
+**Gates by mode:**
+- **Researcher**: Gate 0, Gate 1
+- **Engineer**: All gates (0, 1, 2, 3, 4)
+- **Trainer**: Gate 4 (runtime bugs only)
+
+### Out-of-Scope Handling
+
+If the user requests something outside their current mode:
+
+- **Researcher asks for implementation/code changes**: "That's an implementation task. Switch to Engineer Mode with `/switch engineer` to get the full design-implement-validate workflow."
+- **Trainer asks for logic/architecture changes**: "That's a logic change, not a runtime bug. Switch to Engineer Mode with `/switch engineer` for the investigation-design-implement workflow."
+- **Trainer asks for literature/investigation work**: "That's a research task. Switch to Researcher Mode with `/switch researcher` for literature and investigation skills."
+
+---
+
 You have the Propel research workflow plugin active. Before taking any action, check whether a Propel skill applies. Process skills take priority over implementation skills.
 
 ## Mandatory Gate Protocol
@@ -38,6 +125,8 @@ When a user describes a new task, do NOT start working immediately. Instead:
 
 ## Skill Priority Order
 
+**Check the current mode first.** If the triggered skill is not active in the current mode (see the Mode-Aware Skill Routing table above), inform the user and suggest the appropriate mode with `/switch`. Do not activate out-of-scope skills.
+
 Check these in order. Use the FIRST one that matches:
 
 ### 1. Process Skills (check first)
@@ -64,9 +153,10 @@ Check these in order. Use the FIRST one that matches:
 | "validate this", "test the implementation" | **research-validation** |
 | "verify", "check before marking done" | **verification-before-completion** |
 
-### 4. Debugging Skills
+### 4. Training & Debugging Skills
 | Trigger | Skill |
 |---------|-------|
+| "train", "launch training", "run training" (Trainer Mode) | **trainer-mode** |
 | Training issue (NaN, plateau, collapse) | **systematic-debugging** |
 | Stuck on a failure mode | **failure-mode-researcher** (via subagent) |
 

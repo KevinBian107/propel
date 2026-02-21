@@ -5,8 +5,51 @@ This guide walks through the complete Propel research workflow with all five gat
 ## Overview
 
 ```
-User idea → Gate 0 → Investigation → Gate 1 → Design → Gate 2 → Implementation → Gate 3 (loop) → Debug → Gate 4 → Retrospective
+User idea → Gate 0 → Investigation → Gate 1 → Design → Gate 2 → Implementation → Gate 3 (loop) → Debug → Gate 4 → Training → Retrospective
 ```
+
+## Modes and Phase Filtering
+
+Not every session uses the full pipeline. Propel's three modes filter which phases and gates are active:
+
+```
+                    Researcher          Engineer            Trainer
+                    ──────────          ────────            ───────
+Gate 0  Intake      ██████████          ██████████
+                        │                   │
+        Investigation   ██████████          ██████████
+                        │                   │
+Gate 1  Post-Invest.    ██████████          ██████████
+                                            │
+        Design                              ██████████
+                                            │
+Gate 2  Post-Design                         ██████████
+                                            │
+        Implementation                      ██████████
+                                            │
+Gate 3  Mid-Impl.                           ██████████
+                                            │
+        Validation                          ██████████
+                                                            ┌──────────┐
+        Training                            ██████████      │ scan,    │
+                                            │               │ launch,  │
+        Debugging                           ██████████      │ monitor  │
+                                            │               └────┬─────┘
+Gate 4  Post-Debug                          ██████████           │
+                                            │               ██████████
+        Retrospective   ██████████          ██████████      (runtime only)
+                                                            ██████████
+```
+
+- **Researcher**: Stays in the understanding phase. Literature, investigation, and retrospective. Gates 0 and 1 only.
+- **Engineer**: Full pipeline. All phases and gates. This is the default and matches the workflow described below.
+- **Trainer**: Skips to training execution. Scans for training commands, launches in screen sessions, fixes runtime bugs (CUDA, OOM, paths, imports). Gate 4 for runtime bugs only — logic changes redirect to Engineer Mode.
+
+Choose a mode at session start (via `/intro`) or switch anytime with `/switch researcher`, `/switch engineer`, or `/switch trainer`. Mode persists in `.propel/mode.json` and survives `/clear`.
+
+The rest of this guide describes the full **Engineer Mode** workflow. Researcher Mode uses Phases 1-4 only. Trainer Mode uses its own dedicated skill.
+
+---
 
 ## How Propel Ensures Claude Follows the Workflow
 
@@ -33,6 +76,7 @@ Claude's context now contains:
   3. The auditor dispatch rules (which agent after which code change)
   4. Active investigation state (scratch/ READMEs)
   5. Project profile (.propel/profile.md, if it exists)
+  6. Current mode + mode_selection_needed (.propel/mode.json)
 ```
 
 ### What each layer does
@@ -45,6 +89,7 @@ Claude's context now contains:
 | **Agent descriptions** | Claude Code loads all `.claude/agents/*.md` descriptions — Claude dispatches agents based on description match | Built-in Claude Code feature |
 | **CLAUDE.md** | Project-level instructions read on every session | Built-in Claude Code feature |
 | **Project profile** | `.propel/profile.md` injected by hook — conventions Claude should follow silently | SessionStart hook reads it |
+| **Mode state** | `.propel/mode.json` injected by hook — controls which skills and gates are active | SessionStart hook reads it |
 
 ### Why this works (and what it can't guarantee)
 
