@@ -59,18 +59,22 @@ Propel enforces five human-in-the-loop gates, dispatches domain-specific auditor
 
 ### The Pipeline
 
-The full pipeline has seven stages and five human-in-the-loop gates (see diagram above):
+The full pipeline has seven stages, five human-in-the-loop gates, and two questioner checkpoints (see diagram above):
 
 ```
-Intake → Investigation → Design → Implementation → Debug → Training → Retrospective
- G0          G1            G2          G3             G4      Trainer      All
+Intake → Q0 → Investigation → Gate 1 → Q1 → Design → Implementation → Debug → Training → Retrospective
+ G0    ground      G1        findings  detail   G2          G3          G4      Trainer      All
 ```
 
 - **Gates 0-1** (Researcher + Engineer): Scoping and investigation checkpoints
+- **Questioner Q0** (Researcher + Engineer): Grounds work in concrete reference implementations, architectures, and examples before investigation
+- **Questioner Q1** (Researcher + Engineer): Nails down implementation details — interfaces, data formats, edge cases — before design
 - **Gates 2-3** (Engineer only): Design approval and implementation auditing
 - **Gate 4** (Engineer + Trainer): Debug diagnosis before applying fixes
 - **Training** (Trainer Mode): Launch runs, monitor, fix runtime errors
 - **Retrospective** (All modes): Capture learnings and failed attempts
+
+The Questioners exist because Claude is great at morphing an existing implementation into what you need, but bad at creating from scratch when the problem is unconstrained. See [Pitfalls](docs/pitfall.md) for details.
 
 At each gate, Claude stops and asks structured questions that reveal design assumptions — never "shall I proceed?" but "should we [A] or [B]? A means [trade-off], B means [trade-off]."
 
@@ -158,8 +162,9 @@ Sessions are stored in `sessions/` with chat history, prompt templates, and syml
 ## Documentation
 
 - [Quick Start](docs/quickstart.md) — 5-minute setup
-- [Full Workflow](docs/workflow.md) — Walkthrough with all 5 gates
+- [Full Workflow](docs/workflow.md) — Walkthrough with all 5 gates and 2 questioners
 - [Customization](docs/customization.md) — Adding project-specific agents/skills
+- [Pitfalls](docs/pitfall.md) — Known failure modes when working with Claude
 - [Design Document](../propel/DESIGN.md) — Full specification (in code-manual repo)
 
 ## Acknowledgments

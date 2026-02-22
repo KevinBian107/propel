@@ -5,8 +5,9 @@
 | Guide | Description |
 |-------|-------------|
 | [Quick Start](quickstart.md) | 5-minute setup — install, configure, first workflow |
-| [Full Workflow](workflow.md) | Complete walkthrough with all 5 gates and examples |
+| [Full Workflow](workflow.md) | Complete walkthrough with all 5 gates, 2 questioners, and examples |
 | [Customization](customization.md) | Adding project-specific agents, skills, and commands |
+| [Pitfalls](pitfall.md) | Known failure modes when working with Claude — living document |
 
 ## Skills Reference
 

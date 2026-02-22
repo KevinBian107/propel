@@ -5,7 +5,7 @@ This guide walks through the complete Propel research workflow with all five gat
 ## Overview
 
 ```
-User idea → Gate 0 → Investigation → Gate 1 → Design → Gate 2 → Implementation → Gate 3 (loop) → Debug → Gate 4 → Training → Retrospective
+User idea → Gate 0 → Questioner Q0 → Investigation → Gate 1 → Questioner Q1 → Design → Gate 2 → Implementation → Gate 3 (loop) → Debug → Gate 4 → Training → Retrospective
 ```
 
 ## Modes and Phase Filtering
@@ -17,10 +17,14 @@ Not every session uses the full pipeline. Propel's three modes filter which phas
                     ──────────          ────────            ───────
 Gate 0  Intake      ██████████          ██████████
                         │                   │
+  Q0    Questioner      ◆◆◆◆◆◆◆◆◆◆          ◆◆◆◆◆◆◆◆◆◆
+        (grounding)     │                   │
         Investigation   ██████████          ██████████
                         │                   │
 Gate 1  Post-Invest.    ██████████          ██████████
-                                            │
+                        │                   │
+  Q1    Questioner      ◆◆◆◆◆◆◆◆◆◆          ◆◆◆◆◆◆◆◆◆◆
+        (details)                           │
         Design                              ██████████
                                             │
 Gate 2  Post-Design                         ██████████
@@ -155,6 +159,50 @@ When you describe what you want to build, Claude does NOT start working immediat
 - "You mentioned depth=2. Is that a hard design choice, or do you want arbitrary depth?" (assumption-exposing)
 - "If we discover the paper's approach has a known failure mode for your use case, do you want alternatives or implement it anyway?" (priority-revealing)
 
+## Phase 2.5: Questioner Q0 — Grounding Before Investigation
+
+> **Why this exists**: Claude is great at looking at one thing and morphing it into something you want, but bad at creating something new from scratch when the problem is unconstrained. Vague requests like "build a can transport task with robosuite" lead to plausible-looking but wrong implementations — Claude fills gaps with training-data averages instead of asking. The Questioner forces the user to provide concrete reference points before Claude investigates.
+
+After Gate 0 confirms scope but **before investigation begins**, Claude asks structured questions to ground the work in concrete examples. These are NOT the same as Gate 0 questions (which scope the *what*) — Q0 questions ground the *how* by identifying existing reference points.
+
+### Q0 Questions (asked one at a time)
+
+1. **Reference implementation**: "Is there an existing codebase or repo I should use as a starting point? If so, which files or modules are most relevant?"
+2. **Architecture template**: "Is there a known architecture or design pattern you want to follow? (e.g., a specific paper's approach, an existing task implementation in the codebase, a framework's canonical example)"
+3. **Example to copy from**: "Is there a similar task/feature already implemented in this project or another project that I should study and adapt from?"
+4. **Benchmark / ground truth**: "What benchmark, test case, or expected behavior should I use to verify correctness? Is there a known-good output I can compare against?"
+5. **Framework constraints**: "Are there specific APIs, libraries, or framework conventions I must use? (e.g., 'use robosuite's SingleArmEnv base class', 'follow the MuJoCo MJX wrapper pattern')"
+
+### What happens
+
+- Claude asks these **one at a time**, skipping any already answered during Gate 0
+- If the user provides a reference codebase, Claude records it in the investigation README under "Reference Sources"
+- If the user says "no reference, build from scratch" — Claude flags this as **high-risk unconstrained implementation** and notes it in the README. Investigation will be more thorough to compensate
+- The answers directly shape what gets investigated in Phase 3
+
+### Example
+
+```
+User: I want to build a can transport task with robosuite.
+[Gate 0 confirms scope: single-arm can transport, dense reward, sim only]
+
+Claude (Q0-1): Is there an existing task in robosuite I should use as a
+               starting point? For example, PickPlace or Lift?
+User: Yeah, look at PickPlace in robosuite/environments/manipulation/
+
+Claude (Q0-2): Got it. Is there a specific architecture pattern — should this
+               follow the same reward structure as PickPlace, or do you have
+               a different reward design in mind?
+User: Same structure, but add a transport phase between pick and place.
+
+Claude (Q0-3): For verification — is there a known trajectory or benchmark
+               I should test against, or should I use the PickPlace test suite
+               as a baseline?
+User: Use PickPlace tests as baseline, plus a manual trajectory I'll provide.
+
+[Claude records all three reference points in scratch/README.md and proceeds to investigation]
+```
+
 ## Phase 3: Investigation
 
 Claude creates `scratch/{date}-{name}/README.md` and investigates:
@@ -186,6 +234,52 @@ Claude presents:
 ```
 
 You make design decisions. Claude records them in the README under "Design Decisions (Human-Approved)".
+
+## Phase 4.5: Questioner Q1 — Nailing Down Implementation Details
+
+> **Why this exists**: After investigation, Claude has findings and the user has made high-level design decisions. But there's a dangerous gap: Claude may still fill in critical implementation details with plausible defaults instead of asking. Q1 catches these before design begins.
+
+After Gate 1 confirms investigation findings but **before design begins**, Claude asks implementation-detail questions. While Q0 grounded the *what to look at*, Q1 grounds the *how to build it* — specific details that determine whether the implementation is correct or subtly wrong.
+
+### Q1 Questions (asked one at a time)
+
+1. **Interface contracts**: "Based on the investigation, here are the key interfaces I found: [list]. Should the new code match these exactly, or are we changing the API?"
+2. **Data format specifics**: "The reference uses [format/shape/convention]. Should we follow the same convention, or does your use case need something different?"
+3. **Configuration approach**: "Should this be configurable via [config file / constructor args / env vars]? What should the defaults be?"
+4. **Edge cases and failure modes**: "During investigation I found these edge cases: [list]. How should each be handled — error, fallback, or ignore?"
+5. **Integration points**: "This will need to connect to [existing modules]. Should I modify those modules or create adapters?"
+6. **Scope confirmation**: "Based on what I found, the minimal implementation needs [X, Y, Z]. Should I also include [A, B] which I noticed in the reference, or keep it minimal?"
+
+### What happens
+
+- Claude asks only the questions relevant to what was discovered during investigation
+- Answers are recorded in the investigation README under "Implementation Decisions (Human-Approved)"
+- These answers become **binding constraints** for the design phase — Claude must not deviate without asking
+- If the user is unsure about a detail, Claude flags it as an **open question** to revisit during implementation (Gate 3)
+
+### Example
+
+```
+User: [After Gate 1, approved investigation findings for can transport task]
+
+Claude (Q1-1): PickPlace uses a 4-phase reward: reach → grasp → lift → place.
+               For can transport, I'd add a "transport" phase between lift and
+               place. Should I keep the same reward scale (0-1 per phase) or
+               re-weight for 5 phases?
+User: Keep 0-1 per phase, so total reward range becomes 0-5 instead of 0-4.
+
+Claude (Q1-2): PickPlace accepts a single placement target. Transport implies
+               a waypoint. Should the waypoint be a constructor parameter, or
+               computed from start/end positions?
+User: Constructor parameter. I want to be able to set it per episode.
+
+Claude (Q1-3): The PickPlace test suite checks gripper-to-object distance.
+               For transport, should I also check object-to-waypoint distance
+               during the transport phase?
+User: Yes, that's the key metric for the new phase.
+
+[Claude records all decisions and proceeds to design with concrete constraints]
+```
 
 ## Phase 5: Design
 

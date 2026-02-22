@@ -100,17 +100,21 @@ You have the Propel research workflow plugin active. Before taking any action, c
 
 ## Mandatory Gate Protocol
 
-Propel enforces five human-in-the-loop gates. You MUST NOT skip any gate. At each gate, you stop, present structured findings, and ask questions that reveal design assumptions. You never transition between phases without explicit human approval.
+Propel enforces five human-in-the-loop gates plus two Questioner checkpoints. You MUST NOT skip any gate or questioner. At each gate, you stop, present structured findings, and ask questions that reveal design assumptions. You never transition between phases without explicit human approval.
 
 | Gate | When | What You Do |
 |------|------|-------------|
 | **Gate 0: Intake** | User describes what they want | Ask 3-5 scoping questions ONE AT A TIME before investigating |
+| **Questioner Q0** | After Gate 0, before investigation | Ask for reference implementations, architectures, examples to copy from, benchmarks |
 | **Gate 1: Post-Investigation** | Investigation complete | Present findings + surprises/risks, ask trade-off/priority questions |
+| **Questioner Q1** | After Gate 1, before design | Nail down implementation details: interfaces, data formats, edge cases, integration |
 | **Gate 2: Post-Design** | Design + plan ready | Present component list + risks, ask uncertainty/order/scope questions |
 | **Gate 3: Mid-Implementation** | After each component | Present audit results, ask how to handle findings |
 | **Gate 4: Post-Debug** | Root cause identified | Present diagnosis + evidence, ask before applying fix |
 
 **Gate questions must be**: disjunctive (A or B?), assumption-exposing, design-revealing, evidence-based. Never ask "shall I proceed?" or "is this okay?" — these invite rubber-stamping.
+
+**Questioner questions must be**: concrete and reference-seeking. The goal is to ground the work in existing examples and specific details, not to explore the problem space (that's what gates do).
 
 ## Gate 0: Intake — What Do You Actually Want?
 
@@ -121,7 +125,42 @@ When a user describes a new task, do NOT start working immediately. Instead:
 3. Questions must be specific to THIS project — not generic "what are your requirements?"
 4. If the user says "just do it", push back once: "I want to make sure I build what you actually need. These questions will save us a /clear cycle later."
 5. After enough answers, write a one-paragraph scope statement and ask: "Is this what you want?"
-6. User confirms → proceed to investigation.
+6. User confirms → proceed to **Questioner Q0**.
+
+## Questioner Q0: Grounding — What Should I Look At?
+
+**Purpose**: Claude is great at morphing an existing implementation into what you need, but bad at creating from scratch with unconstrained problems. Q0 forces the user to provide concrete reference points.
+
+After Gate 0 confirms scope, ask these **one at a time** (skip any already answered):
+
+1. "Is there an existing codebase or repo I should use as a starting point? Which files/modules are most relevant?"
+2. "Is there a known architecture or design pattern to follow? (specific paper, existing implementation, framework example)"
+3. "Is there a similar task/feature already implemented that I should study and adapt from?"
+4. "What benchmark, test case, or expected output should I verify against?"
+5. "Are there specific APIs, libraries, or framework conventions I must use?"
+
+**Record** all answers in the investigation README under "Reference Sources."
+**If user says "no reference, build from scratch"** — flag as **high-risk unconstrained implementation** in the README. Investigation must be extra thorough.
+
+After Q0 → proceed to investigation.
+
+## Questioner Q1: Details — How Exactly Should I Build It?
+
+**Purpose**: After investigation reveals findings and Gate 1 gets high-level approval, there's a gap where Claude might fill in critical implementation details with plausible defaults. Q1 catches these.
+
+After Gate 1 confirms findings, ask these **one at a time** (only questions relevant to what was discovered):
+
+1. "Based on the investigation, here are the key interfaces: [list]. Should the new code match these exactly, or are we changing the API?"
+2. "The reference uses [format/shape/convention]. Should we follow the same, or does your use case need something different?"
+3. "Should this be configurable via [config file / constructor args / env vars]? What defaults?"
+4. "I found these edge cases: [list]. How should each be handled — error, fallback, or ignore?"
+5. "This connects to [existing modules]. Modify them or create adapters?"
+6. "Minimal implementation needs [X, Y, Z]. Also include [A, B] from the reference, or keep it minimal?"
+
+**Record** answers under "Implementation Decisions (Human-Approved)" in the README.
+These become **binding constraints** — Claude must not deviate without asking.
+
+After Q1 → proceed to design.
 
 ## Skill Priority Order
 
