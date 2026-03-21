@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="#0a0a0a"/>
+
+  <!-- Flowchart / pipeline graph — structured instruction flow -->
+
+  <!-- Top node — Intake -->
+  <rect x="208" y="72" width="96" height="40" rx="8" stroke="white" stroke-width="8" fill="none" opacity="0.9"/>
+
+  <!-- Connector -->
+  <line x1="256" y1="112" x2="256" y2="148" stroke="white" stroke-width="6" opacity="0.5"/>
+
+  <!-- Gate diamond 0 -->
+  <rect x="236" y="148" width="40" height="40" rx="4" transform="rotate(45 256 168)" stroke="white" stroke-width="6" fill="none" opacity="0.75"/>
+
+  <!-- Branch lines from gate -->
+  <line x1="256" y1="196" x2="256" y2="224" stroke="white" stroke-width="6" opacity="0.5"/>
+
+  <!-- Investigation block -->
+  <rect x="176" y="224" width="160" height="36" rx="8" stroke="white" stroke-width="8" fill="none" opacity="0.9"/>
+  <!-- Instruction lines inside -->
+  <line x1="192" y1="238" x2="252" y2="238" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+  <line x1="192" y1="250" x2="236" y2="250" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Connector -->
+  <line x1="256" y1="260" x2="256" y2="292" stroke="white" stroke-width="6" opacity="0.5"/>
+
+  <!-- Gate diamond 1 -->
+  <rect x="236" y="292" width="40" height="40" rx="4" transform="rotate(45 256 312)" stroke="white" stroke-width="6" fill="none" opacity="0.75"/>
+
+  <!-- Branch -->
+  <line x1="256" y1="340" x2="256" y2="368" stroke="white" stroke-width="6" opacity="0.5"/>
+
+  <!-- Implementation block -->
+  <rect x="176" y="368" width="160" height="36" rx="8" stroke="white" stroke-width="8" fill="none" opacity="0.9"/>
+  <line x1="192" y1="382" x2="260" y2="382" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+  <line x1="192" y1="394" x2="240" y2="394" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Connector to final -->
+  <line x1="256" y1="404" x2="256" y2="428" stroke="white" stroke-width="6" opacity="0.5"/>
+
+  <!-- Output circle — the propelled result -->
+  <circle cx="256" cy="440" r="12" fill="white" opacity="0.9"/>
+
+  <!-- Side audit branches -->
+  <!-- Left auditor from implementation -->
+  <line x1="176" y1="386" x2="120" y2="386" stroke="white" stroke-width="5" stroke-dasharray="8 6" opacity="0.4"/>
+  <rect x="72" y="372" width="48" height="28" rx="6" stroke="white" stroke-width="4" fill="none" opacity="0.4"/>
+
+  <!-- Right auditor from implementation -->
+  <line x1="336" y1="386" x2="392" y2="386" stroke="white" stroke-width="5" stroke-dasharray="8 6" opacity="0.4"/>
+  <rect x="392" y="372" width="48" height="28" rx="6" stroke="white" stroke-width="4" fill="none" opacity="0.4"/>
+
+</svg>

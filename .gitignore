@@ -25,3 +25,6 @@ Thumbs.db
 .venv/
 venv/
 env/
+
+# Website (separate deployment)
+website/
