@@ -9,8 +9,22 @@ A structured constraint framework for Claude Code in research workflows.
 **[Website](https://kbian.org/propel-website/)** | **[Docs](docs/README.md)** | **[Vibe Coding Articles](https://kbian.org/Kaiwen-Wiki/articles/vibe_coding/)**
 
 <p align="center">
-  <img src="assets/propel_pipeline.svg" alt="Propel Pipeline — Human-in-the-Loop Research Workflow with Three Modes" width="100%"/>
+  <img src="assets/propel_pipeline.svg" alt="Propel Pipeline — Human-in-the-Loop Research Workflow with Four Modes" width="100%"/>
 </p>
+
+## Core Principles
+
+Propel is built on five non-negotiable principles that are injected into every session (see [`core/CORE.md`](core/CORE.md)):
+
+| Principle | Rule |
+|-----------|------|
+| **Assistant, not agent** | Investigate and present — don't guess and act. Every claim should be traceable to evidence. |
+| **Evidence over agreement** | Be correct, not agreeable. Recognize leading questions. Steel-man the counterargument before agreeing. |
+| **Context discipline** | Hallucination risk increases as context grows. Suggest clearing before it fogs. Preserve state in living READMEs. |
+| **Critical self-reflection** | Question your own reasoning as hard as the user's. Watch for premature convergence and confirmation bias. |
+| **Break logic loops** | Name circular reasoning, reframe the question, or bring new data. Never push through the same failed approach. |
+
+These principles define the *mindset*. The skills, gates, and agents are the *mechanisms*. Without the principles, the mechanisms are just bureaucracy.
 
 ## Why Constraints Matter
 
@@ -43,21 +57,37 @@ Propel gives you three places to embed the expertise that makes the difference:
 
 A generic "implement the loss function" gets you the average loss function. "Implement equation 7 from [paper], using stop-gradient on the codebook as in section 3.2, with straight-through estimator for the backward pass" gets you what you actually need.
 
-## Three Modes
+## Four Modes
 
-Not every session needs the full pipeline. Propel offers three modes that filter which skills and gates are active. Choose a mode at the start of each session (via `/intro` or `/switch`), or default to Engineer.
+Not every session needs the full pipeline. Propel offers four modes that filter which skills and gates are active. Choose a mode at the start of each session (via `/intro` or `/switch`), or default to Engineer.
 
 | Mode | Scope | Active Gates | When to Use |
 |------|-------|-------------|-------------|
 | **Researcher** | Literature, investigation, deep research | Gate 0, Gate 1 | Understanding the problem space — reading papers, tracing code, exploring approaches |
 | **Engineer** | Full pipeline (default) | All (0-4) | Building something — investigation through implementation with all auditors |
+| **Debugger** | Root-cause analysis, evidence-backed diagnosis | Gate 0, Gate 1, Gate 4 | Something is wrong — classify code bugs vs. design issues, present evidence, search literature |
 | **Trainer** | Training execution, runtime debugging | Gate 4 (runtime only) | Code is ready — launching training runs, fixing CUDA/OOM/path errors |
 
 - **Researcher Mode** keeps you in the understanding phase. Implementation skills are paused — if you try to build something, Propel suggests `/switch engineer`.
 - **Engineer Mode** is the default and matches the existing full Propel workflow. Nothing changes if you always use this mode.
+- **Debugger Mode** is for when something is wrong and you need to understand why. It classifies every issue as a code bug, design issue, or configuration problem — and backs up claims with evidence. For code bugs, it presents concrete evidence (line numbers, values, shapes). For design issues, it searches the literature for similar problems and validated alternatives using deep-research and failure-mode-researcher. Debugger Mode does NOT build new features — for those, `/switch engineer`.
 - **Trainer Mode** scans for training commands, launches them in screen sessions, and fixes runtime bugs. It does NOT touch training logic (architecture, loss, data pipeline) — for those, `/switch engineer`.
 
-Switch anytime with `/switch researcher`, `/switch engineer`, or `/switch trainer`. Mode state persists in `.propel/mode.json` (gitignored) and survives `/clear`.
+Switch anytime with `/switch researcher`, `/switch engineer`, `/switch debugger`, or `/switch trainer`. Mode state persists in `.propel/mode.json` (gitignored) and survives `/clear`.
+
+### Using Specific Sub-Features
+
+You don't need the full pipeline to benefit from Propel. Each mode is designed as a standalone tool for a specific job:
+
+- **Just need research?** Use Researcher Mode. It gives you structured literature surveys, investigation scaffolds, and paper extraction — without any implementation pressure. Great for understanding a codebase, comparing approaches, or extracting reference implementations.
+
+- **Just need debugging help?** Use Debugger Mode. It gives you deep root-cause analysis with all auditors, literature-backed diagnosis for design issues, and the 3-strike discipline. No gates for design or implementation — just diagnosis and fix.
+
+- **Just need to launch training?** Use Trainer Mode. It scans for training commands, launches them in persistent screen sessions, and fixes runtime errors. No investigation or design phases.
+
+- **Need everything?** Use Engineer Mode. It's the full pipeline — all gates, all skills, all auditors.
+
+Each mode activates only the skills and gates relevant to its job. You can switch between modes at any point in a session — your investigation artifacts, session state, and CLAUDE.md all persist across mode switches.
 
 ## How Propel Constrains
 
@@ -178,8 +208,6 @@ Sessions are stored in `sessions/` with chat history, prompt templates, and syml
 Propel combines ideas from multiple sources:
 
 - **[obra/superpowers](https://github.com/obra/superpowers)** — Plugin architecture, discipline enforcement, verification gates, micro-task planning. Propel's plugin structure, hook system, and "check skills before acting" pattern come directly from Superpowers.
-
-- **[code-manual](https://github.com/KevinBian107/code-manual)** — Research methodology, investigation skills, domain-specific agents, paper-alignment auditing, retrospective system. The investigation-first workflow, all auditor agents, and the literature skills originate from code-manual.
 
 - **[scott-yj-yang/new-prompt](https://github.com/scott-yj-yang/new-prompt)** — Session management CLI. The `propel session` tool is adapted from new-prompt with auto-detection of project root, investigation artifact linking, and session indexing.
 

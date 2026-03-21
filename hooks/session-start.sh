@@ -7,6 +7,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 SKILL_FILE="$PLUGIN_DIR/skills/using-propel/SKILL.md"
+CORE_FILE="$PLUGIN_DIR/core/CORE.md"
 
 if [ ! -f "$SKILL_FILE" ]; then
   echo '{"error": "using-propel/SKILL.md not found"}'
@@ -23,11 +24,23 @@ content = sys.stdin.read()
 print(json.dumps(content))
 ')
 
+# Read core principles (injected every session — non-negotiable)
+if [ -f "$CORE_FILE" ]; then
+  CORE_ESCAPED=$(printf '%s' "$(cat "$CORE_FILE")" | python3 -c '
+import sys, json
+content = sys.stdin.read()
+print(json.dumps(content))
+')
+else
+  CORE_ESCAPED='null'
+fi
+
 # Output JSON context for Claude Code to consume
 cat <<EOF
 {
   "plugin": "propel",
   "version": "0.1.0",
+  "core_principles": ${CORE_ESCAPED},
   "context": ${ESCAPED},
   "active_investigations": $(
     if [ -d "scratch" ]; then

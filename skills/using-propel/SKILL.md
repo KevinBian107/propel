@@ -11,7 +11,7 @@ description: >
 
 ## Mode System
 
-Propel has three modes that filter which skills and gates are active. Check for mode state FIRST before any other action.
+Propel has four modes that filter which skills and gates are active. Check for mode state FIRST before any other action.
 
 ### Mode Selection (on session start)
 
@@ -25,7 +25,10 @@ If the hook injects `"mode_selection_needed": true` (no `.propel/mode.json` exis
 > 2. **Engineer** — "I know what I want to build and I'm ready for the full workflow."
 >    All skills, gates, and auditors. The complete Propel pipeline.
 >
-> 3. **Trainer** — "My code is ready, I just need to get training running."
+> 3. **Debugger** — "Something is wrong and I need to get to the bottom of it."
+>    Deep root-cause analysis with evidence-backed diagnosis. Gates 0, 1, and 4. Classifies bugs vs. design issues and backs up claims with literature when needed.
+>
+> 4. **Trainer** — "My code is ready, I just need to get training running."
 >    Training execution, runtime bug fixing, and monitoring. Gate 4 (runtime only).
 >
 > Which mode? (Or just describe what you want to do and I'll suggest one.)
@@ -51,6 +54,13 @@ After the user chooses, write `.propel/mode.json`:
 >
 > What are you working on? What outcome would make this session successful?
 
+**Debugger Mode:**
+> Active skills: investigation, systematic-debugging, deep-research, paper-extraction, think-deeply, retrospective, context-hygiene, verification-before-completion, project-customization.
+> Active gates: Gate 0 (Scope the Bug), Gate 1 (Investigation Findings), Gate 4 (Before Fix).
+> Active agents: All auditors — silent-bug-detector, paper-alignment-auditor, data-flow-tracer, failure-mode-researcher, code-reviewer, jax-logic-auditor, regression-guard.
+>
+> What's going wrong? Describe the symptom — what you see, what you expected, and when it started.
+
 **Trainer Mode:**
 > Active skills: trainer-mode, think-deeply, retrospective, context-hygiene, project-customization.
 > Active gate: Gate 4 (runtime bugs only).
@@ -63,27 +73,28 @@ Then immediately activate the **trainer-mode** skill Phase 1.
 
 Before routing to any skill, check the current mode. If the triggered skill is not active in the current mode, inform the user and suggest the appropriate mode.
 
-| Skill | Researcher | Engineer | Trainer |
-|-------|:----------:|:--------:|:-------:|
-| investigation | Yes | Yes | — |
-| deep-research | Yes | Yes | — |
-| paper-extraction | Yes | Yes | — |
-| think-deeply | Yes | Yes | Yes |
-| retrospective | Yes | Yes | Yes |
-| context-hygiene | Yes | Yes | Yes |
-| project-customization | Yes | Yes | Yes |
-| research-design | — | Yes | — |
-| writing-plans | — | Yes | — |
-| subagent-driven-research | — | Yes | — |
-| research-validation | — | Yes | — |
-| verification-before-completion | — | Yes | — |
-| systematic-debugging | — | Yes | — |
-| using-git-worktrees | — | Yes | — |
-| trainer-mode | — | — | Yes |
+| Skill | Researcher | Engineer | Debugger | Trainer |
+|-------|:----------:|:--------:|:--------:|:-------:|
+| investigation | Yes | Yes | Yes | — |
+| deep-research | Yes | Yes | Yes | — |
+| paper-extraction | Yes | Yes | Yes | — |
+| think-deeply | Yes | Yes | Yes | Yes |
+| retrospective | Yes | Yes | Yes | Yes |
+| context-hygiene | Yes | Yes | Yes | Yes |
+| project-customization | Yes | Yes | Yes | Yes |
+| research-design | — | Yes | — | — |
+| writing-plans | — | Yes | — | — |
+| subagent-driven-research | — | Yes | — | — |
+| research-validation | — | Yes | — | — |
+| verification-before-completion | — | Yes | Yes | — |
+| systematic-debugging | — | Yes | Yes | — |
+| using-git-worktrees | — | Yes | — | — |
+| trainer-mode | — | — | — | Yes |
 
 **Gates by mode:**
 - **Researcher**: Gate 0, Gate 1
 - **Engineer**: All gates (0, 1, 2, 3, 4)
+- **Debugger**: Gate 0, Gate 1, Gate 4
 - **Trainer**: Gate 4 (runtime bugs only)
 
 ### Out-of-Scope Handling
@@ -91,8 +102,76 @@ Before routing to any skill, check the current mode. If the triggered skill is n
 If the user requests something outside their current mode:
 
 - **Researcher asks for implementation/code changes**: "That's an implementation task. Switch to Engineer Mode with `/switch engineer` to get the full design-implement-validate workflow."
+- **Debugger asks for new feature implementation**: "That's a new feature, not a bug fix. Switch to Engineer Mode with `/switch engineer` for the full design-implement-validate workflow."
+- **Debugger asks to launch training**: "That's a training task. Switch to Trainer Mode with `/switch trainer` to launch and monitor training runs."
 - **Trainer asks for logic/architecture changes**: "That's a logic change, not a runtime bug. Switch to Engineer Mode with `/switch engineer` for the investigation-design-implement workflow."
 - **Trainer asks for literature/investigation work**: "That's a research task. Switch to Researcher Mode with `/switch researcher` for literature and investigation skills."
+
+### Debugger Mode — Deep Root-Cause Analysis Protocol
+
+When Debugger Mode is active, follow this workflow for every issue:
+
+#### Step 1: Bug Intake (Gate 0)
+
+Ask scoping questions one at a time:
+- "What exactly is happening? What did you expect instead?"
+- "When did this start? What changed recently?"
+- "Is this reproducible? Always or intermittent?"
+- "What have you already tried?"
+
+Write a problem statement and get confirmation.
+
+#### Step 2: Investigation (Gate 1)
+
+Investigate thoroughly using subagents. Scaffold `scratch/{date}-debug-{name}/README.md`. Dispatch all relevant auditors:
+- **silent-bug-detector** — scan for the 11 silent failure categories
+- **paper-alignment-auditor** — if the bug involves paper-derived components
+- **data-flow-tracer** — trace data through the pipeline
+- **jax-logic-auditor** — if JAX code is involved
+- **code-reviewer** — general code quality issues
+
+Present findings and classify the issue.
+
+#### Step 3: Bug Classification
+
+Every bug must be classified before proposing a fix. Present the classification clearly:
+
+**Classification A — Code Bug:**
+> This is a code bug. Here's the evidence:
+> - File, line number, specific value or shape that's wrong
+> - What the code does vs. what it should do
+> - Root cause chain: X happens because Y, which happens because Z
+
+**Classification B — Design Issue:**
+> This appears to be a design choice issue, not a simple code bug. Here's why:
+> - The code correctly implements [X], but [X] itself may be the wrong approach
+> - Evidence from investigation: [findings that suggest design mismatch]
+> - **Literature context**: [Use deep-research / failure-mode-researcher to find similar issues in the field]
+>   - "[Paper/project] encountered a similar issue and found that [approach]"
+>   - "[Alternative design] has been shown to avoid this class of problems because [reason]"
+> - **Options**: (A) Fix within current design [trade-offs], (B) Redesign [approach] based on [literature] [trade-offs]
+
+**Classification C — Environment/Configuration Issue:**
+> This is an environment or configuration problem:
+> - The code is correct, but [config/env/dependency] is wrong
+> - Evidence: [specific config value, version mismatch, etc.]
+
+#### Step 4: Evidence Standard
+
+**For code bugs**: Concrete evidence is mandatory — line numbers, actual vs. expected values, shapes, tracebacks. Write diagnostic scripts to `scratch/debug/` to reproduce.
+
+**For design issues**: Literature backing is mandatory. Before claiming something is a design problem, use **deep-research** or **failure-mode-researcher** to find:
+- Other projects that hit the same issue
+- Papers that discuss the failure mode
+- Alternative approaches that have been validated
+
+Do NOT claim "this is a design issue" without external evidence. If you can't find literature backing, say so explicitly: "I believe this may be a design issue, but I haven't found literature confirming this. Here's my reasoning: [...]"
+
+#### Step 5: Present Diagnosis (Gate 4)
+
+Present the full diagnosis before any fix. The user must understand and approve. Use the systematic-debugging Gate 4 format, with the classification and evidence from above.
+
+After the fix is applied, activate **verification-before-completion** — never claim "fixed" without evidence that the fix works.
 
 ---
 

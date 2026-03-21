@@ -166,7 +166,7 @@ See propel documentation for the investigation → design → implement → vali
 
 ## Customizing Mode Behavior
 
-Propel's three modes (Researcher, Engineer, Trainer) have default skill/gate assignments, but you can override these in your project's `CLAUDE.md`.
+Propel's four modes (Researcher, Engineer, Debugger, Trainer) have default skill/gate assignments, but you can override these in your project's `CLAUDE.md`.
 
 ### Expanding Trainer Mode
 

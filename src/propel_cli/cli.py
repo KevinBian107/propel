@@ -347,7 +347,7 @@ def init():
     _cleanup_stale_files(claude_dir, propel_root)
 
     # Copy skills, agents, commands, hooks
-    dirs_to_copy = ["skills", "agents", "commands", "hooks"]
+    dirs_to_copy = ["skills", "agents", "commands", "hooks", "core"]
     total_files = 0
 
     for dirname in dirs_to_copy:

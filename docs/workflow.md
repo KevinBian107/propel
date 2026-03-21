@@ -10,48 +10,49 @@ User idea → Gate 0 → Questioner Q0 → Investigation → Gate 1 → Question
 
 ## Modes and Phase Filtering
 
-Not every session uses the full pipeline. Propel's three modes filter which phases and gates are active:
+Not every session uses the full pipeline. Propel's four modes filter which phases and gates are active:
 
 ```
-                    Researcher          Engineer            Trainer
-                    ──────────          ────────            ───────
-Gate 0  Intake      ██████████          ██████████
-                        │                   │
+                    Researcher          Engineer            Debugger            Trainer
+                    ──────────          ────────            ────────            ───────
+Gate 0  Intake      ██████████          ██████████          ██████████
+                        │                   │                   │
   Q0    Questioner      ◆◆◆◆◆◆◆◆◆◆          ◆◆◆◆◆◆◆◆◆◆
         (grounding)     │                   │
-        Investigation   ██████████          ██████████
-                        │                   │
-Gate 1  Post-Invest.    ██████████          ██████████
-                        │                   │
-  Q1    Questioner      ◆◆◆◆◆◆◆◆◆◆          ◆◆◆◆◆◆◆◆◆◆
-        (details)                           │
-        Design                              ██████████
-                                            │
-Gate 2  Post-Design                         ██████████
-                                            │
-        Implementation                      ██████████
-                                            │
-Gate 3  Mid-Impl.                           ██████████
-                                            │
-        Validation                          ██████████
-                                                            ┌──────────┐
-        Training                            ██████████      │ scan,    │
-                                            │               │ launch,  │
-        Debugging                           ██████████      │ monitor  │
-                                            │               └────┬─────┘
-Gate 4  Post-Debug                          ██████████           │
-                                            │               ██████████
-        Retrospective   ██████████          ██████████      (runtime only)
-                                                            ██████████
+        Investigation   ██████████          ██████████          ██████████
+                        │                   │                   │
+Gate 1  Post-Invest.    ██████████          ██████████          ██████████
+                        │                   │                   │
+  Q1    Questioner      ◆◆◆◆◆◆◆◆◆◆          ◆◆◆◆◆◆◆◆◆◆          │
+        (details)                           │                   │
+        Design                              ██████████          │
+                                            │                   │
+Gate 2  Post-Design                         ██████████          │
+                                            │                   │
+        Implementation                      ██████████          │
+                                            │               ┌────┴─────┐
+Gate 3  Mid-Impl.                           ██████████      │ classify │
+                                            │               │ evidence │
+        Validation                          ██████████      │ lit srch │
+                                                            └────┬─────┘
+        Training                            ██████████           │         ┌──────────┐
+                                            │                   │         │ scan,    │
+        Debugging                           ██████████          ██████████ │ launch,  │
+                                            │                   │         │ monitor  │
+Gate 4  Post-Debug                          ██████████          ██████████ └────┬─────┘
+                                            │                   │              │
+        Retrospective   ██████████          ██████████          ██████████ ██████████
+                                                                          (runtime only)
 ```
 
 - **Researcher**: Stays in the understanding phase. Literature, investigation, and retrospective. Gates 0 and 1 only.
 - **Engineer**: Full pipeline. All phases and gates. This is the default and matches the workflow described below.
+- **Debugger**: Focused on root-cause analysis. Investigates, classifies bugs (code bug vs. design issue vs. config problem), gathers evidence, searches literature for design issues, and presents diagnosis before fixing. Gates 0, 1, and 4. Does NOT build new features — redirects to Engineer Mode for those.
 - **Trainer**: Skips to training execution. Scans for training commands, launches in screen sessions, fixes runtime bugs (CUDA, OOM, paths, imports). Gate 4 for runtime bugs only — logic changes redirect to Engineer Mode.
 
-Choose a mode at session start (via `/intro`) or switch anytime with `/switch researcher`, `/switch engineer`, or `/switch trainer`. Mode persists in `.propel/mode.json` and survives `/clear`.
+Choose a mode at session start (via `/intro`) or switch anytime with `/switch researcher`, `/switch engineer`, `/switch debugger`, or `/switch trainer`. Mode persists in `.propel/mode.json` and survives `/clear`.
 
-The rest of this guide describes the full **Engineer Mode** workflow. Researcher Mode uses Phases 1-4 only. Trainer Mode uses its own dedicated skill.
+The rest of this guide describes the full **Engineer Mode** workflow. Researcher Mode uses Phases 1-4 only. Debugger Mode uses its own classification-evidence-diagnosis protocol. Trainer Mode uses its own dedicated skill.
 
 ---
 
@@ -75,20 +76,22 @@ Injects full using-propel/SKILL.md content as JSON into Claude's context
 (Also injects: active investigations, project profile, registry entries)
   ↓
 Claude's context now contains:
-  1. The gate protocol (5 mandatory gates)
-  2. The skill routing table (which skill for which trigger)
-  3. The auditor dispatch rules (which agent after which code change)
-  4. Active investigation state (scratch/ READMEs)
-  5. Project profile (.propel/profile.md, if it exists)
-  6. Current mode + mode_selection_needed (.propel/mode.json)
-  7. Empty repo flag (whether to use progressive CLAUDE.md building)
+  1. Core principles (core/CORE.md — non-negotiable mindset rules)
+  2. The gate protocol (5 mandatory gates)
+  3. The skill routing table (which skill for which trigger)
+  4. The auditor dispatch rules (which agent after which code change)
+  5. Active investigation state (scratch/ READMEs)
+  6. Project profile (.propel/profile.md, if it exists)
+  7. Current mode + mode_selection_needed (.propel/mode.json)
+  8. Empty repo flag (whether to use progressive CLAUDE.md building)
 ```
 
 ### What each layer does
 
 | Layer | What it provides | How it gets into context |
 |-------|-----------------|------------------------|
-| **SessionStart hook** | Injects using-propel skill + investigation state on every session start, resume, and compaction | `.claude/settings.local.json` → hooks config |
+| **Core principles** | Non-negotiable mindset rules: evidence over agreement, anti-sycophancy, context discipline, self-reflection, loop-breaking | SessionStart hook injects `core/CORE.md` |
+| **SessionStart hook** | Injects core + using-propel skill + investigation state on every session start, resume, and compaction | `.claude/settings.local.json` → hooks config |
 | **PreCompact hook** | Re-injects context before Claude compresses old messages, so the instructions survive compaction | Same hook, different trigger |
 | **Skill descriptions** | Claude Code loads all `.claude/skills/*/SKILL.md` descriptions into the system prompt — Claude matches triggers against what the user says | Built-in Claude Code feature |
 | **Agent descriptions** | Claude Code loads all `.claude/agents/*.md` descriptions — Claude dispatches agents based on description match | Built-in Claude Code feature |

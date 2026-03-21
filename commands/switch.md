@@ -1,8 +1,8 @@
-[Propel] Switch between Propel modes (Researcher, Engineer, Trainer).
+[Propel] Switch between Propel modes (Researcher, Engineer, Debugger, Trainer).
 
 Usage: `/switch $ARGUMENTS`
 
-Where `$ARGUMENTS` is one of: `researcher`, `engineer`, `trainer`
+Where `$ARGUMENTS` is one of: `researcher`, `engineer`, `debugger`, `trainer`
 
 ---
 
@@ -10,15 +10,16 @@ Where `$ARGUMENTS` is one of: `researcher`, `engineer`, `trainer`
 
 ### 1. Validate input
 
-If `$ARGUMENTS` is empty or not one of `researcher`, `engineer`, `trainer` (case-insensitive), show:
+If `$ARGUMENTS` is empty or not one of `researcher`, `engineer`, `debugger`, `trainer` (case-insensitive), show:
 
 ```
 Available modes:
   researcher — Focus on understanding the problem space. Literature, investigation, and deep research skills only. Gates 0 and 1.
   engineer   — Full pipeline. All skills and gates active. (Default mode.)
+  debugger   — Deep root-cause analysis with evidence-backed diagnosis. Gates 0, 1, and 4.
   trainer    — Training execution and runtime debugging. No investigation or design phases.
 
-Usage: /switch researcher | /switch engineer | /switch trainer
+Usage: /switch researcher | /switch engineer | /switch debugger | /switch trainer
 ```
 
 Then stop — do not proceed.
@@ -60,6 +61,18 @@ Ensure `.propel/` directory exists. Write `.propel/mode.json`:
 > This is the default Propel experience: Intake → Investigation → Design → Implementation → Validation → Debugging → Retrospective.
 >
 > What are you working on? What outcome would make this session successful?
+
+**If switching to Debugger:**
+
+> **Debugger Mode active.**
+>
+> Active skills: investigation, systematic-debugging, deep-research, paper-extraction, think-deeply, retrospective, context-hygiene, verification-before-completion, project-customization.
+> Active gates: Gate 0 (Scope the Bug), Gate 1 (Investigation Findings), Gate 4 (Before Fix).
+> Active agents: All auditors for diagnosis.
+>
+> I'll classify every issue as a code bug, design issue, or configuration problem — with solid evidence to back up the claim. For design issues, I'll search the literature for similar problems and validated alternatives.
+>
+> What's going wrong? Describe the symptom — what you see, what you expected, and when it started.
 
 **If switching to Trainer:**
 

@@ -1,7 +1,7 @@
 [Propel] Introduce the user to Propel, select a mode, and generate a project-specific CLAUDE.md.
 
 This command does four things:
-0. Let the user choose a mode (Researcher, Engineer, or Trainer)
+0. Let the user choose a mode (Researcher, Engineer, Debugger, or Trainer)
 1. Explain what Propel is and what commands/skills/agents are available
 2. Analyze the codebase and draft a CLAUDE.md tailored to this project
 3. Offer automatic project customization (optional)
@@ -10,7 +10,7 @@ This command does four things:
 
 ## Part 0: Mode Selection
 
-Before anything else, present the three Propel modes:
+Before anything else, present the four Propel modes:
 
 > **How do you want to work today?**
 >
@@ -20,7 +20,10 @@ Before anything else, present the three Propel modes:
 > 2. **Engineer** — "I know what I want to build and I'm ready for the full workflow."
 >    All skills, gates, and auditors. The complete Propel pipeline. *(Default)*
 >
-> 3. **Trainer** — "My code is ready, I just need to get training running."
+> 3. **Debugger** — "Something is wrong and I need to get to the bottom of it."
+>    Deep root-cause analysis with evidence-backed diagnosis. Gates 0, 1, and 4.
+>
+> 4. **Trainer** — "My code is ready, I just need to get training running."
 >    Training execution, runtime bug fixing, and monitoring. Gate 4 (runtime only).
 >
 > Which mode? (You can switch anytime with `/switch`)
@@ -30,7 +33,8 @@ After the user chooses:
 2. Write `.propel/mode.json`: `{"mode": "<name>", "switched_at": "<ISO 8601>", "previous_mode": null}`
 3. Deliver the mode-specific welcome (see `/switch` command for welcome text)
 4. If Trainer Mode: immediately scan for training commands (trainer-mode Phase 1), then skip to Part 3
-5. If Researcher or Engineer: continue to Part 1
+5. If Debugger Mode: continue to Part 1, then ask "What's going wrong?" after intro
+6. If Researcher or Engineer: continue to Part 1
 
 If the user says "just go" or skips, default to Engineer Mode and continue.
 
@@ -60,7 +64,7 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 | `/new-session [description]` | Create a tracked session directory with UUID and index entry |
 | `/read-paper [path]` | Extract structured implementation reference from a paper |
 | `/debug-training [symptom]` | Diagnose training issues (NaN, plateau, mode collapse) |
-| `/switch [mode]` | Switch between modes (researcher, engineer, trainer) |
+| `/switch [mode]` | Switch between modes (researcher, engineer, debugger, trainer) |
 | `/trace-shapes [entry point]` | Quick shape annotation through a code path |
 
 ### Skills (auto-triggered)
