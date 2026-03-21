@@ -6,7 +6,7 @@
 
 A structured constraint framework for Claude Code in research workflows.
 
-**[Website](https://kevinbian107.github.io/propel-website/)** | **[Docs](docs/README.md)** | **[Vibe Coding Articles](https://kbian.org/Kaiwen-Wiki/articles/vibe_coding/)**
+**[Website](https://kbian.org/propel-website/)** | **[Docs](docs/README.md)** | **[Vibe Coding Articles](https://kbian.org/Kaiwen-Wiki/articles/vibe_coding/)**
 
 <p align="center">
   <img src="assets/propel_pipeline.svg" alt="Propel Pipeline — Human-in-the-Loop Research Workflow with Three Modes" width="100%"/>
