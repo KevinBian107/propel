@@ -6,221 +6,68 @@
 
 A structured constraint framework for Claude Code in research workflows.
 
-**[Website](https://kbian.org/propel-website/)** | **[Docs](docs/README.md)** | **[Vibe Coding Articles](https://kbian.org/Kaiwen-Wiki/articles/vibe_coding/)**
+**[Website](https://kbian.org/propel-website/)** | **[Documentation](https://kbian.org/propel-website/docs/)** | **[Vibe Coding Articles](https://kbian.org/Kaiwen-Wiki/articles/vibe_coding/)**
 
 <p align="center">
   <img src="assets/propel_pipeline.svg" alt="Propel Pipeline — Human-in-the-Loop Research Workflow with Four Modes" width="100%"/>
 </p>
 
-## Core Principles
+## Why Propel?
 
-Propel is built on five non-negotiable principles that are injected into every session (see [`core/CORE.md`](core/CORE.md)):
+Without structure, an unconstrained LLM produces the **mean of its training data**. Ask it to "implement RVQ" and you get a plausible-looking average — not the one matching your paper, your architecture, your constraints. The output compiles, but embeds wrong assumptions, silent numerical bugs, and design decisions made without asking.
+
+**The fix isn't better prompts — it's structured constraints.** Propel enforces human-in-the-loop gates, domain-specific auditors, and investigation-first methodology so the output goes from "plausible average" to precisely what you need.
+
+## Core Principles
 
 | Principle | Rule |
 |-----------|------|
-| **Assistant, not agent** | Investigate and present — don't guess and act. Every claim should be traceable to evidence. |
-| **Evidence over agreement** | Be correct, not agreeable. Recognize leading questions. Steel-man the counterargument before agreeing. |
-| **Context discipline** | Hallucination risk increases as context grows. Suggest clearing before it fogs. Preserve state in living READMEs. |
-| **Critical self-reflection** | Question your own reasoning as hard as the user's. Watch for premature convergence and confirmation bias. |
-| **Break logic loops** | Name circular reasoning, reframe the question, or bring new data. Never push through the same failed approach. |
-
-These principles define the *mindset*. The skills, gates, and agents are the *mechanisms*. Without the principles, the mechanisms are just bureaucracy.
-
-## Why Constraints Matter
-
-Claude Code can be a powerful boost to research workflows if we use it correctly and carefully. Without structure, an unconstrained LLM produces the mean of its training data — ask Claude to "implement RVQ" and you get a plausible-looking average of every RVQ implementation it has seen, not the one that matches your paper, your architecture, your constraints. The output compiles, but it's noisy: wrong assumptions baked in, silent numerical bugs, design decisions made without asking.
-
-**The fix isn't better prompts — it's structured constraints.** This is the core insight behind [obra/superpowers](https://github.com/obra/superpowers): when we constrain an LLM with domain-specific rules, verification gates, and forced checkpoints, the output goes from "plausible average" to precisely what we need. Propel applies this to research workflows where the cost of undetected noise is highest — a silent broadcasting bug in a loss function doesn't crash, it produces subtly wrong training runs that waste compute.
-
-## What Only You Can Provide
-
-Propel's constraints are necessary but not sufficient. The framework forces Claude to stop and ask structured questions at every phase transition, but **the quality of the output depends entirely on what you bring to those checkpoints**:
-
-- **Your research question** — not "implement X" but "test whether X improves Y under condition Z." The more specific you are, the less Claude has to guess.
-- **Your hypothesis** — what do you expect to happen and why? This is what the auditors verify against. Without a target, Claude cannot tell you when it missed.
-- **Your method** — which paper, which equations, which specific algorithmic choices? Claude cannot infer "use stop-gradient on the codebook as in Section 3.2" from context alone.
-- **Your domain knowledge** — the pitfalls that aren't in any paper, the configurations that look correct but silently fail, the things that only work in your specific setup.
-
-It is critical to review what Claude finds during investigation thoroughly — the investigation README is the blueprint for everything that follows. If the blueprint is correct, the code will be correct. Ask Claude to compare its proposals with what's in the paper, question why it made certain decisions, and have it introspect on its reasoning when something feels off.
-
-Each gate is designed to extract your specific insight before Claude acts on it. Gate 0 asks your research intent, Gate 1 validates its understanding against yours, Gate 2 confirms the plan matches your method. Skipping these means accepting the noisy mean. The more specific your constraints, the less noise in the output.
-
-### Encoding Your Domain Knowledge
-
-Propel gives you three places to embed the expertise that makes the difference:
-
-| Where | What to Put There | Why It Matters |
-|-------|-------------------|----------------|
-| **Project CLAUDE.md** | Research context, conventions, known pitfalls, what "correct" means for your project | Read on every session — sets the baseline constraints |
-| **Custom agents** | Domain-specific auditors that check what matters in *your* field (see [customization](docs/customization.md)) | Automated verification tuned to your failure modes |
-| **Gate 0 answers** | Your actual research question, hypothesis, success criteria, scope boundaries | The single biggest lever — this is where the mean becomes specific |
-
-A generic "implement the loss function" gets you the average loss function. "Implement equation 7 from [paper], using stop-gradient on the codebook as in section 3.2, with straight-through estimator for the backward pass" gets you what you actually need.
+| **Assistant, not agent** | Investigate and present — don't guess and act. Every claim traceable to evidence. |
+| **Evidence over agreement** | Be correct, not agreeable. Steel-man the counterargument before agreeing. |
+| **Context discipline** | Hallucination risk grows with context. Preserve state in living READMEs, clear proactively. |
+| **Critical self-reflection** | Question your own reasoning as hard as the user's. |
+| **Break logic loops** | Name circular reasoning, reframe, or bring new data. 3-strike limit. |
 
 ## Four Modes
 
-Not every session needs the full pipeline. Propel offers four modes that filter which skills and gates are active. Choose a mode at the start of each session (via `/intro` or `/switch`), or default to Engineer.
+| Mode | Active Gates | When to Use |
+|------|-------------|-------------|
+| **Researcher** | Gate 0, 1 | Understanding the problem space — papers, code tracing, approaches |
+| **Engineer** | All (0–4) | Full pipeline from investigation through implementation (default) |
+| **Debugger** | Gate 0, 1, 4 | Root-cause analysis — classify bugs vs. design issues with evidence |
+| **Trainer** | Gate 4 (runtime) | Launch training, monitor, fix CUDA/OOM/path errors |
 
-| Mode | Scope | Active Gates | When to Use |
-|------|-------|-------------|-------------|
-| **Researcher** | Literature, investigation, deep research | Gate 0, Gate 1 | Understanding the problem space — reading papers, tracing code, exploring approaches |
-| **Engineer** | Full pipeline (default) | All (0-4) | Building something — investigation through implementation with all auditors |
-| **Debugger** | Root-cause analysis, evidence-backed diagnosis | Gate 0, Gate 1, Gate 4 | Something is wrong — classify code bugs vs. design issues, present evidence, search literature |
-| **Trainer** | Training execution, runtime debugging | Gate 4 (runtime only) | Code is ready — launching training runs, fixing CUDA/OOM/path errors |
-
-- **Researcher Mode** keeps you in the understanding phase. Implementation skills are paused — if you try to build something, Propel suggests `/switch engineer`.
-- **Engineer Mode** is the default and matches the existing full Propel workflow. Nothing changes if you always use this mode.
-- **Debugger Mode** is for when something is wrong and you need to understand why. It classifies every issue as a code bug, design issue, or configuration problem — and backs up claims with evidence. For code bugs, it presents concrete evidence (line numbers, values, shapes). For design issues, it searches the literature for similar problems and validated alternatives using deep-research and failure-mode-researcher. Debugger Mode does NOT build new features — for those, `/switch engineer`.
-- **Trainer Mode** scans for training commands, launches them in screen sessions, and fixes runtime bugs. It does NOT touch training logic (architecture, loss, data pipeline) — for those, `/switch engineer`.
-
-Switch anytime with `/switch researcher`, `/switch engineer`, `/switch debugger`, or `/switch trainer`. Mode state persists in `.propel/mode.json` (gitignored) and survives `/clear`.
-
-### Using Specific Sub-Features
-
-You don't need the full pipeline to benefit from Propel. Each mode is designed as a standalone tool for a specific job:
-
-- **Just need research?** Use Researcher Mode. It gives you structured literature surveys, investigation scaffolds, and paper extraction — without any implementation pressure. Great for understanding a codebase, comparing approaches, or extracting reference implementations.
-
-- **Just need debugging help?** Use Debugger Mode. It gives you deep root-cause analysis with all auditors, literature-backed diagnosis for design issues, and the 3-strike discipline. No gates for design or implementation — just diagnosis and fix.
-
-- **Just need to launch training?** Use Trainer Mode. It scans for training commands, launches them in persistent screen sessions, and fixes runtime errors. No investigation or design phases.
-
-- **Need everything?** Use Engineer Mode. It's the full pipeline — all gates, all skills, all auditors.
-
-Each mode activates only the skills and gates relevant to its job. You can switch between modes at any point in a session — your investigation artifacts, session state, and CLAUDE.md all persist across mode switches.
-
-## How Propel Constrains
-
-Propel enforces five human-in-the-loop gates, dispatches domain-specific auditors after every code change, and maintains living documentation across `/clear` boundaries.
-
-### The Pipeline
-
-The full pipeline has seven stages, five human-in-the-loop gates, and two questioner checkpoints (see diagram above):
-
-```
-Intake → Q0 → Investigation → Gate 1 → Q1 → Design → Implementation → Debug → Training → Retrospective
- G0    ground      G1        findings  detail   G2          G3          G4      Trainer      All
-```
-
-- **Gates 0-1** (Researcher + Engineer): Scoping and investigation checkpoints
-- **Questioner Q0** (Researcher + Engineer): Grounds work in concrete reference implementations, architectures, and examples before investigation
-- **Questioner Q1** (Researcher + Engineer): Nails down implementation details — interfaces, data formats, edge cases — before design
-- **Gates 2-3** (Engineer only): Design approval and implementation auditing
-- **Gate 4** (Engineer + Trainer): Debug diagnosis before applying fixes
-- **Training** (Trainer Mode): Launch runs, monitor, fix runtime errors
-- **Retrospective** (All modes): Capture learnings and failed attempts
-
-The Questioners exist because Claude is great at morphing an existing implementation into what you need, but bad at creating from scratch when the problem is unconstrained. See [Pitfalls](docs/pitfall.md) for details.
-
-At each gate, Claude stops and asks structured questions that reveal design assumptions — never "shall I proceed?" but "should we [A] or [B]? A means [trade-off], B means [trade-off]."
+Switch anytime: `/switch researcher`, `/switch engineer`, `/switch debugger`, `/switch trainer`.
 
 ## Installation
 
 ```bash
-# Clone and install
 git clone https://github.com/KevinBian107/propel.git
 cd propel && pip install -e .
 
-# Initialize in any project
 cd /path/to/your/project
 propel init
 ```
 
-`propel init` copies all skills, agents, commands, and hooks into your project's `.claude/` directory, configures the session-start hook in `settings.local.json`, and adds `scratch/`, `sessions/`, `.propel/`, `.claude/`, and `propel/` to `.gitignore`.
-
-Then start Claude and run `/intro`. If you have an existing codebase, this scans it to draft a project-specific `.claude/CLAUDE.md` and optionally builds a persistent project profile. If you're starting from an empty repo, it seeds a minimal CLAUDE.md that grows progressively as you work — Gate 0 answers fill in research context, first code written fills in conventions, investigations fill in domain pitfalls. No need to fill out 12 sections before writing your first line of code.
-
-## Quick Start
-
-See [docs/quickstart.md](docs/quickstart.md) for a 5-minute setup guide.
-
-## Skills
-
-| Category | Skill | Trigger |
-|----------|-------|---------|
-| **Meta** | [using-propel](skills/using-propel/SKILL.md) | Always active — routes to correct skill |
-| **Literature** | [deep-research](skills/deep-research/SKILL.md) | "survey", "literature review", "compare methods" |
-| | [paper-extraction](skills/paper-extraction/SKILL.md) | "process these papers", "build paper database" |
-| **Investigation** | [investigation](skills/investigation/SKILL.md) | "start investigation", "trace X", "what touches X" |
-| **Design** | [research-design](skills/research-design/SKILL.md) | "propose how to", "design the implementation" |
-| | [writing-plans](skills/writing-plans/SKILL.md) | "write the plan", "break into tasks" |
-| **Implementation** | [subagent-driven-research](skills/subagent-driven-research/SKILL.md) | User says "go" after plan approval |
-| **Validation** | [research-validation](skills/research-validation/SKILL.md) | "validate this", "test the implementation" |
-| | [verification-before-completion](skills/verification-before-completion/SKILL.md) | Before claiming "done" |
-| **Debugging** | [systematic-debugging](skills/systematic-debugging/SKILL.md) | Bug reports, training failures |
-| **Learning** | [retrospective](skills/retrospective/SKILL.md) | "retrospective", "capture learnings", auto-suggests at ~20 turns |
-| **Cross-cutting** | [think-deeply](skills/think-deeply/SKILL.md) | Confirmation-seeking statements, leading questions |
-| | [context-hygiene](skills/context-hygiene/SKILL.md) | >15 turns, "getting long" |
-| | [using-git-worktrees](skills/using-git-worktrees/SKILL.md) | "create worktree", "experiment branch" |
-| **Training** | [trainer-mode](skills/trainer-mode/SKILL.md) | "train", "launch training", "run training" (Trainer Mode) |
-| **Customization** | [project-customization](skills/project-customization/SKILL.md) | "customize Propel", "analyze my project", "detect conventions" |
-
-## Agents (Auditors)
-
-| Agent | Purpose | Auto-dispatched? |
-|-------|---------|-----------------|
-| [paper-alignment-auditor](agents/paper-alignment-auditor.md) | Cross-reference code against paper equations | Yes — after paper-derived components |
-| [jax-logic-auditor](agents/jax-logic-auditor.md) | Trace shapes through JAX transforms | Yes — after JAX code changes |
-| [silent-bug-detector](agents/silent-bug-detector.md) | Scan for 11 silent failure categories | Yes — after model/loss/data changes |
-| [data-flow-tracer](agents/data-flow-tracer.md) | End-to-end tensor annotation | No — explicit invocation |
-| [regression-guard](agents/regression-guard.md) | Verify existing configs unchanged | Yes — after any code change |
-| [env-researcher](agents/env-researcher.md) | Deep-dive simulation env docs (MuJoCo, robosuite, Isaac, etc.) | Yes — during investigation of env-dependent code |
-| [failure-mode-researcher](agents/failure-mode-researcher.md) | Internet search for training failures | No — explicit invocation |
-| [code-reviewer](agents/code-reviewer.md) | General code quality with research awareness | No — invoked during review stage |
-
-## Commands (Slash Commands)
-
-| Command | Purpose |
-|---------|---------|
-| [/intro](commands/intro.md) | [Propel] Introduction — lists all commands, skills, and agents |
-| [/read-paper](commands/read-paper.md) | [Propel] Extract structured reference from a paper |
-| [/debug-training](commands/debug-training.md) | [Propel] Diagnose training issues |
-| [/trace-shapes](commands/trace-shapes.md) | [Propel] Quick shape annotation through a code path |
-| [/primer](commands/primer.md) | [Propel] Load project context |
-| [/switch](commands/switch.md) | [Propel] Switch between modes (researcher, engineer, trainer) |
-| [/new-session](commands/new-session.md) | [Propel] Create and track a session |
-
-## Session Management
-
-```bash
-# Create a new session and launch Claude Code
-propel session launch "RVQ depth-2 rotation experiment"
-
-# List past sessions
-propel session list
-
-# Save chat history
-propel session save <session-id> <session-dir>
-```
-
-Sessions are stored in `sessions/` with chat history, prompt templates, and symlinks to investigation artifacts. See [docs/workflow.md](docs/workflow.md) for details.
+Then start Claude and run `/intro` to select a mode and set up your project. See the [Getting Started guide](https://kbian.org/propel-website/docs/getting-started.html) for details.
 
 ## Documentation
 
-- [Quick Start](docs/quickstart.md) — 5-minute setup
-- [Full Workflow](docs/workflow.md) — Walkthrough with all 5 gates and 2 questioners
-- [Customization](docs/customization.md) — Adding project-specific agents/skills
-- [Pitfalls](docs/pitfall.md) — Known failure modes when working with Claude
-- [Design Document](../propel/DESIGN.md) — Full specification (in code-manual repo)
+Full documentation is available on the [Propel website](https://kbian.org/propel-website/docs/):
+
+- [Getting Started](https://kbian.org/propel-website/docs/getting-started.html) — Installation and first workflow
+- [Core Principles](https://kbian.org/propel-website/docs/core-principles.html) — The five non-negotiable principles
+- [Pipeline](https://kbian.org/propel-website/docs/pipeline/) — Gates, questioners, and phase transitions
+- [Modes](https://kbian.org/propel-website/docs/modes/) — Researcher, Engineer, Debugger, Trainer
+- [Skills](https://kbian.org/propel-website/docs/skills/) — 17 specialized skills by workflow phase
+- [Agents](https://kbian.org/propel-website/docs/agents/) — 8 domain-specific auditors
+- [Customization](https://kbian.org/propel-website/docs/customization.html) — Project-specific agents, skills, commands
+- [Common Pitfalls](https://kbian.org/propel-website/docs/pitfalls.html) — Known failure modes and anti-patterns
 
 ## Acknowledgments
 
-Propel combines ideas from multiple sources:
-
-- **[obra/superpowers](https://github.com/obra/superpowers)** — Plugin architecture, discipline enforcement, verification gates, micro-task planning. Propel's plugin structure, hook system, and "check skills before acting" pattern come directly from Superpowers.
-
-- **[scott-yj-yang/new-prompt](https://github.com/scott-yj-yang/new-prompt)** — Session management CLI. The `propel session` tool is adapted from new-prompt with auto-detection of project root, investigation artifact linking, and session indexing.
-
-- **[Talmo's sleap-io](https://github.com/talmolab/sleap-io/blob/main/.claude/skills/investigation/SKILL.md?plain=1)** — Investigation skill template. The structured scratch/ investigation pattern with living READMEs originates from Talmo's sleap-io project.
-
-- **[Sionic AI's experiment registry](https://huggingface.co/blog/sionic-ai/claude-code-skills-training)** — Retrospective skill and `/advise` + `/retrospective` workflow for capturing experiment learnings into a reusable registry.
-
-- **[brunoasm's claude skills](https://github.com/brunoasm/my_claude_skills)** — Think-deeply anti-sycophancy skill and PDF extraction skill.
-
-- **[Weizhena's Deep-Research workflow](https://github.com/Weizhena/Deep-Research-skills)** — Structured literature review with human-in-the-loop checkpoints.
-
-- **[Context Engineering Template](https://github.com/coleam00/context-engineering-intro/blob/main/claude-code-full-guide/README.md)** — Basic Claude Code usage patterns and context engineering principles.
+Propel combines ideas from: [obra/superpowers](https://github.com/obra/superpowers), [scott-yj-yang/new-prompt](https://github.com/scott-yj-yang/new-prompt), [Talmo's sleap-io](https://github.com/talmolab/sleap-io), [Sionic AI](https://huggingface.co/blog/sionic-ai/claude-code-skills-training), [brunoasm's claude skills](https://github.com/brunoasm/my_claude_skills), [Weizhena's Deep-Research](https://github.com/Weizhena/Deep-Research-skills), and [Context Engineering Template](https://github.com/coleam00/context-engineering-intro).
 
 ## License
 
-MIT
+MIT — Built by [Kaiwen Bian](https://kbian.org) and [Yuer Tang](https://yuertang.dev/).
