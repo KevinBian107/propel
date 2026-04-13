@@ -114,8 +114,19 @@ Return a structured card like:
 - **Privacy:** anything sent to Codex leaves the local context. If the
   conversation contains secrets, redact before sending.
 
+## Optional Flag: codex-lead
+
+By default Claude synthesizes. If the user arms `/codex-lead` for this
+exchange, the contract flips: Codex produces the primary output and Claude
+becomes the adversarial checker (verifying every file:line claim against the
+actual repo, flagging false positives, adding missed findings). The flag is
+ephemeral — single-use per invocation — and must be re-armed each time. See
+the `codex-lead` skill for the full flipped contract.
+
 ## Related
 
+- `codex-lead` — complementary flag that switches this exchange to Codex-primary
+  mode. Only meaningful alongside `/c-codex`.
 - `think-deeply` — internal anti-sycophancy. `/c-codex` is the external
   equivalent: a second model instead of a second pass.
 - `code-reviewer` agent — Claude's own review. Pair with `/c-codex` for the
