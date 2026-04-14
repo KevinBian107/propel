@@ -90,6 +90,7 @@ Before routing to any skill, check the current mode. If the triggered skill is n
 | systematic-debugging | — | Yes | Yes | — |
 | using-git-worktrees | — | Yes | — | — |
 | trainer-mode | — | — | — | Yes |
+| frontend-design | — | Yes | — | — |
 
 **Gates by mode:**
 - **Researcher**: Gate 0, Gate 1

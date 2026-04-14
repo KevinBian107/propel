@@ -68,6 +68,10 @@ Full documentation is available on the [Propel website](https://kbian.org/propel
 
 Propel combines ideas from: [obra/superpowers](https://github.com/obra/superpowers), [scott-yj-yang/new-prompt](https://github.com/scott-yj-yang/new-prompt), [Talmo's sleap-io](https://github.com/talmolab/sleap-io), [Sionic AI](https://huggingface.co/blog/sionic-ai/claude-code-skills-training), [brunoasm's claude skills](https://github.com/brunoasm/my_claude_skills), [Weizhena's Deep-Research](https://github.com/Weizhena/Deep-Research-skills), and [Context Engineering Template](https://github.com/coleam00/context-engineering-intro).
 
+External plugins bridged by Propel skills: [openai/codex-plugin-cc](https://github.com/openai/codex-plugin-cc) (via `/c-codex`), [anthropics/claude-code code-review plugin](https://github.com/anthropics/claude-code/tree/main/plugins/code-review) (via `/c-review`).
+
+Skills vendored directly: [anthropics/skills — frontend-design](https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md) (see source repo for LICENSE).
+
 ## License
 
 MIT — Built by [Kaiwen Bian](https://kbian.org) and [Yuer Tang](https://yuertang.dev/).
