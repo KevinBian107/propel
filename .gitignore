@@ -28,3 +28,6 @@ env/
 
 # Website (separate deployment)
 website/
+.propel/
+.claude/
+propel/
