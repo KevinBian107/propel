@@ -4,19 +4,21 @@
 
 # Propel
 
-A structured constraint framework for Claude Code in research workflows.
+A research coding assistant for Claude Code, not an autonomous scientist. Structured constraints turn unconstrained LLM output into precise, paper-aligned research code, while every research decision stays with you.
 
 **[Website](https://kbian.org/propel-website/)** | **[Documentation](https://kbian.org/propel-website/docs/)** | **[Vibe Coding Articles](https://kbian.org/Kaiwen-Wiki/articles/vibe_coding/)**
 
 <p align="center">
-  <img src="assets/propel_pipeline.svg" alt="Propel Pipeline — Human-in-the-Loop Research Workflow with Four Modes" width="100%"/>
+  <img src="assets/propel_pipeline.svg" alt="Propel pipeline: seven stages from intake to retrospective, with human gates G0–G4, questioners Q0 and Q1, a per-component review loop, a working-memory loop into the next session, and the stages each mode runs" width="100%"/>
 </p>
 
 ## Why Propel?
 
-Without structure, an unconstrained LLM produces the **mean of its training data**. Ask it to "implement RVQ" and you get a plausible-looking average — not the one matching your paper, your architecture, your constraints. The output compiles, but embeds wrong assumptions, silent numerical bugs, and design decisions made without asking.
+Propel is a **research coding assistant**. It is not an autonomous scientist: it does not choose your research question, run experiments unattended, or decide what counts as a result. You bring the question, the paper, and the judgment. Propel makes Claude Code a careful collaborator on the code that tests them.
 
-**The fix isn't better prompts — it's structured constraints.** Propel enforces human-in-the-loop gates, domain-specific auditors, and investigation-first methodology so the output goes from "plausible average" to precisely what you need.
+That split matters because an unconstrained LLM writes the **mean of its training data**. Ask it to "add a diffusion policy head" and you get a blend of every diffusion codebase it has seen: a cosine noise schedule from one repo, ε-prediction from another, an EMA decay from a third. The code runs and may even train, but it is not the variant your paper describes, and the choices that decide whether your experiment means anything were made without asking you.
+
+Propel adds structure instead of cleverer prompts. Claude has to investigate before it writes code, stop at five gates to ask you design questions, and send every change past auditors that compare it against the paper and look for silent bugs. Each retrospective feeds a working memory of past experiments and designs that is loaded into the next session, so Claude checks what was already tried before proposing it again.
 
 ## Core Principles
 

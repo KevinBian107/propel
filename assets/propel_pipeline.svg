@@ -1,277 +1,85 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 460" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
-  <defs>
-    <linearGradient id="gate0" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#6d28d9"/>
-    </linearGradient>
-    <linearGradient id="gate1" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#0891b2"/>
-      <stop offset="100%" stop-color="#0e7490"/>
-    </linearGradient>
-    <linearGradient id="gate2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#059669"/>
-      <stop offset="100%" stop-color="#047857"/>
-    </linearGradient>
-    <linearGradient id="gate3" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#d97706"/>
-      <stop offset="100%" stop-color="#b45309"/>
-    </linearGradient>
-    <linearGradient id="gate4" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#dc2626"/>
-      <stop offset="100%" stop-color="#b91c1c"/>
-    </linearGradient>
-    <linearGradient id="trainer" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#e85d04"/>
-      <stop offset="100%" stop-color="#c2410c"/>
-    </linearGradient>
-    <linearGradient id="retro" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#4f46e5"/>
-    </linearGradient>
-    <linearGradient id="questioner" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#f59e0b"/>
-      <stop offset="100%" stop-color="#d97706"/>
-    </linearGradient>
-    <!-- Mode tag gradients -->
-    <linearGradient id="modeR" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#a78bfa"/>
-    </linearGradient>
-    <linearGradient id="modeE" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#2563eb"/>
-      <stop offset="100%" stop-color="#3b82f6"/>
-    </linearGradient>
-    <linearGradient id="modeD" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#dc2626"/>
-      <stop offset="100%" stop-color="#ef4444"/>
-    </linearGradient>
-    <linearGradient id="modeT" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#ea580c"/>
-      <stop offset="100%" stop-color="#f97316"/>
-    </linearGradient>
-    <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
-      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.12"/>
-    </filter>
-    <filter id="shadowSm" x="-4%" y="-4%" width="108%" height="116%">
-      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.10"/>
-    </filter>
-  </defs>
-
-  <!-- Background -->
-  <rect width="1160" height="460" rx="18" fill="#f8fafc"/>
-  <rect x="1" y="1" width="1158" height="458" rx="17" fill="none" stroke="#e2e8f0" stroke-width="1"/>
-
-  <!-- Title -->
-  <text x="580" y="36" text-anchor="middle" font-size="16" font-weight="600" fill="#1f2933" letter-spacing="0.04em">PROPEL — HUMAN-IN-THE-LOOP RESEARCH WORKFLOW</text>
-
-  <!-- ========== GATE BADGES (top row) ========== -->
-  <!-- Gate 0 -->
-  <rect x="20" y="56" width="140" height="28" rx="14" fill="url(#gate0)" filter="url(#shadowSm)"/>
-  <text x="90" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 0 — Intake</text>
-
-  <!-- Gate 1 -->
-  <rect x="182" y="56" width="140" height="28" rx="14" fill="url(#gate1)" filter="url(#shadowSm)"/>
-  <text x="252" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 1 — Investigate</text>
-
-  <!-- Gate 2 -->
-  <rect x="344" y="56" width="140" height="28" rx="14" fill="url(#gate2)" filter="url(#shadowSm)"/>
-  <text x="414" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 2 — Design</text>
-
-  <!-- Gate 3 -->
-  <rect x="506" y="56" width="140" height="28" rx="14" fill="url(#gate3)" filter="url(#shadowSm)"/>
-  <text x="576" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 3 — Implement</text>
-
-  <!-- Gate 4 -->
-  <rect x="668" y="56" width="140" height="28" rx="14" fill="url(#gate4)" filter="url(#shadowSm)"/>
-  <text x="738" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">GATE 4 — Debug</text>
-
-  <!-- Training badge -->
-  <rect x="830" y="56" width="140" height="28" rx="14" fill="url(#trainer)" filter="url(#shadowSm)"/>
-  <text x="900" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">TRAINING</text>
-
-  <!-- Retrospective badge -->
-  <rect x="992" y="56" width="140" height="28" rx="14" fill="url(#retro)" filter="url(#shadowSm)"/>
-  <text x="1062" y="75" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">RETROSPECTIVE</text>
-
-  <!-- ========== VERTICAL DASHED LINES (gate to box) ========== -->
-  <line x1="90" y1="84" x2="90" y2="130" stroke="#7c3aed" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
-  <line x1="252" y1="84" x2="252" y2="130" stroke="#0891b2" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
-  <line x1="414" y1="84" x2="414" y2="130" stroke="#059669" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
-  <line x1="576" y1="84" x2="576" y2="130" stroke="#d97706" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
-  <line x1="738" y1="84" x2="738" y2="130" stroke="#dc2626" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
-  <line x1="900" y1="84" x2="900" y2="130" stroke="#e85d04" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
-  <line x1="1062" y1="84" x2="1062" y2="130" stroke="#6366f1" stroke-width="2" stroke-dasharray="4,3" opacity="0.5"/>
-
-  <!-- ========== STAGE BOXES (main pipeline row) ========== -->
-  <!-- Box 0: User Idea -->
-  <rect x="20" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#7c3aed" stroke-width="2" filter="url(#shadow)"/>
-  <text x="90" y="168" text-anchor="middle" font-size="28">&#x1F4A1;</text>
-  <text x="90" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">User Idea</text>
-  <text x="90" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Define scope &amp; goals</text>
-
-  <!-- Box 1: Investigation -->
-  <rect x="182" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#0891b2" stroke-width="2" filter="url(#shadow)"/>
-  <text x="252" y="168" text-anchor="middle" font-size="28">&#x1F52C;</text>
-  <text x="252" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Investigation</text>
-  <text x="252" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Research &amp; analysis</text>
-
-  <!-- Box 2: Design -->
-  <rect x="344" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#059669" stroke-width="2" filter="url(#shadow)"/>
-  <text x="414" y="168" text-anchor="middle" font-size="28">&#x1F4D0;</text>
-  <text x="414" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Design + Plan</text>
-  <text x="414" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Architecture &amp; approach</text>
-
-  <!-- Box 3: Implement -->
-  <rect x="506" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#d97706" stroke-width="2" filter="url(#shadow)"/>
-  <text x="576" y="168" text-anchor="middle" font-size="28">&#x2699;&#xFE0F;</text>
-  <text x="576" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Implement</text>
-  <text x="576" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Component by component</text>
-
-  <!-- Box 4: Debug -->
-  <rect x="668" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#dc2626" stroke-width="2" filter="url(#shadow)"/>
-  <text x="738" y="168" text-anchor="middle" font-size="28">&#x1F41B;</text>
-  <text x="738" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Debug</text>
-  <text x="738" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Diagnose &amp; validate</text>
-
-  <!-- Box 5: Training -->
-  <rect x="830" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#e85d04" stroke-width="2" filter="url(#shadow)"/>
-  <text x="900" y="168" text-anchor="middle" font-size="28">&#x1F680;</text>
-  <text x="900" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Training</text>
-  <text x="900" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Launch &amp; monitor</text>
-
-  <!-- Box 6: Retrospective -->
-  <rect x="992" y="130" width="140" height="100" rx="14" fill="#ffffff" stroke="#6366f1" stroke-width="2" filter="url(#shadow)"/>
-  <text x="1062" y="168" text-anchor="middle" font-size="28">&#x1F4DD;</text>
-  <text x="1062" y="196" text-anchor="middle" font-size="13" font-weight="600" fill="#1f2933">Retrospective</text>
-  <text x="1062" y="214" text-anchor="middle" font-size="10" fill="#6b7280">Capture learnings</text>
-
-  <!-- ========== ARROWS BETWEEN MAIN BOXES ========== -->
-  <line x1="160" y1="180" x2="174" y2="180" stroke="#94a3b8" stroke-width="2"/>
-  <polygon points="182,180 174,175 174,185" fill="#94a3b8"/>
-
-  <line x1="322" y1="180" x2="336" y2="180" stroke="#94a3b8" stroke-width="2"/>
-  <polygon points="344,180 336,175 336,185" fill="#94a3b8"/>
-
-  <line x1="484" y1="180" x2="498" y2="180" stroke="#94a3b8" stroke-width="2"/>
-  <polygon points="506,180 498,175 498,185" fill="#94a3b8"/>
-
-  <line x1="646" y1="180" x2="660" y2="180" stroke="#94a3b8" stroke-width="2"/>
-  <polygon points="668,180 660,175 660,185" fill="#94a3b8"/>
-
-  <line x1="808" y1="180" x2="822" y2="180" stroke="#94a3b8" stroke-width="2"/>
-  <polygon points="830,180 822,175 822,185" fill="#94a3b8"/>
-
-  <line x1="970" y1="180" x2="984" y2="180" stroke="#94a3b8" stroke-width="2"/>
-  <polygon points="992,180 984,175 984,185" fill="#94a3b8"/>
-
-  <!-- ========== QUESTIONER BLOCKS (small, above pipeline) ========== -->
-
-  <!-- Q0: Between Gate 0 (User Idea) and Gate 1 (Investigation) -->
-  <rect x="114" y="90" width="114" height="52" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,2" filter="url(#shadowSm)"/>
-  <text x="171" y="107" text-anchor="middle" font-size="9" font-weight="700" fill="#92400e">Questioner</text>
-  <text x="171" y="120" text-anchor="middle" font-size="8" fill="#a16207">Reference examples?</text>
-  <text x="171" y="131" text-anchor="middle" font-size="8" fill="#a16207">Architecture to follow?</text>
-
-  <!-- Q0 curved connectors -->
-  <path d="M 138 142 Q 128 142 122 136 L 114 128" stroke="#f59e0b" stroke-width="1.5" fill="none" opacity="0.7"/>
-  <path d="M 228 128 L 222 136 Q 216 142 208 142" stroke="#f59e0b" stroke-width="1.5" fill="none" opacity="0.7"/>
-  <polygon points="228,128 222,134 232,134" fill="#f59e0b" opacity="0.7"/>
-
-  <!-- Q1: Between Gate 1 (Investigation) and Gate 2 (Design) -->
-  <rect x="276" y="90" width="114" height="52" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,2" filter="url(#shadowSm)"/>
-  <text x="333" y="107" text-anchor="middle" font-size="9" font-weight="700" fill="#92400e">Questioner</text>
-  <text x="333" y="120" text-anchor="middle" font-size="8" fill="#a16207">Interface contracts?</text>
-  <text x="333" y="131" text-anchor="middle" font-size="8" fill="#a16207">Edge cases &amp; details?</text>
-
-  <!-- Q1 curved connectors -->
-  <path d="M 300 142 Q 290 142 284 136 L 276 128" stroke="#f59e0b" stroke-width="1.5" fill="none" opacity="0.7"/>
-  <path d="M 390 128 L 384 136 Q 378 142 370 142" stroke="#f59e0b" stroke-width="1.5" fill="none" opacity="0.7"/>
-  <polygon points="390,128 384,134 394,134" fill="#f59e0b" opacity="0.7"/>
-
-  <!-- ========== MODE TAGS (below boxes) ========== -->
-  <!-- Gate 0: Researcher + Engineer + Debugger -->
-  <rect x="24" y="242" width="52" height="18" rx="9" fill="url(#modeR)"/>
-  <text x="50" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Researcher</text>
-  <rect x="80" y="242" width="46" height="18" rx="9" fill="url(#modeE)"/>
-  <text x="103" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Engineer</text>
-  <rect x="50" y="262" width="50" height="18" rx="9" fill="url(#modeD)"/>
-  <text x="75" y="274" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Debugger</text>
-
-  <!-- Gate 1: Researcher + Engineer + Debugger -->
-  <rect x="186" y="242" width="52" height="18" rx="9" fill="url(#modeR)"/>
-  <text x="212" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Researcher</text>
-  <rect x="242" y="242" width="46" height="18" rx="9" fill="url(#modeE)"/>
-  <text x="265" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Engineer</text>
-  <rect x="212" y="262" width="50" height="18" rx="9" fill="url(#modeD)"/>
-  <text x="237" y="274" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Debugger</text>
-
-  <!-- Gate 2: Engineer only -->
-  <rect x="386" y="242" width="56" height="18" rx="9" fill="url(#modeE)"/>
-  <text x="414" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Engineer</text>
-
-  <!-- Gate 3: Engineer only -->
-  <rect x="548" y="242" width="56" height="18" rx="9" fill="url(#modeE)"/>
-  <text x="576" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Engineer</text>
-
-  <!-- Gate 4: Engineer + Debugger + Trainer -->
-  <rect x="676" y="242" width="46" height="18" rx="9" fill="url(#modeE)"/>
-  <text x="699" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Engineer</text>
-  <rect x="726" y="242" width="50" height="18" rx="9" fill="url(#modeD)"/>
-  <text x="751" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Debugger</text>
-  <rect x="780" y="242" width="40" height="18" rx="9" fill="url(#modeT)"/>
-  <text x="800" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Trainer</text>
-
-  <!-- Training: Trainer -->
-  <rect x="878" y="242" width="44" height="18" rx="9" fill="url(#modeT)"/>
-  <text x="900" y="254" text-anchor="middle" font-size="9" font-weight="600" fill="#fff">Trainer</text>
-
-  <!-- Retrospective: All modes -->
-  <rect x="998" y="242" width="52" height="18" rx="9" fill="url(#modeR)"/>
-  <text x="1024" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Researcher</text>
-  <rect x="1054" y="242" width="46" height="18" rx="9" fill="url(#modeE)"/>
-  <text x="1077" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Engineer</text>
-  <rect x="1104" y="242" width="50" height="18" rx="9" fill="url(#modeD)"/>
-  <text x="1129" y="254" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Debugger</text>
-  <rect x="1038" y="262" width="40" height="18" rx="9" fill="url(#modeT)"/>
-  <text x="1058" y="274" text-anchor="middle" font-size="8" font-weight="600" fill="#fff">Trainer</text>
-
-  <!-- ========== TRAINER MODE SHORTCUT ARROW ========== -->
-  <path d="M 900 130 Q 900 105 848 105 Q 770 105 738 130" stroke="#e85d04" stroke-width="1.5" stroke-dasharray="5,3" fill="none" opacity="0.6"/>
-  <text x="820" y="100" text-anchor="middle" font-size="9" fill="#c2410c" font-style="italic">runtime fix loop</text>
-
-  <!-- ========== BOTTOM INFO PANELS ========== -->
-  <!-- Mode legend -->
-  <rect x="20" y="296" width="340" height="144" rx="12" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1"/>
-  <text x="190" y="318" text-anchor="middle" font-size="12" font-weight="600" fill="#475569" letter-spacing="0.03em">FOUR MODES</text>
-
-  <rect x="36" y="330" width="10" height="10" rx="5" fill="url(#modeR)"/>
-  <text x="52" y="340" font-size="11" fill="#475569" font-weight="500">Researcher</text>
-  <text x="120" y="340" font-size="10" fill="#64748b">— Literature &amp; investigation (Gates 0-1)</text>
-
-  <rect x="36" y="350" width="10" height="10" rx="5" fill="url(#modeE)"/>
-  <text x="52" y="360" font-size="11" fill="#475569" font-weight="500">Engineer</text>
-  <text x="108" y="360" font-size="10" fill="#64748b">— Full pipeline, all gates (default)</text>
-
-  <rect x="36" y="370" width="10" height="10" rx="5" fill="url(#modeD)"/>
-  <text x="52" y="380" font-size="11" fill="#475569" font-weight="500">Debugger</text>
-  <text x="110" y="380" font-size="10" fill="#64748b">— Root-cause analysis, evidence-backed (Gates 0,1,4)</text>
-
-  <rect x="36" y="390" width="10" height="10" rx="5" fill="url(#modeT)"/>
-  <text x="52" y="400" font-size="11" fill="#475569" font-weight="500">Trainer</text>
-  <text x="100" y="400" font-size="10" fill="#64748b">— Launch training, runtime bugs (Gate 4)</text>
-
-  <!-- Questioner legend -->
-  <rect x="36" y="414" width="10" height="10" rx="2" fill="#fffbeb" stroke="#f59e0b" stroke-width="1"/>
-  <text x="52" y="424" font-size="11" fill="#475569" font-weight="500">Questioner</text>
-  <text x="118" y="424" font-size="10" fill="#64748b">— Q0: references &amp; examples · Q1: details &amp; contracts</text>
-
-  <!-- Gate info panel -->
-  <rect x="380" y="296" width="760" height="144" rx="12" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1"/>
-  <text x="760" y="318" text-anchor="middle" font-size="12" font-weight="600" fill="#475569" letter-spacing="0.03em">EACH GATE: Human checkpoint — Claude pauses, asks structured questions, reveals assumptions</text>
-  <text x="760" y="340" text-anchor="middle" font-size="11" fill="#64748b">Q0: What codebase to look at? · Architecture to follow? · Examples to copy from? · Benchmarks?</text>
-  <text x="760" y="358" text-anchor="middle" font-size="11" fill="#64748b">Q1: Interface contracts? · Data formats? · Edge cases? · Integration points? · Scope?</text>
-  <text x="760" y="376" text-anchor="middle" font-size="11" fill="#64748b">Domain auditors verify paper alignment · trace tensor shapes · detect silent bugs · check regressions</text>
-  <text x="760" y="394" text-anchor="middle" font-size="11" fill="#64748b">Debugger Mode: classify bugs vs. design issues · evidence-backed diagnosis · literature search for design problems</text>
-  <text x="760" y="412" text-anchor="middle" font-size="11" fill="#64748b">Trainer Mode: scan commands · launch in screen · fix runtime errors (CUDA, OOM, paths) · monitor runs</text>
-  <text x="760" y="430" text-anchor="middle" font-size="11" fill="#64748b">Switch anytime with /switch researcher · /switch engineer · /switch debugger · /switch trainer</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1152 524" font-family="'Noto Sans', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#57606a"/></marker>
+<marker id="ahf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#8c959f"/></marker>
+</defs>
+<rect width="1152" height="524" rx="10" fill="#ffffff"/>
+<rect x="0.5" y="0.5" width="1151" height="523" rx="10" fill="none" stroke="#e5e7eb"/>
+<text x="30" y="36" font-size="16" fill="#1f2328" font-weight="600" text-anchor="start">Propel pipeline</text>
+<polygon points="546,25 552,31 546,37 540,31" fill="#2563eb"/>
+<text x="558" y="36" font-size="13" fill="#57606a" text-anchor="start">gate: Claude stops and asks, you decide</text>
+<polygon points="832,25 838,31 832,37 826,31" fill="#fff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="844" y="36" font-size="13" fill="#57606a" text-anchor="start">questioner: you supply references or details</text>
+<rect x="30" y="104" width="120" height="54" rx="6" fill="#fff" stroke="#1f2328" stroke-width="1.3"/>
+<text x="90" y="136.5" font-size="16" fill="#1f2328" font-weight="600" text-anchor="middle">Intake</text>
+<text x="90" y="181" font-size="13" fill="#57606a" text-anchor="middle">scoping questions</text>
+<rect x="214" y="104" width="120" height="54" rx="6" fill="#fff" stroke="#1f2328" stroke-width="1.3"/>
+<text x="274" y="136.5" font-size="16" fill="#1f2328" font-weight="600" text-anchor="middle">Investigate</text>
+<text x="274" y="181" font-size="13" fill="#57606a" text-anchor="middle">trace code, read docs</text>
+<text x="274" y="200" font-size="12" fill="#8c959f" font-family="'Noto Sans Mono', SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle">scratch/ README</text>
+<rect x="398" y="104" width="120" height="54" rx="6" fill="#fff" stroke="#1f2328" stroke-width="1.3"/>
+<text x="458" y="136.5" font-size="16" fill="#1f2328" font-weight="600" text-anchor="middle">Design &amp; plan</text>
+<text x="458" y="181" font-size="13" fill="#57606a" text-anchor="middle">paper → code map</text>
+<text x="458" y="200" font-size="12" fill="#8c959f" font-family="'Noto Sans Mono', SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle">/c-codex</text>
+<rect x="558" y="104" width="120" height="54" rx="6" fill="#fff" stroke="#1f2328" stroke-width="1.3"/>
+<text x="618" y="136.5" font-size="16" fill="#1f2328" font-weight="600" text-anchor="middle">Implement</text>
+<text x="618" y="181" font-size="13" fill="#57606a" text-anchor="middle">per component</text>
+<text x="618" y="200" font-size="12" fill="#8c959f" font-family="'Noto Sans Mono', SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle">auditors</text>
+<rect x="704" y="104" width="120" height="54" rx="6" fill="#fff" stroke="#1f2328" stroke-width="1.3"/>
+<text x="764" y="136.5" font-size="16" fill="#1f2328" font-weight="600" text-anchor="middle">Debug</text>
+<text x="764" y="181" font-size="13" fill="#57606a" text-anchor="middle">root cause first</text>
+<text x="764" y="200" font-size="12" fill="#8c959f" font-family="'Noto Sans Mono', SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle">3-strike limit</text>
+<rect x="864" y="104" width="120" height="54" rx="6" fill="#fff" stroke="#1f2328" stroke-width="1.3"/>
+<text x="924" y="136.5" font-size="16" fill="#1f2328" font-weight="600" text-anchor="middle">Train</text>
+<text x="924" y="181" font-size="13" fill="#57606a" text-anchor="middle">launch, watch</text>
+<text x="924" y="200" font-size="12" fill="#8c959f" font-family="'Noto Sans Mono', SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle">/monitor</text>
+<rect x="1010" y="104" width="120" height="54" rx="6" fill="#fff" stroke="#1f2328" stroke-width="1.3"/>
+<text x="1070" y="136.5" font-size="16" fill="#1f2328" font-weight="600" text-anchor="middle">Retrospective</text>
+<text x="1070" y="181" font-size="13" fill="#57606a" text-anchor="middle">what failed, why</text>
+<text x="1070" y="200" font-size="12" fill="#8c959f" font-family="'Noto Sans Mono', SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle">registry</text>
+<line x1="150" y1="131.0" x2="213" y2="131.0" stroke="#57606a" stroke-width="1.3" marker-end="url(#ah)"/>
+<polygon points="169.333,124 176.333,131 169.333,138 162.333,131" fill="#2563eb"/>
+<text x="169.333" y="117" font-size="12.5" fill="#2563eb" font-weight="700" text-anchor="middle">G0</text>
+<polygon points="190.667,124 197.667,131 190.667,138 183.667,131" fill="#fff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="190.667" y="117" font-size="12.5" fill="#2563eb" font-weight="700" text-anchor="middle">Q0</text>
+<line x1="334" y1="131.0" x2="397" y2="131.0" stroke="#57606a" stroke-width="1.3" marker-end="url(#ah)"/>
+<polygon points="353.333,124 360.333,131 353.333,138 346.333,131" fill="#2563eb"/>
+<text x="353.333" y="117" font-size="12.5" fill="#2563eb" font-weight="700" text-anchor="middle">G1</text>
+<polygon points="374.667,124 381.667,131 374.667,138 367.667,131" fill="#fff" stroke="#2563eb" stroke-width="1.6"/>
+<text x="374.667" y="117" font-size="12.5" fill="#2563eb" font-weight="700" text-anchor="middle">Q1</text>
+<line x1="518" y1="131.0" x2="557" y2="131.0" stroke="#57606a" stroke-width="1.3" marker-end="url(#ah)"/>
+<polygon points="536,124 543,131 536,138 529,131" fill="#2563eb"/>
+<text x="536" y="117" font-size="12.5" fill="#2563eb" font-weight="700" text-anchor="middle">G2</text>
+<line x1="678" y1="131.0" x2="703" y2="131.0" stroke="#57606a" stroke-width="1.3" marker-end="url(#ah)"/>
+<line x1="824" y1="131.0" x2="863" y2="131.0" stroke="#57606a" stroke-width="1.3" marker-end="url(#ah)"/>
+<polygon points="842,124 849,131 842,138 835,131" fill="#2563eb"/>
+<text x="842" y="117" font-size="12.5" fill="#2563eb" font-weight="700" text-anchor="middle">G4</text>
+<line x1="984" y1="131.0" x2="1009" y2="131.0" stroke="#57606a" stroke-width="1.3" marker-end="url(#ah)"/>
+<path d="M656,104 C656,66 580,66 580,104.5" fill="none" stroke="#57606a" stroke-width="1.3" marker-end="url(#ah)"/>
+<polygon points="618,68.5 625,75.5 618,82.5 611,75.5" fill="#2563eb"/>
+<text x="618" y="62.5" font-size="12.5" fill="#2563eb" font-weight="700" text-anchor="middle">G3 · after each component</text>
+<path d="M910,104 C910,60 778,60 778,104.5" fill="none" stroke="#8c959f" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#ahf)"/>
+<text x="844" y="64" font-size="12.5" fill="#57606a" font-style="italic" text-anchor="middle">runtime error</text>
+<path d="M1070,206 L1070,224 L14,224 L14,131.0 L29,131.0" fill="none" stroke="#8c959f" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#ahf)"/>
+<text x="550" y="242" font-size="13" fill="#57606a" font-style="italic" text-anchor="middle">next session: hooks re-inject past experiments and designs, so Claude checks what was already tried</text>
+<text x="30" y="282" font-size="14" fill="#1f2328" font-weight="600" text-anchor="start">Stages each mode runs</text>
+<line x1="30" y1="291" x2="1130" y2="291" stroke="#d0d7de"/>
+<text x="30" y="314" font-size="13.5" font-weight="600" fill="#1f2328">Researcher<tspan dx="8" font-size="12.5" font-weight="400" fill="#8c959f">gates 0–1</tspan></text>
+<rect x="30" y="322" width="1100" height="8" rx="4" fill="#eef1f4"/>
+<rect x="30" y="322" width="304" height="8" rx="4" fill="#57606a"/>
+<rect x="1010" y="322" width="120" height="8" rx="4" fill="#57606a"/>
+<text x="30" y="354" font-size="13.5" font-weight="600" fill="#1f2328">Engineer<tspan dx="8" font-size="12.5" font-weight="400" fill="#8c959f">all gates, default</tspan></text>
+<rect x="30" y="362" width="1100" height="8" rx="4" fill="#eef1f4"/>
+<rect x="30" y="362" width="1100" height="8" rx="4" fill="#57606a"/>
+<text x="30" y="394" font-size="13.5" font-weight="600" fill="#1f2328">Debugger<tspan dx="8" font-size="12.5" font-weight="400" fill="#8c959f">gates 0, 1, 4</tspan></text>
+<rect x="30" y="402" width="1100" height="8" rx="4" fill="#eef1f4"/>
+<rect x="30" y="402" width="304" height="8" rx="4" fill="#57606a"/>
+<rect x="704" y="402" width="120" height="8" rx="4" fill="#57606a"/>
+<rect x="1010" y="402" width="120" height="8" rx="4" fill="#57606a"/>
+<text x="704" y="434" font-size="13.5" font-weight="600" fill="#1f2328">Trainer<tspan dx="8" font-size="12.5" font-weight="400" fill="#8c959f">gate 4, runtime errors only</tspan></text>
+<rect x="30" y="442" width="1100" height="8" rx="4" fill="#eef1f4"/>
+<rect x="704" y="442" width="426" height="8" rx="4" fill="#57606a"/>
+<rect x="704.75" y="442.75" width="118.5" height="6.5" rx="3.25" fill="#fff" stroke="#57606a" stroke-width="1.5"/>
+<text x="30" y="486" font-size="13" fill="#57606a" text-anchor="start">Auditors (paper alignment, silent bugs, JAX logic, regressions) check every change as read-only subagents and report at G3.</text>
+<text x="30" y="506" font-size="13" fill="#57606a" text-anchor="start">Optional: /c-codex asks Codex for a second opinion on plans and diffs; /c-review adds Anthropic's code-review plugin at G3.</text>
 </svg>
