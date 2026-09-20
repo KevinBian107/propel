@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 SKILL_FILE="$PLUGIN_DIR/skills/using-propel/SKILL.md"
 CORE_FILE="$PLUGIN_DIR/core/CORE.md"
+CODEX_FILE="$PLUGIN_DIR/core/CODEX.md"
 
 if [ ! -f "$SKILL_FILE" ]; then
   echo '{"error": "using-propel/SKILL.md not found"}'
@@ -35,12 +36,42 @@ else
   CORE_ESCAPED='null'
 fi
 
+# Read the dual-model policy (injected every session — non-negotiable while Codex is on)
+if [ -f "$CODEX_FILE" ]; then
+  CODEX_ESCAPED=$(printf '%s' "$(cat "$CODEX_FILE")" | python3 -c '
+import sys, json
+content = sys.stdin.read()
+print(json.dumps(content))
+')
+else
+  CODEX_ESCAPED='null'
+fi
+
 # Output JSON context for Claude Code to consume
 cat <<EOF
 {
   "plugin": "propel",
   "version": "0.1.0",
   "core_principles": ${CORE_ESCAPED},
+  "codex_policy": ${CODEX_ESCAPED},
+  "codex_state": $(
+    CODEX_CONFIG=".propel/codex.json"
+    if [ -f "$CODEX_CONFIG" ]; then
+      python3 -c "
+import json
+try:
+    d = json.load(open('$CODEX_CONFIG'))
+except Exception:
+    d = {}
+d.setdefault('enabled', True)
+if 'available' not in d:
+    d['available'] = None
+print(json.dumps(d))
+" 2>/dev/null || echo '{"enabled": true, "available": null}'
+    else
+      echo '{"enabled": true, "available": null, "note": "no .propel/codex.json yet — dual-model layer is ON by default; disable with /disable-codex"}'
+    fi
+  ),
   "context": ${ESCAPED},
   "active_investigations": $(
     if [ -d "scratch" ]; then
@@ -110,6 +141,7 @@ print(json.dumps(data))
       echo 'true'
     fi
   ),
+  "mode_selection_policy": "AUTO. When mode_selection_needed is true, do NOT present a menu and do NOT block. Infer the mode from the user's first substantive message using the routing table in the using-propel skill, announce the choice in one line with the reason, write .propel/mode.json with \"selected_by\": \"auto\", and continue with the work. Only present the four-mode menu if the user opens with /intro, asks which modes exist, or the message is too ambiguous to classify.",
   "registry_entries": $(
     if [ -d "scratch/registry" ]; then
       find scratch/registry -maxdepth 1 -mindepth 1 -type d 2>/dev/null \
