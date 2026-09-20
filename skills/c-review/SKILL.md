@@ -4,8 +4,10 @@ description: >
   [Propel] Connect-to-Review — wraps the official Anthropic code-review plugin
   (https://github.com/anthropics/claude-code/tree/main/plugins/code-review) and
   runs it alongside Propel's own domain auditors during code review. Use when
-  the user says "/c-review", "run the code-review plugin", "anthropic review",
-  or during Gate 3 on non-trivial diffs. The plugin provides a broad correctness
+  Fires AUTOMATICALLY at Gate 3 on non-trivial diffs, before a PR, and whenever
+  a deeper or more thorough review is asked for ("really check this", "ultrathink
+  this review") — as well as on "/c-review", "run the code-review plugin",
+  "anthropic review". Degrades to auditors + Codex when the plugin is absent. The plugin provides a broad correctness
   + style rubric; Propel's agents provide depth (silent bugs, paper alignment,
   regression). This skill merges both into one Gate 3 card — the plugin NEVER
   speaks to the user unfiltered.
@@ -24,34 +26,46 @@ them from stepping on each other.
 
 ## When to Activate
 
-`/c-review` is appropriate in exactly these contexts:
+**This fires automatically — the user does not invoke it.** Like the Codex
+consult, it is scheduled, not requested:
 
-- **Gate 3 audit** on a non-trivial diff (roughly: >30 lines changed, or any
-  diff touching model / loss / data / training-loop code).
-- **Pre-PR review** before `gh pr create`, when the user explicitly wants an
-  external-rubric pass.
-- **Explicit user request** ("run the anthropic review", "what does the plugin
-  say about this").
+- **Gate 3** on a non-trivial diff (roughly: >30 lines changed, or any diff
+  touching model / loss / data / training-loop code).
+- **Pre-PR**, before `gh pr create`.
+- **Any request for a deeper or more thorough review** — "really check this",
+  "go deep on this diff", "ultrathink this review". A request for more rigour is
+  a request for every signal available, and this is one of them.
+- **Explicit request**, obviously ("run the anthropic review").
 
-Do NOT auto-fire on every edit — the plugin has a token cost and overlaps
-with Propel's always-on auditors. Propel's own `code-reviewer` remains the
-default for routine reviews.
+Do NOT fire on every edit. The plugin costs ~2.5k tokens per invocation and
+overlaps heavily with Propel's always-on auditors, so on a three-line change it
+buys nothing and trains the user to ignore the card. Propel's own
+`code-reviewer` remains the default for routine reviews.
 
-## First-Run Setup
+## Availability — degrade, don't pause
 
-If this is the first `/c-review` invocation in this repo:
+The plugin is optional. Check once per session:
 
-1. Check whether the code-review plugin is installed (look for its slash
-   command registration in `.claude/` or the user's global Claude settings,
-   or a `code-review` entry in installed plugins).
-2. If not installed, point the user to
-   `https://github.com/anthropics/claude-code/tree/main/plugins/code-review`
-   with the install instruction from that README, and pause. Do not proceed
-   until setup is confirmed.
-3. If the plugin's slash command name / invocation differs from the default,
-   ask the user to confirm the exact command before calling it.
+```bash
+claude plugin list --json
+```
 
-Never fabricate plugin command syntax. When unclear, ask.
+- **Present** (`code-review@claude-plugins-official`, `enabled: true`) → use it.
+  No announcement needed beyond the `[plugin]` tag on its findings.
+- **Absent** → run the rest of the review — Propel's auditors and the Codex
+  consult — and add **one** line to the card:
+  > `[plugin] not installed — this card is auditors + Codex only. `propel launch` adds it.`
+
+  Then continue. Do **not** pause, and do not repeat the notice at the next
+  Gate 3.
+
+This is deliberately different from how the skill used to behave. Blocking a
+review because an optional rubric is missing trades a complete-but-narrower
+review for no review at all, which is the worse outcome every time. The same
+reasoning governs a missing Codex CLI.
+
+Never fabricate plugin command syntax. If the invocation is unclear, read the
+plugin's own skill rather than guessing.
 
 ## The Interaction Contract (non-negotiable)
 
@@ -67,9 +81,13 @@ follows this shape:
    ones from the auto-dispatch table (silent-bug-detector always; plus
    paper-alignment-auditor / jax-logic-auditor / regression-guard as the
    diff requires).
-4. **Claude merges and de-duplicates findings.** Plugin + auditor findings
-   often overlap. One finding, one line. Tag each with its source.
-5. **Claude presents a unified Gate 3 card.** User decides what to act on.
+4. **Claude dispatches `codex-bridge` on the same diff.** The Gate 3 Codex
+   consult is automatic anyway; running it inside `/c-review` means one merged
+   card instead of two overlapping ones. Skip it only if a Gate 3 consult
+   already ran on this exact diff.
+5. **Claude merges and de-duplicates findings.** Plugin, auditor, and Codex
+   findings overlap heavily. One finding, one line. Tag each with its source.
+6. **Claude presents a unified Gate 3 card.** User decides what to act on.
 
 Under no circumstance is the plugin's raw output passed through to the user
 unfiltered, nor used to silently rewrite code.
@@ -82,9 +100,13 @@ unfiltered, nor used to silently rewrite code.
 │   <files, line counts>                                    │
 │                                                           │
 │ Findings (merged, de-duplicated):                         │
-│   • [plugin]    <finding> — file:line (severity)          │
+│   • [plugin]     <finding> — file:line (severity)         │
 │   • [silent-bug] <finding> — file:line (severity)         │
-│   • [both]      <finding> — file:line (severity)          │
+│   • [codex]      <finding> — file:line (severity)         │
+│   • [all three]  <finding> — file:line (severity)         │
+│                                                           │
+│ Codex claimed, could not verify:                          │
+│   • [codex · unverified] <claim> — <why not confirmed>    │
 │                                                           │
 │ Disagreements:                                            │
 │   • <plugin says X, auditor says Y — Claude's read>       │
@@ -108,8 +130,9 @@ auto-dispatched on every code change. The plugin does not replace it.
 | Situation | Use |
 |-----------|-----|
 | Every code change (auto) | Propel `code-reviewer` agent |
-| Gate 3 on a substantive diff | `/c-review` (both, merged) |
-| Pre-PR pass | `/c-review` |
+| Gate 3 on a substantive diff | `c-review` (plugin + auditors + Codex, merged) |
+| Pre-PR pass | `c-review` |
+| "go deeper / ultrathink this review" | `c-review`, plus the Codex consult |
 | Trivial one-line edit | Neither — skip |
 
 If the plugin and Propel's agent contradict each other, surface the
@@ -122,7 +145,7 @@ disagreement explicitly (see output card). Do not silently pick one.
 - **Do not let plugin output bypass synthesis.** No "the plugin says…" dumps.
   Findings go through the merge step.
 - **Do not let the plugin write to the repo.** Plugin proposes; Claude (under
-  user approval) implements. Same rule as `/c-codex`.
+  user approval) implements. Same rule as Codex.
 - **De-duplicate aggressively.** If plugin and `silent-bug-detector` raise
   the same issue, it's one finding tagged `[both]`, not two.
 - **Filter noise.** Style nits that conflict with the project's established
@@ -133,8 +156,8 @@ disagreement explicitly (see output card). Do not silently pick one.
 
 ## Related
 
-- `/c-codex` — divergent-model review (different model, different biases).
-  Pair with `/c-review` for the widest coverage on high-stakes diffs.
+- `codex-consult` — the automatic dual-model layer. `/c-review` folds its Gate 3
+  consult into the same card rather than firing a second one.
 - `code-reviewer` agent — Propel's always-on reviewer. `/c-review` runs
   alongside it, not instead of it.
 - `silent-bug-detector`, `paper-alignment-auditor`, `jax-logic-auditor`,
