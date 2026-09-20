@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="722.88pt" height="456.48pt" viewBox="0 0 722.88 456.48" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-09-20T11:13:20.616871</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 456.48 
+L 722.88 456.48 
+L 722.88 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 30.24 67.68 
+L 343.44 67.68 
+Q 350.64 67.68 350.64 74.88 
+L 350.64 377.28 
+Q 350.64 384.48 343.44 384.48 
+L 30.24 384.48 
+Q 23.04 384.48 23.04 377.28 
+L 23.04 74.88 
+Q 23.04 67.68 30.24 67.68 
+z
+" clip-path="url(#pd66ea0cdf2)" style="fill: #eef1f5; stroke: #d8dee4; stroke-linejoin: miter"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 379.44 67.68 
+L 692.64 67.68 
+Q 699.84 67.68 699.84 74.88 
+L 699.84 377.28 
+Q 699.84 384.48 692.64 384.48 
+L 379.44 384.48 
+Q 372.24 384.48 372.24 377.28 
+L 372.24 74.88 
+Q 372.24 67.68 379.44 67.68 
+z
+" clip-path="url(#pd66ea0cdf2)" style="fill: #dbeafe; stroke: #2563eb; stroke-width: 1.3; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_1">
+    <text style="font-weight: 700; font-size: 12px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="23.04" y="31.908" transform="rotate(-0 23.04 31.908)">Propel automates the left column. It never takes the right one.</text>
+   </g>
+   <g id="text_2">
+    <text style="font-size: 8.8px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="23.04" y="46.4516" transform="rotate(-0 23.04 46.4516)">Not an autonomous agent. An assistant that does the work you shouldn't have to do by hand, and stops at every decision that is yours.</text>
+   </g>
+   <g id="text_3">
+    <text style="font-weight: 700; font-size: 9.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="38.88" y="92.7668" transform="rotate(-0 38.88 92.7668)">MACHINE EXECUTES</text>
+   </g>
+   <g id="text_4">
+    <text style="font-size: 8px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #8c959f" x="38.88" y="106.636" transform="rotate(-0 38.88 106.636)">automatic · announced · evidence-backed</text>
+   </g>
+   <g id="line2d_1">
+    <path d="M 38.88 129.6 
+L 44.64 129.6 
+" clip-path="url(#pd66ea0cdf2)" style="fill: none; stroke: #57606a; stroke-width: 2.2; stroke-linecap: round"/>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="53.28" y="133.2384" transform="rotate(-0 53.28 133.2384)">Reading the codebase</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="53.28" y="144.8699" transform="rotate(-0 53.28 144.8699)">call graphs, config wiring, what actually calls what</text>
+   </g>
+   <g id="line2d_2">
+    <path d="M 38.88 174.24 
+L 44.64 174.24 
+" clip-path="url(#pd66ea0cdf2)" style="fill: none; stroke: #57606a; stroke-width: 2.2; stroke-linecap: round"/>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="53.28" y="177.8784" transform="rotate(-0 53.28 177.8784)">Checking code against the paper</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="53.28" y="189.5099" transform="rotate(-0 53.28 189.5099)">every equation, sign, axis, and constant</text>
+   </g>
+   <g id="line2d_3">
+    <path d="M 38.88 218.88 
+L 44.64 218.88 
+" clip-path="url(#pd66ea0cdf2)" style="fill: none; stroke: #57606a; stroke-width: 2.2; stroke-linecap: round"/>
+   </g>
+   <g id="text_9">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="53.28" y="222.5184" transform="rotate(-0 53.28 222.5184)">Hunting silent bugs</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="53.28" y="234.1499" transform="rotate(-0 53.28 234.1499)">broadcasting, reductions, detached gradients, leakage</text>
+   </g>
+   <g id="line2d_4">
+    <path d="M 38.88 263.52 
+L 44.64 263.52 
+" clip-path="url(#pd66ea0cdf2)" style="fill: none; stroke: #57606a; stroke-width: 2.2; stroke-linecap: round"/>
+   </g>
+   <g id="text_11">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="53.28" y="267.1584" transform="rotate(-0 53.28 267.1584)">Guarding against regressions</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="53.28" y="278.7899" transform="rotate(-0 53.28 278.7899)">existing configs still produce existing numbers</text>
+   </g>
+   <g id="line2d_5">
+    <path d="M 38.88 308.16 
+L 44.64 308.16 
+" clip-path="url(#pd66ea0cdf2)" style="fill: none; stroke: #57606a; stroke-width: 2.2; stroke-linecap: round"/>
+   </g>
+   <g id="text_13">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="53.28" y="311.7984" transform="rotate(-0 53.28 311.7984)">Remembering</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="53.28" y="323.4299" transform="rotate(-0 53.28 323.4299)">what was tried, what failed, and why — across sessions</text>
+   </g>
+   <g id="line2d_6">
+    <path d="M 38.88 352.8 
+L 44.64 352.8 
+" clip-path="url(#pd66ea0cdf2)" style="fill: none; stroke: #57606a; stroke-width: 2.2; stroke-linecap: round"/>
+   </g>
+   <g id="text_15">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="53.28" y="356.4384" transform="rotate(-0 53.28 356.4384)">Arguing with itself</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="53.28" y="368.0699" transform="rotate(-0 53.28 368.0699)">a second model critiques before anything reaches you</text>
+   </g>
+   <g id="text_17">
+    <text style="font-weight: 700; font-size: 9.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #2563eb" x="388.08" y="92.7668" transform="rotate(-0 388.08 92.7668)">YOU DECIDE</text>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 8px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #2563eb" x="388.08" y="106.636" transform="rotate(-0 388.08 106.636)">Propel stops here and does not proceed without you</text>
+   </g>
+   <g id="patch_4">
+    <path d="M 390.96 125.28 
+L 395.28 129.6 
+L 390.96 133.92 
+L 386.64 129.6 
+z
+" clip-path="url(#pd66ea0cdf2)" style="fill: #2563eb; stroke: #2563eb; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_19">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="402.48" y="133.2384" transform="rotate(-0 402.48 133.2384)">What question is worth asking</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="402.48" y="144.8699" transform="rotate(-0 402.48 144.8699)">no model can tell you what your field needs</text>
+   </g>
+   <g id="patch_5">
+    <path d="M 390.96 169.92 
+L 395.28 174.24 
+L 390.96 178.56 
+L 386.64 174.24 
+z
+" clip-path="url(#pd66ea0cdf2)" style="fill: #2563eb; stroke: #2563eb; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_21">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="402.48" y="177.8784" transform="rotate(-0 402.48 177.8784)">Which paper, which variant</text>
+   </g>
+   <g id="text_22">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="402.48" y="189.5099" transform="rotate(-0 402.48 189.5099)">"like the paper" is not a specification</text>
+   </g>
+   <g id="patch_6">
+    <path d="M 390.96 214.56 
+L 395.28 218.88 
+L 390.96 223.2 
+L 386.64 218.88 
+z
+" clip-path="url(#pd66ea0cdf2)" style="fill: #2563eb; stroke: #2563eb; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_23">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="402.48" y="222.5184" transform="rotate(-0 402.48 222.5184)">What counts as a result</text>
+   </g>
+   <g id="text_24">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="402.48" y="234.1499" transform="rotate(-0 402.48 234.1499)">the threshold that makes the experiment mean something</text>
+   </g>
+   <g id="patch_7">
+    <path d="M 390.96 259.2 
+L 395.28 263.52 
+L 390.96 267.84 
+L 386.64 263.52 
+z
+" clip-path="url(#pd66ea0cdf2)" style="fill: #2563eb; stroke: #2563eb; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_25">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="402.48" y="267.1584" transform="rotate(-0 402.48 267.1584)">Which trade-off to accept</text>
+   </g>
+   <g id="text_26">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="402.48" y="278.7899" transform="rotate(-0 402.48 278.7899)">faster vs. faithful, simple vs. exact — a values call</text>
+   </g>
+   <g id="patch_8">
+    <path d="M 390.96 303.84 
+L 395.28 308.16 
+L 390.96 312.48 
+L 386.64 308.16 
+z
+" clip-path="url(#pd66ea0cdf2)" style="fill: #2563eb; stroke: #2563eb; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_27">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="402.48" y="311.7984" transform="rotate(-0 402.48 311.7984)">When the evidence is enough</text>
+   </g>
+   <g id="text_28">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="402.48" y="323.4299" transform="rotate(-0 402.48 323.4299)">knowing when to stop looking is domain judgment</text>
+   </g>
+   <g id="patch_9">
+    <path d="M 390.96 348.48 
+L 395.28 352.8 
+L 390.96 357.12 
+L 386.64 352.8 
+z
+" clip-path="url(#pd66ea0cdf2)" style="fill: #2563eb; stroke: #2563eb; stroke-linejoin: miter"/>
+   </g>
+   <g id="text_29">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1f2328" x="402.48" y="356.4384" transform="rotate(-0 402.48 356.4384)">Whether to believe the number</text>
+   </g>
+   <g id="text_30">
+    <text style="font-size: 8.2px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #57606a" x="402.48" y="368.0699" transform="rotate(-0 402.48 368.0699)">the last defence against a plausible wrong answer</text>
+   </g>
+   <g id="text_31">
+    <text style="font-weight: 700; font-size: 9.6px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1f2328" x="361.44" y="411.1584" transform="rotate(-0 361.44 411.1584)">The line between the columns is the product.</text>
+   </g>
+   <g id="text_32">
+    <text style="font-size: 8.4px; font-family: 'Noto Sans', 'Helvetica Neue', 'Helvetica', 'Arial', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #57606a" x="361.44" y="425.0238" transform="rotate(-0 361.44 425.0238)">Automation that crosses it doesn't save you work — it makes decisions you never saw, in code you'll publish.</text>
+   </g>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pd66ea0cdf2">
+   <rect x="1.44" y="1.44" width="720" height="453.6"/>
+  </clipPath>
+ </defs>
+</svg>
