@@ -1,9 +1,9 @@
 {
   "name": "propel",
-  "display_name": "Propel — Research Workflow for JAX/Robotics/AI",
-  "tagline": "Investigation-first research workflow with paper-alignment auditing and human-in-the-loop gates",
+  "display_name": "Propel — Research Workflow with Dual-Model Gates",
+  "tagline": "Automates the dirty work, hands back every decision. Two models argue; you decide.",
   "category": "research",
-  "tags": ["jax", "robotics", "ml", "research", "paper-alignment", "investigation"],
+  "tags": ["research", "jax", "robotics", "ml", "paper-alignment", "investigation", "dual-model", "codex", "human-in-the-loop"],
   "icon": "microscope",
   "readme": "README.md",
   "min_claude_code_version": "1.0.0"
