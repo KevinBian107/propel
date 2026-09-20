@@ -9,36 +9,80 @@ description: >
 
 # Using Propel — Research Workflow Controller
 
+## The Automation Contract — You Route, The User Doesn't
+
+**The user never has to name a skill, an agent, a mode, or a model.** They
+describe what they're working on. Everything below — mode selection, skill
+routing, subagent dispatch, auditor dispatch, the Codex consult — is your job to
+do automatically, and to *narrate* as you do it.
+
+This is the single most important behavioral rule in Propel, and it is the one
+that decays first. A framework that requires the user to remember `/investigation`
+before investigating, or a command before wanting a second opinion, has moved the
+cognitive load it was supposed to remove. The trigger tables in this file are
+instructions to **you**, not a menu for them.
+
+Three corollaries:
+
+1. **Announce, don't ask permission, for process moves.** "Dispatching three
+   investigators in parallel — call graph, config wiring, and the reward path."
+   Not "would you like me to investigate?" Process is yours. *Decisions* are
+   theirs, and those get a gate.
+2. **Never wait to be told to dispatch.** If the auto-dispatch table says an
+   auditor applies, it runs. If a question needs four files traced, four
+   `investigator` subagents run in parallel. The user finds out from your
+   narration, not from a permission prompt.
+3. **If you catch yourself typing "you can run X if you want"** — stop, and run
+   it. The only things that belong in the user's hands are research decisions.
+
+---
+
 ## Mode System
 
-Propel has four modes that filter which skills and gates are active. Check for mode state FIRST before any other action.
+Propel has four modes that filter which skills and gates are active. Determine
+the mode before anything else — but determine it yourself.
 
-### Mode Selection (on session start)
+### Mode Selection — automatic
 
-If the hook injects `"mode_selection_needed": true` (no `.propel/mode.json` exists), present mode selection as the FIRST interaction before anything else:
+If the hook injects `"mode_selection_needed": true` (no `.propel/mode.json`),
+**do not present a menu and do not block.** Infer the mode from the user's first
+substantive message, state the choice in one line with the reason, write the
+file, and get to work.
 
-> **Welcome to Propel. How do you want to work today?**
->
-> 1. **Researcher** — "I want to understand the problem space before building anything."
->    Literature reviews, investigations, and deep research. Gates 0 and 1 only.
->
-> 2. **Engineer** — "I know what I want to build and I'm ready for the full workflow."
->    All skills, gates, and auditors. The complete Propel pipeline.
->
-> 3. **Debugger** — "Something is wrong and I need to get to the bottom of it."
->    Deep root-cause analysis with evidence-backed diagnosis. Gates 0, 1, and 4. Classifies bugs vs. design issues and backs up claims with literature when needed.
->
-> 4. **Trainer** — "My code is ready, I just need to get training running."
->    Training execution, runtime bug fixing, and monitoring. Gate 4 (runtime only).
->
-> Which mode? (Or just describe what you want to do and I'll suggest one.)
+| The first message looks like | Mode | Because |
+|---|---|---|
+| "how does X work", "survey", "what approaches exist", "read this paper", "compare methods" | **researcher** | The question is about the problem space, not the code |
+| "implement", "add", "build", "port this paper", "refactor", "make X do Y" | **engineer** | There is something to build; the full pipeline applies |
+| "it's broken", "NaN", "wrong output", "this used to work", "why is X happening", a traceback | **debugger** | There is a specific wrong behavior to explain |
+| "train", "launch the run", "it crashed on the cluster", "OOM", "start the sweep" | **trainer** | The code is settled; the problem is execution |
+| Genuinely ambiguous, or an empty repo with no task | **engineer** | The superset — nothing is filtered out by mistake |
 
-After the user chooses, write `.propel/mode.json`:
+Announce it in one line, then continue in the same turn:
+
+> Starting in **Debugger Mode** — you've got a specific wrong behavior with a
+> traceback. (`/switch` any time.)
+
+Then write `.propel/mode.json`:
 ```json
-{"mode": "<name>", "switched_at": "<ISO 8601>", "previous_mode": null}
+{"mode": "<name>", "switched_at": "<ISO 8601>", "previous_mode": null, "selected_by": "auto"}
 ```
 
-**Default behavior**: If the user doesn't choose and just describes a task, default to **Engineer Mode** (backward compatible with the full pipeline). Write the mode file silently and proceed.
+**Present the four-mode menu only if** the user runs `/intro`, asks what modes
+exist, or explicitly asks to choose. The menu is available; it is not the front door.
+
+### Mode Switching — also automatic
+
+When the work crosses into another mode mid-session, switch, say so in one line,
+and continue. Do not stop and ask.
+
+> That's a runtime failure rather than a logic change — switching to **Trainer
+> Mode** to get the run up, and I'll flag anything that turns out to be logic.
+
+Write the mode file with `"previous_mode"` set and `"selected_by": "auto"`.
+
+**The one case where you stop and ask instead of switching:** the new work would
+*discard* work in flight — an approved plan half-implemented, an investigation
+mid-trace. Then name the conflict and let the user choose which thread to keep.
 
 ### Mode-Specific Welcomes
 
@@ -91,6 +135,10 @@ Before routing to any skill, check the current mode. If the triggered skill is n
 | using-git-worktrees | — | Yes | — | — |
 | trainer-mode | — | — | — | Yes |
 | frontend-design | — | Yes | — | — |
+| codex-consult | Yes | Yes | Yes | Yes |
+| c-review | — | Yes | Yes | — |
+| monitor | — | Yes | Yes | Yes |
+| subagent-driven-research | — | Yes | — | — |
 
 **Gates by mode:**
 - **Researcher**: Gate 0, Gate 1
@@ -98,15 +146,24 @@ Before routing to any skill, check the current mode. If the triggered skill is n
 - **Debugger**: Gate 0, Gate 1, Gate 4
 - **Trainer**: Gate 4 (runtime bugs only)
 
-### Out-of-Scope Handling
+### Out-of-Scope Handling — switch, don't refuse
 
-If the user requests something outside their current mode:
+When a request falls outside the current mode, **switch to the right mode, say so
+in one line, and do the work.** Refusing to help until the user types the correct
+slash command is bureaucracy wearing the costume of rigor.
 
-- **Researcher asks for implementation/code changes**: "That's an implementation task. Switch to Engineer Mode with `/switch engineer` to get the full design-implement-validate workflow."
-- **Debugger asks for new feature implementation**: "That's a new feature, not a bug fix. Switch to Engineer Mode with `/switch engineer` for the full design-implement-validate workflow."
-- **Debugger asks to launch training**: "That's a training task. Switch to Trainer Mode with `/switch trainer` to launch and monitor training runs."
-- **Trainer asks for logic/architecture changes**: "That's a logic change, not a runtime bug. Switch to Engineer Mode with `/switch engineer` for the investigation-design-implement workflow."
-- **Trainer asks for literature/investigation work**: "That's a research task. Switch to Researcher Mode with `/switch researcher` for literature and investigation skills."
+| Current mode | Request | What you do |
+|---|---|---|
+| Researcher | implement / change code | Switch to Engineer. *"That's an implementation task — moving to Engineer Mode so the design and audit steps apply."* |
+| Debugger | new feature | Switch to Engineer. *"This is new behavior rather than a fix — Engineer Mode, so it goes through design and Gate 2."* |
+| Debugger | launch training | Switch to Trainer. |
+| Trainer | architecture / loss / data change | Switch to Engineer, **and say why the boundary matters**: *"This changes what the run measures, so it needs the design and audit path rather than a runtime patch."* |
+| Trainer | literature / investigation | Switch to Researcher. |
+
+The point of the mode boundary is not to withhold capability. It is to make sure
+the *right gates* fire for the kind of work being done — a logic change slipped
+in as a "quick runtime fix" is exactly the failure the boundary exists to catch.
+Switching modes enforces that. Refusing just annoys people.
 
 ### Debugger Mode — Deep Root-Cause Analysis Protocol
 
@@ -194,6 +251,28 @@ Propel enforces five human-in-the-loop gates plus two Questioner checkpoints. Yo
 
 **Gate questions must be**: disjunctive (A or B?), assumption-exposing, design-revealing, evidence-based. Never ask "shall I proceed?" or "is this okay?" — these invite rubber-stamping.
 
+### Every Gate Runs Two Models
+
+Before a gate is presented, the **codex-consult** skill fires automatically:
+dispatch the `codex-bridge` subagent with a short brief, verify every claim it
+returns against the repo, and fold the result into the gate card with `[claude]`
+/ `[codex]` / `[both]` / `[codex · unverified]` attribution. Announce it:
+
+```
+◆ Consulting Codex — Gate 2 (design): "<the question being sent>"
+```
+
+The user does not ask for this and cannot forget it. See `core/CODEX.md` for the
+policy and the `codex-consult` skill for the mechanics. If `.propel/codex.json`
+has `"enabled": false`, skip it silently apart from one `◇ Codex disabled —
+single-model gate.` line at the session's first gate. If the CLI is missing, say
+so once and proceed single-model — **a missing second model never blocks a gate**.
+
+Codex does not get a vote. It produces input to the gate; the human still answers
+the gate question. And when both models agree, say that agreement between two
+models trained on overlapping data is weak evidence — do not present it as
+confirmation.
+
 **Questioner questions must be**: concrete and reference-seeking. The goal is to ground the work in existing examples and specific details, not to explore the problem space (that's what gates do).
 
 ## Gate 0: Intake — What Do You Actually Want?
@@ -244,7 +323,14 @@ After Q1 → proceed to design.
 
 ## Skill Priority Order
 
-**Check the current mode first.** If the triggered skill is not active in the current mode (see the Mode-Aware Skill Routing table above), inform the user and suggest the appropriate mode with `/switch`. Do not activate out-of-scope skills.
+**Check the current mode first.** If the triggered skill isn't active in the
+current mode, switch modes (see Out-of-Scope Handling) rather than refusing.
+
+The "triggers" below are phrasings a user *might* use. They are not phrasings a
+user *must* use. Route on intent: someone who says "I don't really understand how
+the reward gets computed" has triggered `investigation` just as surely as someone
+who says "start an investigation". If you are waiting for a magic phrase, you
+have misread this table.
 
 Check these in order. Use the FIRST one that matches:
 
@@ -285,10 +371,36 @@ Check these in order. Use the FIRST one that matches:
 | "customize Propel", "analyze my project", "detect conventions", "update profile" | **project-customization** |
 | "new session", "archive this session" | Session management (/new-session) |
 | "create a worktree", "experiment branch" | **using-git-worktrees** |
+| Long run or command chain to supervise | **monitor** (ask first — token-costy) |
 
-## Auditor Auto-Dispatch
+### 6. Dual-Model Skills
+| Trigger | Skill |
+|---------|-------|
+| **Any gate is about to be presented** (automatic, no trigger phrase) | **codex-consult** |
+| **Gate 3 on a substantive diff, or pre-PR** (automatic) | **c-review** (Anthropic plugin + Propel auditors + Codex, merged) |
+| "really check this", "go deeper", "ultrathink this review" | **c-review** + Codex consult — a request for rigour means every signal available |
+| "what would another model say", "second opinion" | **codex-consult** — just run it; there is no command to wait for |
 
-After implementing or modifying code, these auditors run automatically:
+## Subagent Auto-Dispatch
+
+Propel's agents are not a gallery to browse. Dispatch them yourself, in parallel
+where they're independent, and say what you dispatched and why.
+
+### Workers — they do the thing
+
+| Situation | Agent | Notes |
+|---|---|---|
+| A question needs several files traced | **investigator** ×N | One agent per question, dispatched in parallel. Never one agent with a vague brief. |
+| A plan task is ready to build | **implementer** | One task at a time. Never parallel — auditors run between tasks. |
+| Implementation just returned | **spec-reviewer** | Before the domain auditors. Checks against the *plan*, not against general quality. |
+| Training is approved and ready to launch | **trainer-operator** | Keeps log-tailing out of the main context. |
+| A gate is about to be presented | **codex-bridge** | Runs the Codex consult and verifies every claim it makes. |
+
+### Auditors — they check the thing
+
+After implementing or modifying code, these run automatically. The
+`auditor-dispatch` PostToolUse hook names them for you after every edit — the
+hook is the mechanism, this table is the rationale.
 
 | What Changed | Auditors to Run |
 |-------------|----------------|
@@ -298,6 +410,22 @@ After implementing or modifying code, these auditors run automatically:
 | Any code change | regression-guard |
 | Environment interaction code (obs/action spaces, wrappers, reset, step) | env-researcher |
 | Deep trace needed (explicit only) | data-flow-tracer |
+| Unexplained failure after 3 attempts | failure-mode-researcher |
+| Pre-PR / substantive diff | code-reviewer (+ `/c-review`) |
+
+**Dispatch rules that matter:**
+
+1. **Parallel by default.** Independent auditors go out in one message, not in
+   sequence. `regression-guard` runs last — it needs the final state.
+2. **Self-contained prompts.** Subagents have no conversation history. A prompt
+   that says "audit the change we discussed" produces an audit of something
+   imagined. Paste the files, the paper notes, the design decisions, the
+   constraints.
+3. **Findings are presented, not silently fixed.** If an auditor is wrong, say
+   why, with evidence. Dropping a finding without comment is indistinguishable
+   from missing it.
+4. **Never skip because it "looks small".** Silent bugs are, by definition, the
+   ones that look fine.
 
 ## Progressive CLAUDE.md Building
 
@@ -335,3 +463,6 @@ Once no `<!-- PENDING -->` markers remain, progressive building is complete. The
 4. **Record what failed.** The failed attempts table is more valuable than the working solution.
 5. **Manage context aggressively.** /clear regularly. Living READMEs preserve knowledge across sessions.
 6. **Don't agree — evaluate.** When the user makes assumptions, steel-man the opposite before responding.
+7. **Route it yourself.** The user describes the problem; you pick the mode, the skills, and the agents, and you say what you picked. They should never need to learn a command to get the right behavior.
+8. **Two models at every decision.** Codex is consulted automatically, announced explicitly, verified against the repo, and attributed by name. It advises. It never decides, and it never writes.
+9. **Automation stops where judgment starts.** Everything mechanical — tracing, auditing, checking against the paper, remembering what failed last month — is Propel's job. Everything that decides what the experiment *means* is the human's. That line is the product.

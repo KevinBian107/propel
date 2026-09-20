@@ -25,22 +25,25 @@ description: >
 For each task in the plan:
 
 ### Stage 1: Implementation
-Dispatch the implementer subagent with:
+Dispatch the **`implementer`** subagent (`agents/implementer.md`) with:
 - The specific task from the plan (exact file paths, what to implement, paper reference)
 - The full design context (investigation README, paper notes, design doc)
 - The implementation constraints (what NOT to change, existing behavior to preserve)
 
-See `implementer-prompt.md` for the full implementer subagent prompt.
+See `implementer-prompt.md` for the prompt template to fill in. The agent has no
+conversation history — everything it needs must be in the prompt.
 
 ### Stage 2: Spec + Paper Review
 After implementation, run two reviews:
 
 **a) Spec compliance review:**
-- Does the implementation match the plan's specification?
-- Are all verification steps from the plan satisfied?
-- Were any deviations from the plan made? (If so, they must be justified)
+Dispatch the **`spec-reviewer`** subagent (`agents/spec-reviewer.md`) with the
+plan entry, the implementer's report, and the changed files. It answers one
+question — does the code do what the plan said, no more and no less — and
+specifically hunts for *undeclared* deviations, which the implementer's own
+report will not surface.
 
-See `spec-reviewer-prompt.md` for the full spec review subagent prompt.
+See `spec-reviewer-prompt.md` for the prompt template.
 
 **b) Paper alignment review:**
 - Dispatch paper-alignment-auditor on the implemented component
@@ -59,12 +62,34 @@ See `auditor-dispatch.md` for the dispatch logic.
 | Model/loss/data | silent-bug-detector |
 | Any code | regression-guard |
 
+The `auditor-dispatch` PostToolUse hook names the required auditors after every
+edit — you do not have to derive the list from memory, and you do not get to
+skip one because the change looked small.
+
+### Stage 4: Codex Consult (automatic, non-trivial diffs)
+
+If the component's diff is non-trivial — roughly ≥30 lines, or it touches
+model / loss / data / training-loop code — dispatch **`codex-bridge`** with the
+diff and the question *"Name bugs by file:line. If there are none beyond those
+listed, say 'no additional findings'."*
+
+Announce it:
+
+```
+◆ Consulting Codex — Gate 3 (component N): "Name bugs by file:line in this diff."
+```
+
+Merge Codex's verified findings into the Gate 3 card alongside the auditors', with
+`[codex]` attribution. Unverifiable claims go in their own line, labelled — never
+promoted, never silently dropped. Skip this step only if `.propel/codex.json` has
+`"enabled": false`.
+
 ### Gate 3: Present Results
 
-After all three stages complete, present audit results to the user.
+After all stages complete, present audit results to the user.
 
 **If all auditors pass:**
-> "All auditors passed for [component name]. Spec ✓, Paper alignment ✓, Domain audit ✓. Moving to next component?"
+> "All auditors passed for [component name]. Spec ✓, Paper alignment ✓, Domain audit ✓, Codex ✓ (no additional findings). Moving to next component?"
 
 **If any auditor flags an issue:**
 
@@ -76,9 +101,12 @@ After all three stages complete, present audit results to the user.
 - ✓ Regression guard: existing configs unchanged
 
 ### Issues Found
-- ✗ [Auditor]: [specific finding]
-  - Evidence: [what the auditor found]
+- ✗ [auditor | codex | both]: [specific finding]
+  - Evidence: [what was found, with file:line]
   - Severity: [Critical/Medium/Minor]
+
+### Codex Claimed, Could Not Verify
+- [codex · unverified] [claim] — [what the file actually contains]
 
 ### My Assessment
 [Whether the issues are real bugs or false positives, with reasoning]

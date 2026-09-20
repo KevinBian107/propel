@@ -10,7 +10,9 @@ This command does four things:
 
 ## Part 0: Mode Selection
 
-Before anything else, present the four Propel modes:
+**Note:** Propel normally selects the mode itself from the user's first message —
+no menu, no interruption. `/intro` is the explicit-choice path, so here the menu
+*is* appropriate. Present the four modes:
 
 > **How do you want to work today?**
 >
@@ -26,7 +28,8 @@ Before anything else, present the four Propel modes:
 > 4. **Trainer** — "My code is ready, I just need to get training running."
 >    Training execution, runtime bug fixing, and monitoring. Gate 4 (runtime only).
 >
-> Which mode? (You can switch anytime with `/switch`)
+> Which mode? (You can switch anytime with `/switch` — and outside `/intro`,
+> Propel just picks one from what you say and tells you which it picked.)
 
 After the user chooses:
 1. Create `.propel/` directory if it doesn't exist
@@ -55,6 +58,25 @@ Intake → Investigation → Design → Implementation → Debug → Training �
 
 Skills auto-trigger based on what the user says. You don't need to memorize triggers — just describe what you want to do.
 
+### What you do NOT have to do
+
+This is the part worth saying out loud, because it inverts what most tooling
+expects of you:
+
+- **You don't pick a mode.** Propel reads your first message and picks one, then
+  says which and why.
+- **You don't name skills or agents.** Describe the problem. The right
+  investigation, auditors, and reviewers get dispatched, and you're told what ran.
+- **You don't ask for a second opinion.** There is no command for it. OpenAI Codex
+  is consulted automatically at every major decision point, announced each time
+  with a `◆ Consulting Codex` line, and every claim it makes is checked against
+  your actual code before you see it. `/disable-codex` turns it off.
+- **You don't remember to run the auditors.** A hook names them after every edit.
+
+What's left for you is the part machines are worst at: deciding what to build,
+what the result means, and which trade-off is the right one. Propel stops and
+asks at every one of those, and does not proceed until you answer.
+
 ### Slash commands
 
 | Command | What it does |
@@ -64,8 +86,11 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 | `/new-session [description]` | Create a tracked session directory with UUID and index entry |
 | `/read-paper [path]` | Extract structured implementation reference from a paper |
 | `/debug-training [symptom]` | Diagnose training issues (NaN, plateau, mode collapse) |
-| `/switch [mode]` | Switch between modes (researcher, engineer, debugger, trainer) |
+| `/switch [mode]` | Override the automatically selected mode |
 | `/trace-shapes [entry point]` | Quick shape annotation through a code path |
+| `/disable-codex` · `/enable-codex` | Turn the automatic second model off / on |
+| `/codex-log` | Audit trail: what Codex was actually asked, and when |
+| `/c-review` | Merge the Anthropic review plugin, Propel's auditors, and Codex into one card |
 
 ### Skills (auto-triggered)
 
@@ -86,6 +111,9 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 | Git | using-git-worktrees | "create worktree", "experiment branch" |
 | Training | trainer-mode | "train", "launch training", "run training" (Trainer Mode) |
 | Customization | project-customization | "customize Propel", "analyze my project", "detect conventions" |
+| Dual-model | codex-consult | Automatic at every gate — no phrase needed |
+| Review | c-review | Gate 3 on a substantive diff, or pre-PR |
+| Supervision | monitor | "watch this run", "make sure it finishes" |
 
 ### Auditor agents (auto-dispatched after code changes)
 
@@ -97,12 +125,22 @@ Skills auto-trigger based on what the user says. You don't need to memorize trig
 | regression-guard | After any code change |
 | env-researcher | During investigation of environment-dependent code |
 | data-flow-tracer | Explicit invocation only |
-| failure-mode-researcher | Explicit invocation only |
+| failure-mode-researcher | After 3 failed attempts, or explicit invocation |
 | code-reviewer | During review stage |
+
+### Worker agents (dispatched for you)
+
+| Agent | When it runs |
+|-------|-------------|
+| investigator | During investigation — several in parallel, one question each |
+| implementer | One approved plan task at a time |
+| spec-reviewer | Right after the implementer, before the domain auditors |
+| trainer-operator | Once a training command is approved — keeps logs out of the session |
+| codex-bridge | At every gate — runs Codex and verifies every claim it makes |
 
 ### Tips
 
-- Start any new task by just describing what you want — Gate 0 will fire automatically
+- Start any new task by just describing what you want — mode selection and Gate 0 both fire automatically
 - Use `/primer` after every `/clear` to reload context
 - Investigations go in `scratch/` — these are gitignored working directories
 - Say "retrospective" periodically to capture what worked and what didn't

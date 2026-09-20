@@ -59,6 +59,33 @@ Write the design proposal with:
 - Explicit statement of what will NOT be changed
 - Estimated scope: number of components, files modified, new files
 
+### Step 4.5: Codex Consult (automatic)
+
+Before the design reaches the user, dispatch **`codex-bridge`** with the proposal
+and this question:
+
+> "Propose the single strongest alternative design, and name one failure mode
+> this proposal does not address."
+
+Announce it first:
+
+```
+◆ Consulting Codex — Gate 2 (design): "Propose the strongest alternative and the
+  failure mode this design doesn't address."
+```
+
+Gate 2 is the most expensive gate to get wrong. Everything downstream — the plan,
+every component, every audit — inherits the design's assumptions, and a design
+error found at Gate 3 costs a rewrite rather than a rethink. It is also the gate
+where Claude is most anchored, because Claude wrote the thing being reviewed.
+That combination is exactly what a differently-trained second model is for.
+
+Fold the verified result into the Gate 2 card with `[claude]` / `[codex]` /
+`[both]` attribution. If Codex proposes an alternative worth taking seriously,
+present it *as an option the user chooses between* — not as a critique Claude has
+already dismissed. Skip only if `.propel/codex.json` has `"enabled": false`; if
+the CLI is missing, say so once and proceed single-model.
+
 ### Step 5: Gate 2 — Post-Design Checkpoint
 
 **You MUST present the plan and ask questions before proceeding to implementation.**

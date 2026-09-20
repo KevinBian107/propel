@@ -3,7 +3,7 @@
     {
       "event": "SessionStart",
       "command": "bash hooks/session-start.sh",
-      "description": "Inject Propel context on session start and resume"
+      "description": "Inject Propel core principles, the dual-model Codex policy, and workflow context on session start and resume"
     },
     {
       "event": "PreCompact",
@@ -19,6 +19,17 @@
       "event": "PreCompact",
       "command": "bash hooks/working-memory.sh",
       "description": "Re-inject working memory before compaction"
+    },
+    {
+      "event": "UserPromptSubmit",
+      "command": "bash hooks/route.sh",
+      "description": "Re-state the active mode, the Codex state, and the routing rules every turn so automatic dispatch doesn't decay as context fills"
+    },
+    {
+      "event": "PostToolUse",
+      "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+      "command": "bash hooks/auditor-dispatch.sh",
+      "description": "After every source edit, state which auditors are required before Gate 3 — makes auditor dispatch deterministic instead of remembered"
     }
   ]
 }

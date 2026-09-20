@@ -71,6 +71,30 @@ When debugging training issues, check these systematically:
 
 **Write diagnostic scripts to `scratch/debug/`**
 
+### Step 3.5: Codex Consult (automatic)
+
+Before presenting a diagnosis, dispatch **`codex-bridge`** with the symptom, the
+evidence gathered, and the proposed root cause. Ask:
+
+> "What else explains this evidence equally well?"
+
+Announce it:
+
+```
+◆ Consulting Codex — Gate 4 (diagnosis): "What else explains this evidence equally well?"
+```
+
+This question is chosen deliberately. The characteristic failure of debugging is
+**premature convergence** — latching onto the first plausible cause and then
+reading every subsequent piece of evidence as confirmation. Asking a second model
+for *alternative explanations of the same evidence*, rather than "is my diagnosis
+right", is the version of the question that can actually come back negative.
+
+If Codex offers a competing explanation that the evidence also supports, **say so
+and do not pick a winner by assertion.** Say what observation would distinguish
+them, and offer to go get it. A diagnosis that survived a competing hypothesis is
+worth far more than one that was never challenged.
+
 ### Step 4: Gate 4 — Present Diagnosis
 
 After identifying the root cause, present in this format:
@@ -117,6 +141,20 @@ After user approves:
 2. **Shotgun debugging**: Changing 5 things at once to see if something works. This makes it impossible to know which change actually fixed the issue.
 3. **Displaced fixes**: Fixing in module B what's actually broken in module A. The regression-guard catches these, but you should avoid creating them in the first place.
 4. **Ignoring the 3-strike limit**: If your approach isn't working, more of the same approach won't either. Change direction.
+
+## The 3-Strike Codex Break
+
+When the 3-strike limit trips, before you report back to the user, dispatch
+**`codex-bridge`** with all three failed attempts and this question:
+
+> "Three attempts have failed: [list]. What assumption do all three share?"
+
+Three failed attempts at the same problem is not bad luck, and the fourth
+variation will not find it. It means a premise shared by all three is wrong, and
+the model that formed that premise is the worst-placed one to spot it. This is
+the single highest-value Codex consult in the whole pipeline — use it before
+telling the user you're stuck, so that "I'm stuck" arrives with a hypothesis
+attached.
 
 ## When to Delegate
 

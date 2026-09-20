@@ -31,6 +31,24 @@ If the user insists on skipping Gate 0, note the unanswered questions in the REA
 
 5. For complex investigations, split into sub-documents as patterns emerge.
 
+6. **Fan out `investigator` subagents — don't read forty files yourself.**
+   Decompose the investigation into specific, independent questions and dispatch
+   one `investigator` per question, all in a single message so they run in
+   parallel. Then say what you dispatched:
+
+   > Dispatching four investigators in parallel: (1) where the reward is
+   > computed, (2) how configs override defaults, (3) what calls `env.step`,
+   > (4) what the tests assume about observation ordering.
+
+   **One question per agent.** A single agent with a broad brief ("understand
+   the codebase") returns a shallow summary of everything and an answer to
+   nothing, and it burns the context that the specific questions needed. Four
+   narrow agents return four answers with `file:line` evidence.
+
+   Read their reports, resolve contradictions between them by opening the file
+   yourself, and write the synthesis into the README. The subagents produce
+   evidence; the synthesis is yours.
+
 ## README Template
 
 ```markdown
@@ -87,6 +105,27 @@ These are common patterns, not rigid categories. Most investigations blend multi
 - Compare alternatives, document trade-offs
 - Include visual artifacts (mockups, screenshots) when relevant
 - For iterative decisions, use numbered "Design Questions" (DQ1, DQ2...) to structure review
+
+## Codex Consult Before Gate 1 (automatic)
+
+Once findings are assembled and before Gate 1 is presented, dispatch
+**`codex-bridge`** with the findings summary and this question:
+
+> "Given these findings, what should this investigation have checked and didn't?
+> Name one thing."
+
+Announce it:
+
+```
+◆ Consulting Codex — Gate 1 (findings): "What should this investigation have checked and didn't?"
+```
+
+An investigation's blind spots are structurally invisible from inside it — the
+same reasoning that decided what to trace decided what not to. A second model
+reading only the findings is well placed to notice a missing branch, an untested
+assumption, or a config path nobody followed. Fold verified additions into the
+"Open Questions" section of the Gate 1 card with `[codex]` attribution; if Codex
+names something worth checking, say whether you're going to go check it.
 
 ## Gate 1: Post-Investigation Checkpoint
 

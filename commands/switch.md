@@ -1,4 +1,9 @@
-[Propel] Switch between Propel modes (Researcher, Engineer, Debugger, Trainer).
+[Propel] Override the automatically selected Propel mode.
+
+Propel picks a mode from what the user says and switches on its own when the work
+crosses a boundary. `/switch` is the manual override for when it picked wrong, or
+when the user wants a mode's constraints deliberately — e.g. staying in Researcher
+so that no code gets written yet.
 
 Usage: `/switch $ARGUMENTS`
 
@@ -36,9 +41,14 @@ Ensure `.propel/` directory exists. Write `.propel/mode.json`:
 {
   "mode": "<selected_mode>",
   "switched_at": "<ISO 8601 timestamp>",
-  "previous_mode": "<previous mode or null>"
+  "previous_mode": "<previous mode or null>",
+  "selected_by": "user"
 }
 ```
+
+Set `"selected_by": "user"` (not `"auto"`). An explicitly chosen mode is a
+statement of intent: prefer asking before auto-switching away from it, where an
+auto-selected mode can be switched away from freely with a one-line notice.
 
 ### 4. Deliver mode-specific welcome
 
@@ -87,6 +97,13 @@ Ensure `.propel/` directory exists. Write `.propel/mode.json`:
 
 Then immediately activate the **trainer-mode** skill Phase 1 (Training Command Detection) — scan for training scripts, configs, and entry points without waiting for further input.
 
-### 5. No /clear needed
+### 5. Note the override
+
+If the previous mode was auto-selected and the user is correcting it, say so in
+one line — it's signal about where the inference went wrong:
+
+> Switching to Researcher. (I'd read that as an implementation task; noted.)
+
+### 6. No /clear needed
 
 The mode switch takes effect immediately. The using-propel skill will read the updated `.propel/mode.json` and route accordingly. No need to restart the session.

@@ -56,6 +56,30 @@ Ask: "Which command should I launch? And do you want to modify any arguments (e.
 
 Do NOT proceed until the user confirms a specific command.
 
+## Phase 1.5: Delegate to `trainer-operator`
+
+Once the human has approved the exact command, **dispatch the `trainer-operator`
+subagent** rather than launching and tailing the log yourself.
+
+This is not ceremony. Monitoring is context-toxic: a training log is thousands of
+near-identical lines, and pulling them into the main conversation pushes out the
+design decisions and investigation findings that the session actually needs to
+keep. The operator absorbs the log in its own context and returns a status card.
+
+Give it, explicitly:
+
+- the **exact approved command**, verbatim
+- the **discretion range** — what it may adjust without asking (e.g. "batch size
+  may go down to 32, nothing else"). If you give it no range, it has none.
+- the run name, output directory, and where logs should go
+- what "healthy" looks like: expected first-loss magnitude, expected throughput
+
+It will escalate anything that would change what the experiment measures. When it
+does, that comes back to the human as an Engineer-Mode question, not as a patch.
+
+The phases below are what the operator executes — and what you do yourself if the
+run is short enough that delegation costs more than it saves.
+
 ## Phase 2: Screen Session Management
 
 ### Launch training
