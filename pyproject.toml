@@ -21,3 +21,6 @@ propel = "propel_cli.cli:cli"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+propel_cli = ["launcher.html"]

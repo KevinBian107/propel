@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Propel Setup</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%20fill%3D%22none%22%3E%20%3Crect%20x%3D%2216%22%20y%3D%2216%22%20width%3D%22480%22%20height%3D%22480%22%20rx%3D%2296%22%20fill%3D%22%230a0a0a%22%2F%3E%20%3Crect%20x%3D%22208%22%20y%3D%2272%22%20width%3D%2296%22%20height%3D%2240%22%20rx%3D%228%22%20stroke%3D%22white%22%20stroke-width%3D%228%22%20fill%3D%22none%22%20opacity%3D%220.9%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22112%22%20x2%3D%22256%22%20y2%3D%22148%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Crect%20x%3D%22236%22%20y%3D%22148%22%20width%3D%2240%22%20height%3D%2240%22%20rx%3D%224%22%20transform%3D%22rotate%2845%20256%20168%29%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20fill%3D%22none%22%20opacity%3D%220.75%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22196%22%20x2%3D%22256%22%20y2%3D%22224%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Crect%20x%3D%22176%22%20y%3D%22224%22%20width%3D%22160%22%20height%3D%2236%22%20rx%3D%228%22%20stroke%3D%22white%22%20stroke-width%3D%228%22%20fill%3D%22none%22%20opacity%3D%220.9%22%2F%3E%20%3Cline%20x1%3D%22192%22%20y1%3D%22238%22%20x2%3D%22252%22%20y2%3D%22238%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.5%22%2F%3E%20%3Cline%20x1%3D%22192%22%20y1%3D%22250%22%20x2%3D%22236%22%20y2%3D%22250%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.5%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22260%22%20x2%3D%22256%22%20y2%3D%22292%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Crect%20x%3D%22236%22%20y%3D%22292%22%20width%3D%2240%22%20height%3D%2240%22%20rx%3D%224%22%20transform%3D%22rotate%2845%20256%20312%29%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20fill%3D%22none%22%20opacity%3D%220.75%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22340%22%20x2%3D%22256%22%20y2%3D%22368%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Crect%20x%3D%22176%22%20y%3D%22368%22%20width%3D%22160%22%20height%3D%2236%22%20rx%3D%228%22%20stroke%3D%22white%22%20stroke-width%3D%228%22%20fill%3D%22none%22%20opacity%3D%220.9%22%2F%3E%20%3Cline%20x1%3D%22192%22%20y1%3D%22382%22%20x2%3D%22260%22%20y2%3D%22382%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.5%22%2F%3E%20%3Cline%20x1%3D%22192%22%20y1%3D%22394%22%20x2%3D%22240%22%20y2%3D%22394%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.5%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22404%22%20x2%3D%22256%22%20y2%3D%22428%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Ccircle%20cx%3D%22256%22%20cy%3D%22440%22%20r%3D%2212%22%20fill%3D%22white%22%20opacity%3D%220.9%22%2F%3E%20%3Cline%20x1%3D%22176%22%20y1%3D%22386%22%20x2%3D%22120%22%20y2%3D%22386%22%20stroke%3D%22white%22%20stroke-width%3D%225%22%20stroke-dasharray%3D%228%206%22%20opacity%3D%220.4%22%2F%3E%20%3Crect%20x%3D%2272%22%20y%3D%22372%22%20width%3D%2248%22%20height%3D%2228%22%20rx%3D%226%22%20stroke%3D%22white%22%20stroke-width%3D%224%22%20fill%3D%22none%22%20opacity%3D%220.4%22%2F%3E%20%3Cline%20x1%3D%22336%22%20y1%3D%22386%22%20x2%3D%22392%22%20y2%3D%22386%22%20stroke%3D%22white%22%20stroke-width%3D%225%22%20stroke-dasharray%3D%228%206%22%20opacity%3D%220.4%22%2F%3E%20%3Crect%20x%3D%22392%22%20y%3D%22372%22%20width%3D%2248%22%20height%3D%2228%22%20rx%3D%226%22%20stroke%3D%22white%22%20stroke-width%3D%224%22%20fill%3D%22none%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E" />
+<style>
+  :root {
+    --bg: #0d1117; --panel: #151b23; --panel-2: #1c232c; --line: #2a323d;
+    --fg: #e6edf3; --muted: #8b949e; --dim: #6e7781;
+    --accent: #4b8bff; --accent-dim: #1f3a66;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  }
+  html[data-theme="light"] {
+    --bg: #ffffff; --panel: #f6f8fa; --panel-2: #eef1f5; --line: #d8dee4;
+    --fg: #1f2328; --muted: #57606a; --dim: #8c959f;
+    --accent: #0969da; --accent-dim: #ddeaff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans);
+    font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 20px 96px; }
+
+  /* ── header ── */
+  header { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 8px; }
+  .mark {
+    width: 46px; height: 46px; flex: none; border-radius: 11px; display: block;
+  }
+  /* The logo's own plate is near-black, so give it an edge on a dark background. */
+  html[data-theme="dark"] .mark {
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  h1 { font-size: 26px; margin: 0 0 2px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 14.5px; margin: 0; }
+  .theme {
+    margin-left: auto; background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 8px; padding: 6px 11px; font-size: 12.5px; cursor: pointer; font-family: inherit;
+  }
+  .theme:hover { color: var(--fg); border-color: var(--dim); }
+
+  .thesis {
+    margin: 26px 0 32px; padding: 14px 18px; border-left: 3px solid var(--accent);
+    background: var(--panel); border-radius: 0 10px 10px 0; color: var(--muted); font-size: 14px;
+  }
+  .thesis b { color: var(--fg); font-weight: 600; }
+
+  /* ── project strip ── */
+  .project {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 13px 16px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); margin-bottom: 30px; font-size: 13.5px;
+  }
+  .project code { font-family: var(--mono); font-size: 12.5px; color: var(--fg); }
+  .project .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* ── steps ── */
+  h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em;
+    color: var(--dim); margin: 34px 0 12px; font-weight: 600;
+  }
+  .card {
+    border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
+    padding: 16px 18px; margin-bottom: 10px; display: flex; gap: 15px; align-items: flex-start;
+    transition: border-color .15s;
+  }
+  .card:hover { border-color: var(--dim); }
+  .card.blocked { opacity: .55; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-top: 8px; background: var(--dim); }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent); }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 18%, transparent); }
+  .dot.bad { background: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 18%, transparent); }
+  .body { flex: 1; min-width: 0; }
+  .name { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .tag {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
+    padding: 2px 7px; border-radius: 5px; border: 1px solid var(--line); color: var(--muted);
+  }
+  .tag.req { border-color: var(--accent-dim); color: var(--accent); }
+  .blurb { color: var(--muted); font-size: 13.5px; margin-top: 3px; }
+  .ver { font-family: var(--mono); font-size: 12px; color: var(--dim); margin-top: 6px; word-break: break-all; }
+  .ver.warn { color: var(--warn); }
+  .acts { display: flex; gap: 8px; align-items: center; flex: none; flex-wrap: wrap; justify-content: flex-end; max-width: 250px; }
+
+  button.btn {
+    font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+    padding: 7px 13px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--fg); white-space: nowrap;
+  }
+  button.btn:hover:not(:disabled) { border-color: var(--dim); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.btn.primary:hover:not(:disabled) { filter: brightness(1.1); }
+  button.btn:disabled { opacity: .45; cursor: default; }
+  a.manual { font-size: 12.5px; color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--dim); }
+  a.manual:hover { color: var(--accent); border-color: var(--accent); }
+  .done { color: var(--ok); font-size: 13px; font-weight: 500; white-space: nowrap; }
+
+  /* ── log ── */
+  .plugin-note {
+    color: var(--muted); font-size: 13px; margin: -4px 0 12px; max-width: 62ch;
+  }
+  .plugin-note code { font-family: var(--mono); font-size: 12px; color: var(--fg); }
+  .by { font-size: 11.5px; color: var(--dim); }
+  .used { font-size: 11.5px; color: var(--accent); }
+
+  .log {
+    margin-top: 14px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); overflow: hidden; display: none;
+  }
+  .log.show { display: block; }
+  .log-head {
+    padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 11.5px;
+    color: var(--dim); text-transform: uppercase; letter-spacing: .07em;
+    display: flex; align-items: center; gap: 9px;
+  }
+  .log pre {
+    margin: 0; padding: 13px 15px; font-family: var(--mono); font-size: 12px; line-height: 1.65;
+    color: var(--muted); max-height: 280px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+  }
+  .spin {
+    width: 9px; height: 9px; border: 2px solid var(--accent); border-right-color: transparent;
+    border-radius: 50%; animation: spin .7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  footer { margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--dim); font-size: 13px; }
+  footer a { color: var(--muted); }
+  footer code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .next { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-top: 30px; }
+  .next h3 { margin: 0 0 10px; font-size: 15px; }
+  .next ol { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13.8px; }
+  .next li { margin-bottom: 6px; }
+  .next code { font-family: var(--mono); font-size: 12.5px; color: var(--fg); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+  @media (max-width: 620px) {
+    .card { flex-wrap: wrap; }
+    .acts { max-width: none; width: 100%; justify-content: flex-start; margin-top: 6px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <svg class="mark" viewBox="0 0 512 512" fill="none" role="img" aria-label="Propel"> <rect x="16" y="16" width="480" height="480" rx="96" fill="#0a0a0a"/> <rect x="208" y="72" width="96" height="40" rx="8" stroke="white" stroke-width="8" fill="none" opacity="0.9"/> <line x1="256" y1="112" x2="256" y2="148" stroke="white" stroke-width="6" opacity="0.5"/> <rect x="236" y="148" width="40" height="40" rx="4" transform="rotate(45 256 168)" stroke="white" stroke-width="6" fill="none" opacity="0.75"/> <line x1="256" y1="196" x2="256" y2="224" stroke="white" stroke-width="6" opacity="0.5"/> <rect x="176" y="224" width="160" height="36" rx="8" stroke="white" stroke-width="8" fill="none" opacity="0.9"/> <line x1="192" y1="238" x2="252" y2="238" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/> <line x1="192" y1="250" x2="236" y2="250" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/> <line x1="256" y1="260" x2="256" y2="292" stroke="white" stroke-width="6" opacity="0.5"/> <rect x="236" y="292" width="40" height="40" rx="4" transform="rotate(45 256 312)" stroke="white" stroke-width="6" fill="none" opacity="0.75"/> <line x1="256" y1="340" x2="256" y2="368" stroke="white" stroke-width="6" opacity="0.5"/> <rect x="176" y="368" width="160" height="36" rx="8" stroke="white" stroke-width="8" fill="none" opacity="0.9"/> <line x1="192" y1="382" x2="260" y2="382" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/> <line x1="192" y1="394" x2="240" y2="394" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/> <line x1="256" y1="404" x2="256" y2="428" stroke="white" stroke-width="6" opacity="0.5"/> <circle cx="256" cy="440" r="12" fill="white" opacity="0.9"/> <line x1="176" y1="386" x2="120" y2="386" stroke="white" stroke-width="5" stroke-dasharray="8 6" opacity="0.4"/> <rect x="72" y="372" width="48" height="28" rx="6" stroke="white" stroke-width="4" fill="none" opacity="0.4"/> <line x1="336" y1="386" x2="392" y2="386" stroke="white" stroke-width="5" stroke-dasharray="8 6" opacity="0.4"/> <rect x="392" y="372" width="48" height="28" rx="6" stroke="white" stroke-width="4" fill="none" opacity="0.4"/> </svg>
+    <div>
+      <h1>Propel setup</h1>
+      <p class="sub">Get the two models on your machine and signed in.</p>
+    </div>
+    <button class="theme" id="theme">light</button>
+  </header>
+
+  <div class="thesis">
+    Propel is <b>not an autonomous agent</b>. It automates the tedious half of research
+    engineering — tracing code, checking implementations against the paper, hunting silent
+    bugs, keeping notes across sessions — and it stops at every decision that is actually
+    yours. <b>You decide; the machines execute.</b> Claude Code does the work; Codex argues
+    with it before anything reaches you.
+  </div>
+
+  <div class="project" id="project">
+    <span class="spin"></span> checking your machine…
+  </div>
+
+  <h2>Requirements</h2>
+  <div id="tools"></div>
+
+  <h2>Optional plugins</h2>
+  <p class="plugin-note">
+    Propel uses these when they're present and works without them. They are never
+    installed by <code>propel init</code>: a plugin can ship hooks, commands and
+    MCP servers, so it runs code in your session &mdash; that's your call, not a
+    side effect of setting up a project.
+  </p>
+  <div id="plugins"></div>
+
+  <div class="log" id="log">
+    <div class="log-head"><span id="log-title">output</span><span id="log-spin"></span></div>
+    <pre id="log-body"></pre>
+  </div>
+
+  <div class="next">
+    <h3>Once everything is green</h3>
+    <ol>
+      <li>Point this at your project and press <b>Install Propel into this project</b> (or run <code>propel init</code> there).</li>
+      <li>Start <code>claude</code> in that directory. Propel picks its own mode from your first message.</li>
+      <li>Just describe what you're working on. You never have to name a skill, an agent, or Codex — the pipeline routes itself and tells you what it's doing.</li>
+      <li>Don't want the second model? <code>/disable-codex</code>.</li>
+    </ol>
+  </div>
+
+  <footer>
+    <span id="foot-note">Nothing here leaves your machine except the installers you click.</span>
+    &nbsp;·&nbsp; <a href="https://kbian.org/propel-website/docs/" target="_blank" rel="noopener">Documentation</a>
+    &nbsp;·&nbsp; <a href="https://github.com/KevinBian107/propel" target="_blank" rel="noopener">Source</a>
+  </footer>
+
+</div>
+
+<script>
+const T = "__TOKEN__";
+const $ = (id) => document.getElementById(id);
+let polling = null;
+
+/* ── theme ── */
+const themeBtn = $("theme");
+const saved = localStorage.getItem("propel-theme");
+if (saved) document.documentElement.dataset.theme = saved;
+const syncTheme = () => { themeBtn.textContent = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; };
+syncTheme();
+themeBtn.onclick = () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem("propel-theme", next);
+  syncTheme();
+};
+
+/* ── api ── */
+const api = (p, opts) => fetch(p + (p.includes("?") ? "&" : "?") + "t=" + T, opts).then(r => r.json());
+
+/* ── render ── */
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function renderProject(p) {
+  const initialized = p.initialized;
+  $("project").innerHTML = `
+    <span>Project</span>
+    <code>${esc(p.root)}</code>
+    ${p.is_git ? "" : '<span class="tag">not a git repo</span>'}
+    <span class="right">
+      ${initialized
+        ? '<span class="done">✓ Propel installed here</span>'
+        : `<button class="btn primary" data-act="propel-init">Install Propel into this project</button>`}
+    </span>`;
+}
+
+function renderTools(tools) {
+  $("tools").innerHTML = tools.map(t => {
+    const installed = t.ok;
+    const needsAuth = t.auth !== null && t.auth !== undefined;
+    const signedIn = t.auth === true;
+    let state = "bad", note = "";
+    if (installed && (!needsAuth || signedIn)) state = "ok";
+    else if (installed) state = "warn";
+    else if (!t.required) state = "warn";
+    if (t.warn) { state = "warn"; note = t.warn; }
+
+    const acts = [];
+    if (!installed) {
+      if (t.install) acts.push(`<button class="btn primary" data-act="${t.install}">Install</button>`);
+      if (t.manual) acts.push(`<a class="manual" href="${t.manual}" target="_blank" rel="noopener">manual</a>`);
+    } else if (needsAuth && !signedIn && t.login) {
+      acts.push(`<button class="btn primary" data-act="${t.login}">Link account</button>`);
+    } else if (installed && (!needsAuth || signedIn)) {
+      acts.push(`<span class="done">✓ ready</span>`);
+    }
+
+    const ver = t.version
+      ? `<div class="ver${t.warn ? " warn" : ""}">${esc(t.version)}${note ? " — " + esc(note) : ""}${needsAuth ? (signedIn ? " · signed in" : " · not signed in") : ""}</div>`
+      : `<div class="ver">not installed</div>`;
+
+    return `<div class="card${installed ? "" : " blocked"}">
+      <div class="dot ${state}"></div>
+      <div class="body">
+        <div class="name">${esc(t.name)} ${t.required ? '<span class="tag req">required</span>' : '<span class="tag">optional</span>'}</div>
+        <div class="blurb">${esc(t.blurb)}</div>
+        ${ver}
+      </div>
+      <div class="acts">${acts.join("")}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderPlugins(plugins) {
+  $("plugins").innerHTML = (plugins || []).map(p => `
+    <div class="card">
+      <div class="dot ${p.installed ? "ok" : ""}"></div>
+      <div class="body">
+        <div class="name">${esc(p.name)} <span class="tag">optional</span>
+          <span class="by">by ${esc(p.publisher)}</span></div>
+        <div class="blurb">${esc(p.blurb)}</div>
+        <div class="ver">Propel uses it for: <span class="used">${esc(p.used_for)}</span></div>
+      </div>
+      <div class="acts">${p.installed
+        ? '<span class="done">\u2713 installed</span>'
+        : `<button class="btn" data-act="${p.install}">Install</button>`}</div>
+    </div>`).join("");
+}
+
+function renderCodexToggle(p) {
+  if (p.codex_enabled === null || p.codex_enabled === undefined) return;
+  const on = p.codex_enabled;
+  const el = document.createElement("div");
+  el.className = "card";
+  el.innerHTML = `
+    <div class="dot ${on ? "ok" : "warn"}"></div>
+    <div class="body">
+      <div class="name">Dual-model gates ${on ? "" : '<span class="tag">off</span>'}</div>
+      <div class="blurb">${on
+        ? "Codex is consulted automatically at every gate — scope, findings, design, audit, diagnosis. Claude announces it every time and verifies every claim against your code."
+        : "Propel runs single-model in this project. Gates still fire; only the second opinion is off."}</div>
+    </div>
+    <div class="acts">
+      <button class="btn" data-act="${on ? "disable-codex" : "enable-codex"}">${on ? "Turn off" : "Turn on"}</button>
+    </div>`;
+  $("tools").appendChild(el);
+}
+
+/* ── actions ── */
+function showLog(title, text, busy) {
+  $("log").classList.add("show");
+  $("log-title").textContent = title;
+  $("log-body").textContent = text;
+  $("log-spin").innerHTML = busy ? '<span class="spin"></span>' : "";
+  $("log-body").scrollTop = $("log-body").scrollHeight;
+}
+
+async function run(action, label) {
+  if (polling) clearInterval(polling);
+  showLog(label, "starting…", true);
+  document.querySelectorAll("button[data-act]").forEach(b => b.disabled = true);
+
+  const res = await api("/api/action", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+
+  if (res.error) { showLog(label, res.error, false); await refresh(); return; }
+  if (res.done) { showLog(label, res.output || "done.", false); await refresh(); return; }
+
+  polling = setInterval(async () => {
+    const j = await api("/api/job/" + res.job);
+    showLog(label, j.output || "", !j.done);
+    if (j.done) { clearInterval(polling); polling = null; await refresh(); }
+  }, 700);
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  run(b.dataset.act, b.textContent.trim());
+});
+
+/* ── boot ── */
+async function refresh() {
+  const s = await api("/api/status");
+  renderProject(s.project);
+  renderTools(s.tools);
+  renderCodexToggle(s.project);
+  renderPlugins(s.plugins);
+  document.querySelectorAll("button[data-act]").forEach(b => b.disabled = false);
+  const missingRequired = s.tools.some(t => t.required && !t.ok);
+  $("foot-note").textContent = missingRequired
+    ? "Install the required tools above, then press a button again to re-check."
+    : "Nothing here leaves your machine except the installers you click.";
+}
+refresh();
+</script>
+</body>
+</html>

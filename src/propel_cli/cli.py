@@ -242,21 +242,24 @@ def merge_hooks_config(settings_path: Path, hooks_config: list[dict]) -> None:
     for hook in hooks_config:
         event = hook["event"]
         command = hook["command"]
+        matcher = hook.get("matcher", "")
 
         matcher_group = {
-            "matcher": "",
+            "matcher": matcher,
             "hooks": [{"type": "command", "command": command}],
         }
 
         if event not in existing_hooks:
             existing_hooks[event] = []
 
-        # Skip if an identical command is already registered
-        existing_commands = []
+        # Skip if the same command is already registered under the same matcher.
+        # (matcher, command) rather than command alone — the same script can
+        # legitimately be registered under two different tool matchers.
+        existing_pairs = set()
         for group in existing_hooks[event]:
             for h in group.get("hooks", []):
-                existing_commands.append(h.get("command", ""))
-        if command not in existing_commands:
+                existing_pairs.add((group.get("matcher", ""), h.get("command", "")))
+        if (matcher, command) not in existing_pairs:
             existing_hooks[event].append(matcher_group)
 
     settings["hooks"] = existing_hooks
@@ -291,7 +294,7 @@ def _cleanup_stale_files(claude_dir: Path, propel_root: Path) -> None:
     that doesn't have a corresponding file in the current propel source gets
     removed. This handles renames (e.g. commands moved into a subdirectory).
     """
-    dirs_to_check = ["skills", "agents", "commands", "hooks"]
+    dirs_to_check = ["skills", "agents", "commands", "hooks", "core", "scripts"]
     removed = 0
 
     for dirname in dirs_to_check:
@@ -322,10 +325,42 @@ def _cleanup_stale_files(claude_dir: Path, propel_root: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@click.group()
-def cli():
-    """Propel — research workflow CLI for Claude Code."""
-    pass
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx):
+    """Propel — research workflow CLI for Claude Code.
+
+    Run `propel` with no arguments to open the setup console.
+    """
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(launch)
+
+
+# ---------------------------------------------------------------------------
+# propel launch
+# ---------------------------------------------------------------------------
+
+
+@cli.command()
+@click.option("--no-browser", is_flag=True, help="Print the URL instead of opening a browser.")
+@click.option("--port", default=0, type=int, help="Bind to a specific port (default: random).")
+def launch(no_browser: bool, port: int):
+    """Open the Propel setup console in your browser.
+
+    Detects Claude Code, Codex, node and git; installs what's missing; opens a
+    terminal for the two logins that genuinely need one; and installs Propel
+    into the current project.
+    """
+    from . import launcher
+
+    try:
+        launcher.serve(open_browser=not no_browser, port=port)
+    except FileNotFoundError as exc:
+        click.echo(f"Launcher assets missing: {exc}", err=True)
+        raise SystemExit(1)
+    except OSError as exc:
+        click.echo(f"Could not start the launcher: {exc}", err=True)
+        raise SystemExit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -347,7 +382,7 @@ def init():
     _cleanup_stale_files(claude_dir, propel_root)
 
     # Copy skills, agents, commands, hooks
-    dirs_to_copy = ["skills", "agents", "commands", "hooks", "core"]
+    dirs_to_copy = ["skills", "agents", "commands", "hooks", "core", "scripts"]
     total_files = 0
 
     for dirname in dirs_to_copy:
@@ -368,7 +403,7 @@ def init():
         for hook in hooks_config:
             hook["command"] = hook["command"].replace(
                 "bash hooks/", "bash .claude/hooks/"
-            )
+            ).replace("bash scripts/", "bash .claude/scripts/")
         settings_path = claude_dir / "settings.local.json"
         merge_hooks_config(settings_path, hooks_config)
         click.echo(f"\n  settings.local.json — hooks configured")
@@ -389,8 +424,346 @@ def init():
     else:
         click.echo(f"  .gitignore — already up to date")
 
+    # Shell helpers must stay executable through the copy
+    for sh in list((claude_dir / "hooks").glob("*.sh")) + list(
+        (claude_dir / "scripts").glob("*.sh")
+    ):
+        sh.chmod(sh.stat().st_mode | 0o111)
+
+    # If the status line is wired up, refresh the global copies too. They live
+    # outside the clone so moving the repo can't break them -- but that also
+    # means editing a script here would otherwise leave the status line silently
+    # serving a stale version.
+    if GLOBAL_DIR.exists():
+        refreshed = _sync_global_scripts(propel_root)
+        if refreshed:
+            click.echo(f"  status line — refreshed {', '.join(refreshed)}")
+
+    # Seed the dual-model config so the state is explicit and inspectable
+    propel_dir = project_root / ".propel"
+    propel_dir.mkdir(exist_ok=True)
+    codex_config = propel_dir / "codex.json"
+    if not codex_config.exists():
+        codex_config.write_text(
+            json.dumps(
+                {
+                    "enabled": True,
+                    "available": None,
+                    "note": (
+                        "Codex is consulted automatically at every major decision "
+                        "point. Turn it off with /disable-codex."
+                    ),
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        click.echo("  .propel/codex.json — dual-model layer enabled")
+
     click.echo(f"\nDone! {total_files} files installed into {claude_dir}/")
-    click.echo("Run `claude` to start using Propel.")
+    click.echo("Run `propel launch` to check your Claude Code / Codex setup,")
+    click.echo("or `claude` to start working.")
+
+
+# ---------------------------------------------------------------------------
+# propel codex
+# ---------------------------------------------------------------------------
+
+
+OUTCOME_LABEL = {
+    "reply": "reply",
+    "no-findings": "no findings",
+    "unavailable": "UNAVAILABLE",
+    "disabled": "disabled",
+}
+
+
+def _codex_log_path() -> Path:
+    return get_project_root() / ".propel" / "codex-log.jsonl"
+
+
+def _read_codex_log() -> list[dict]:
+    """Read the consult ledger, skipping any line that isn't parseable.
+
+    A corrupt line is never fatal. The ledger's value is that it exists at all;
+    losing one entry to a partial write is better than refusing to show the rest.
+    """
+    path = _codex_log_path()
+    if not path.exists():
+        return []
+    entries = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entries.append(json.loads(line))
+        except (json.JSONDecodeError, ValueError):
+            continue
+    return entries
+
+
+@cli.group()
+def codex():
+    """Inspect the dual-model layer \u2014 what Codex was asked, and when."""
+    pass
+
+
+@codex.command(name="log")
+@click.option("-n", "--number", default=20, help="How many recent consults to show.")
+@click.option("--all", "show_all", is_flag=True, help="Show every recorded consult.")
+@click.option("--json", "as_json", is_flag=True, help="Emit raw JSONL instead of a table.")
+@click.option("-q", "--questions", is_flag=True, help="Also show the question sent each time.")
+def codex_log(number: int, show_all: bool, as_json: bool, questions: bool):
+    """Show the Codex consult audit trail for this project.
+
+    This ledger is written by scripts/codex-consult.sh, not by a model. That is
+    the point of it: a gate that claimed a Codex consult with no matching entry
+    here did not consult Codex.
+    """
+    entries = _read_codex_log()
+
+    if not entries:
+        click.echo("\nNo Codex consults recorded in this project yet.")
+        click.echo(f"Ledger: {_codex_log_path()}")
+        click.echo(
+            "\nIf a session claimed to consult Codex and nothing is here, "
+            "the consult did not happen."
+        )
+        return
+
+    shown = entries if show_all else entries[-number:]
+
+    if as_json:
+        for e in shown:
+            click.echo(json.dumps(e))
+        return
+
+    click.echo("")
+    click.echo(f"  {'TIME':<10}{'GATE':<26}{'OUTCOME':<14}TOOK")
+    for e in shown:
+        ts = (e.get("ts") or "")[11:19] or "--:--:--"
+        label = (e.get("label") or "?")[:24]
+        outcome = OUTCOME_LABEL.get(e.get("outcome", ""), e.get("outcome") or "?")
+        took = e.get("duration_s")
+        took_s = f"{took}s" if took is not None else "--"
+        click.echo(f"  {ts:<10}{label:<26}{outcome:<14}{took_s}")
+        if e.get("outcome") in ("unavailable", "disabled") and e.get("detail"):
+            click.echo(f"  {'':<10}\u2514 {e['detail']}")
+        if questions and e.get("question"):
+            click.echo(f"  {'':<10}\u2514 asked: {e['question']}")
+
+    total = len(entries)
+    replies = sum(1 for e in entries if e.get("outcome") in ("reply", "no-findings"))
+    unavailable = sum(1 for e in entries if e.get("outcome") == "unavailable")
+    disabled = sum(1 for e in entries if e.get("outcome") == "disabled")
+
+    parts = [f"{total} consult{'s' if total != 1 else ''}", f"{replies} replied"]
+    if unavailable:
+        parts.append(f"{unavailable} unavailable")
+    if disabled:
+        parts.append(f"{disabled} skipped (disabled)")
+    click.echo("")
+    click.echo("  " + " \u00b7 ".join(parts))
+    if not show_all and len(entries) > len(shown):
+        click.echo(f"  showing last {len(shown)} \u2014 use --all for the rest")
+    click.echo("")
+
+
+GLOBAL_DIR = Path.home() / ".claude" / "propel"
+SEGMENT_SCRIPTS = (
+    "propel-statusline.sh",   # the wrapper Claude Code invokes
+    "codex-statusline.sh",    # the one-line session segment
+    "codex-tasks.sh",         # the Codex task block
+)
+PREV_STATUSLINE = GLOBAL_DIR / "previous-statusline.json"
+
+
+def _sync_global_scripts(propel_root: Path) -> list[str]:
+    """Copy the status-line scripts outside the clone, so moving the repo can't
+    break the status line. Returns the names that changed."""
+    changed = []
+    GLOBAL_DIR.mkdir(parents=True, exist_ok=True)
+    for name in SEGMENT_SCRIPTS:
+        src = propel_root / "scripts" / name
+        if not src.exists():
+            continue
+        dst = GLOBAL_DIR / name
+        if not dst.exists() or dst.read_bytes() != src.read_bytes():
+            shutil.copy2(src, dst)
+            changed.append(name)
+        dst.chmod(dst.stat().st_mode | 0o111)
+    return changed
+
+
+@codex.command(name="statusline")
+@click.option("--install", "do_install", is_flag=True,
+              help="Actually modify ~/.claude/settings.json (a backup is written first).")
+@click.option("--remove", "do_remove", is_flag=True, help="Restore the previous status line.")
+def codex_statusline(do_install: bool, do_remove: bool):
+    """Show Codex state and in-flight consults in your Claude Code status line.
+
+    Adds two things: a segment on the session line reading `codex * 4 . 3s`
+    (enabled, four consults today, last one three seconds ago), and a block
+    beneath claude-hud's agents line showing the consults themselves.
+
+    Without --install this only prints what it would do.
+    """
+    settings_path = Path.home() / ".claude" / "settings.json"
+    wrapper = GLOBAL_DIR / "propel-statusline.sh"
+    wrapper_cmd = f"bash {wrapper}"
+
+    try:
+        settings = json.loads(settings_path.read_text()) if settings_path.exists() else {}
+    except (json.JSONDecodeError, ValueError):
+        click.echo(f"Could not parse {settings_path} - fix it before wiring anything in.", err=True)
+        raise SystemExit(1)
+
+    status_line = settings.get("statusLine") or {}
+    command = status_line.get("command", "") if isinstance(status_line, dict) else ""
+    installed = wrapper_cmd in command
+
+    # ---- remove: put back exactly what was there before ----------------
+    if do_remove:
+        if not installed:
+            click.echo("\nPropel's status line isn't installed. Nothing to remove.\n")
+            return
+        backup = settings_path.with_suffix(".json.propel-bak")
+        backup.write_text(settings_path.read_text())
+        previous = None
+        if PREV_STATUSLINE.exists():
+            try:
+                previous = json.loads(PREV_STATUSLINE.read_text()).get("statusLine")
+            except (json.JSONDecodeError, ValueError):
+                previous = None
+        if previous:
+            settings["statusLine"] = previous
+            click.echo("\nRestored your previous status line.")
+        else:
+            settings.pop("statusLine", None)
+            click.echo("\nRemoved the status line (no previous one was recorded).")
+        settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+        click.echo(f"Backup of the replaced file: {backup}\n")
+        return
+
+    # ---- already installed --------------------------------------------
+    if installed:
+        changed = _sync_global_scripts(get_propel_root())
+        click.echo("\nAlready installed. Your status line runs:")
+        click.echo(f"  {wrapper_cmd}")
+        if changed:
+            click.echo(f"\n  Refreshed: {', '.join(changed)}")
+        click.echo("\nUndo with: propel codex statusline --remove\n")
+        return
+
+    has_hud = "claude-hud" in command or "dist/index.js" in command
+
+    click.echo("\nThis will:\n")
+    click.echo(f"  1. copy the status-line scripts to {GLOBAL_DIR}/")
+    click.echo("     (outside the propel clone, so moving the repo can't break it)")
+    click.echo(f"  2. record your current status line so --remove can restore it")
+    click.echo(f"  3. set statusLine.command in {settings_path} to:")
+    click.echo(f"       {wrapper_cmd}")
+    click.echo("  4. back up the current settings.json first\n")
+
+    if has_hud:
+        click.echo("  Your claude-hud status line is preserved: the wrapper runs hud")
+        click.echo("  first, prints its output unchanged, then appends the Codex block")
+        click.echo("  underneath. If hud ever fails, the Codex block still renders.\n")
+    else:
+        click.echo("  You don't appear to run claude-hud. The wrapper will still work -")
+        click.echo("  it just prints the Codex block on its own. Install claude-hud from")
+        click.echo("  `propel launch` for the full status line.\n")
+
+    click.echo("  In a project without .propel/, nothing Codex-related is printed.\n")
+
+    if not do_install:
+        click.echo("  Dry run. Re-run with --install to apply.\n")
+        return
+
+    propel_root = get_propel_root()
+    if not (propel_root / "scripts" / "propel-statusline.sh").exists():
+        click.echo("Status-line scripts missing from the propel source tree.", err=True)
+        raise SystemExit(1)
+
+    _sync_global_scripts(propel_root)
+
+    if command:
+        PREV_STATUSLINE.write_text(
+            json.dumps({"statusLine": status_line, "saved_at": datetime.now().isoformat()},
+                       indent=2) + "\n"
+        )
+
+    if settings_path.exists():
+        backup = settings_path.with_suffix(".json.propel-bak")
+        backup.write_text(settings_path.read_text())
+    else:
+        backup = None
+
+    settings["statusLine"] = {"type": "command", "command": wrapper_cmd}
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+
+    click.echo("  Done.")
+    if backup:
+        click.echo(f"  Backup: {backup}")
+    click.echo("  Open a new Claude Code session to see it.")
+    click.echo("  Undo with: propel codex statusline --remove\n")
+
+
+@codex.command(name="status")
+def codex_status():
+    """Show whether the dual-model layer is on, reachable, and being used."""
+    root = get_project_root()
+    config_path = root / ".propel" / "codex.json"
+
+    enabled = True
+    available = None
+    if config_path.exists():
+        try:
+            cfg = json.loads(config_path.read_text())
+            enabled = cfg.get("enabled", True)
+            available = cfg.get("available")
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    cli_path = shutil.which("codex")
+
+    click.echo("")
+    click.echo(f"  project      {root}")
+    click.echo(f"  enabled      {'yes' if enabled else 'no  (/enable-codex to turn on)'}")
+    if cli_path:
+        code, out = 0, ""
+        try:
+            proc = subprocess.run(
+                ["codex", "--version"], capture_output=True, text=True, timeout=10
+            )
+            out = (proc.stdout + proc.stderr).strip().splitlines()[0]
+        except Exception:
+            out = "installed"
+        click.echo(f"  cli          {cli_path}  ({out})")
+    else:
+        click.echo("  cli          NOT FOUND on PATH \u2014 run `propel` and click Install Codex")
+
+    if available is False and cli_path:
+        click.echo(
+            "  note         config says unavailable from an earlier session; "
+            "run /enable-codex to re-check"
+        )
+
+    entries = _read_codex_log()
+    if entries:
+        last = entries[-1]
+        click.echo(f"  consults     {len(entries)} recorded")
+        click.echo(
+            f"  last         {last.get('label') or '?'} "
+            f"at {(last.get('ts') or '')[:19]} \u2014 {last.get('outcome')}"
+        )
+    else:
+        click.echo("  consults     none recorded yet")
+    click.echo("")
+    click.echo("  Full trail:  propel codex log")
+    click.echo("")
 
 
 # ---------------------------------------------------------------------------
