@@ -54,7 +54,7 @@ claude plugin list --json
   No announcement needed beyond the `[plugin]` tag on its findings.
 - **Absent** → run the rest of the review — Propel's auditors and the Codex
   consult — and add **one** line to the card:
-  > `[plugin] not installed — this card is auditors + Codex only. `propel launch` adds it.`
+  > `[plugin] not installed — this card is auditors + Codex only. `propel` setup adds it.`
 
   Then continue. Do **not** pause, and do not repeat the notice at the next
   Gate 3.

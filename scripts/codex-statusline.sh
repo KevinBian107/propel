@@ -44,7 +44,7 @@ done
 command -v python3 >/dev/null 2>&1 || nothing
 
 CODEX_ON_PATH=0
-command -v codex >/dev/null 2>&1 && CODEX_ON_PATH=1
+{ command -v codex >/dev/null 2>&1 || { [ -n "${HOME:-}" ] && [ -x "${HOME:-}/.local/bin/codex" ]; }; } && CODEX_ON_PATH=1
 
 ROOT="$ROOT" CODEX_ON_PATH="$CODEX_ON_PATH" python3 - <<'PY' 2>/dev/null || nothing
 import json, os, pathlib, time

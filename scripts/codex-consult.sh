@@ -132,7 +132,13 @@ EOF
 fi
 
 # ── 2. Is the CLI there? ──
-if ! command -v codex >/dev/null 2>&1; then
+# The native installer puts codex in ~/.local/bin, which on a cluster is often
+# not on PATH in the shell Claude Code was started from. Look there too.
+CODEX_BIN=$(command -v codex 2>/dev/null || true)
+if [ -z "$CODEX_BIN" ] && [ -n "${HOME:-}" ] && [ -x "${HOME:-}/.local/bin/codex" ]; then
+  CODEX_BIN="${HOME:-}/.local/bin/codex"
+fi
+if [ -z "$CODEX_BIN" ]; then
   python3 - <<'PY' 2>/dev/null || true
 import json, os, pathlib
 p = pathlib.Path(".propel"); p.mkdir(exist_ok=True)
@@ -146,7 +152,7 @@ cfg["unavailable_reason"] = "codex CLI not found on PATH"
 f.write_text(json.dumps(cfg, indent=2) + "\n")
 PY
   unavailable "codex CLI not found on PATH" \
-              "run 'propel launch' and click Install Codex, or: npm install -g @openai/codex && codex login"
+              "run 'propel' (or 'propel setup' on a cluster), or: curl -fsSL https://chatgpt.com/codex/install.sh | sh && codex login --device-auth"
 fi
 
 # ── 3. Read the brief ──
@@ -182,7 +188,7 @@ d = pathlib.Path(".propel"); d.mkdir(exist_ok=True)
 PYRUN
 trap 'rm -f "$OUT" "$ERR" "$RUNNING_FILE"' EXIT
 
-printf '%s' "$BRIEF" | codex "${ARGS[@]}" >"$OUT" 2>"$ERR" &
+printf '%s' "$BRIEF" | "$CODEX_BIN" "${ARGS[@]}" >"$OUT" 2>"$ERR" &
 CODEX_PID=$!
 
 WAITED=0
@@ -205,7 +211,7 @@ if [ "$STATUS" -ne 0 ]; then
   case "$MSG" in
     *[Aa]uth*|*login*|*401*|*[Uu]nauthor*)
       unavailable "codex is installed but not authenticated: $MSG" \
-                  "run 'codex login', or 'propel launch' and click Link Codex account" \
+                  "run 'codex login' (on a cluster: 'codex login --device-auth'), or 'propel setup'" \
                   "codex exited $STATUS (not authenticated)" ;;
     *)
       unavailable "codex exited $STATUS: $MSG" \

@@ -1,12 +1,18 @@
 """Propel launcher — a local setup console for Claude Code and Codex.
 
-`propel` (or `propel launch`) starts a tiny HTTP server bound to 127.0.0.1 on a
-random port, opens the browser at it, and serves a one-page console that:
+`propel launch` (or bare `propel` on a machine with a display) starts a tiny
+HTTP server bound to 127.0.0.1 on a random port, opens the browser at it, and
+serves a one-page console that:
 
-  * detects git / node / npm / Claude Code / Codex and whether each is signed in
-  * installs the missing ones with one click
+  * detects git / Claude Code / Codex (and Node, for claude-hud) and whether
+    each is signed in
+  * installs the missing ones with one click, using the vendors' own native
+    installers — no Node, no npm, no sudo
   * opens a real terminal for the two logins that are genuinely interactive
   * runs `propel init` in the project you point it at
+
+Detection and install specs here are shared with `terminal_setup.py`, the
+headless path that bare `propel` picks on a cluster or over SSH.
 
 Design notes that matter:
 
@@ -27,6 +33,7 @@ import json
 import os
 import platform
 import secrets
+import shlex
 import shutil
 import socketserver
 import subprocess
@@ -42,6 +49,69 @@ PAGE = HERE / "launcher.html"
 TOKEN = secrets.token_urlsafe(24)
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
+
+# Where both native installers put their binaries. It is often not on PATH yet
+# in the shell that ran the installer — or ever, for Claude's installer, which
+# does not edit shell config — so detection looks here explicitly.
+LOCAL_BIN = Path.home() / ".local" / "bin"
+
+
+# ---------------------------------------------------------------------------
+# Environment
+# ---------------------------------------------------------------------------
+
+
+def is_headless() -> bool:
+    """Is there no screen to open a browser or a terminal window on?
+
+    True over SSH (including VS Code Remote) and on Linux with no X/Wayland
+    display — a cluster node, a container, a Jupyter terminal. This says
+    nothing about whether stdin is interactive; that is a separate check.
+    """
+    if os.environ.get("SSH_CONNECTION") or os.environ.get("SSH_TTY"):
+        return True
+    if platform.system() == "Linux":
+        return not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+    return False
+
+
+def tool_path(binary: str) -> str | None:
+    """Absolute path of `binary`: PATH first, then ~/.local/bin.
+
+    Every caller runs the path this returns, never the bare name, so a tool
+    that detection can see is a tool that can actually be executed.
+    """
+    found = shutil.which(binary)
+    if found:
+        return found
+    candidate = LOCAL_BIN / binary
+    if candidate.is_file() and os.access(candidate, os.X_OK):
+        return str(candidate)
+    return None
+
+
+def local_bin_on_path() -> bool:
+    try:
+        target = LOCAL_BIN.resolve()
+    except OSError:
+        return False
+    return any(p.resolve() == target for p in _path_dirs() if p.exists())
+
+
+def shell_rc() -> Path:
+    """The rc file a PATH line belongs in, for the user's login shell."""
+    shell = os.path.basename(os.environ.get("SHELL", ""))
+    if shell == "zsh":
+        return Path.home() / ".zshrc"
+    if shell == "fish":
+        return Path.home() / ".config" / "fish" / "config.fish"
+    return Path.home() / ".bashrc"
+
+
+def path_line() -> str:
+    if shell_rc().name == "config.fish":
+        return "fish_add_path $HOME/.local/bin"
+    return 'export PATH="$HOME/.local/bin:$PATH"'
 
 
 # ---------------------------------------------------------------------------
@@ -61,51 +131,61 @@ def _run(cmd: list[str], timeout: int = 12) -> tuple[int, str]:
         return 1, str(exc)
 
 
-def _version(binary: str, *args: str) -> str | None:
-    if shutil.which(binary) is None:
+def _version(binary: str, *args: str, path_only: bool = False) -> str | None:
+    """`path_only` for tools other code runs by bare name (git, node), so
+    detection never claims a tool that the caller then can't find."""
+    exe = shutil.which(binary) if path_only else tool_path(binary)
+    if exe is None:
         return None
-    code, out = _run([binary, *(args or ("--version",))])
+    code, out = _run([exe, *(args or ("--version",))])
     if code != 0:
         return None
     return out.splitlines()[0].strip() if out else "installed"
 
 
-def _node_ok(version: str | None) -> bool:
-    """Codex needs Node 18.18+."""
-    if not version:
-        return False
-    digits = "".join(c if c.isdigit() or c == "." else " " for c in version).split()
-    if not digits:
-        return False
-    try:
-        parts = [int(x) for x in digits[0].split(".")[:2]]
-    except ValueError:
-        return False
-    major = parts[0]
-    minor = parts[1] if len(parts) > 1 else 0
-    return major > 18 or (major == 18 and minor >= 18)
+def claude_signed_in() -> bool | None:
+    """True / False, or None when the CLI's answer can't be read.
 
-
-def _claude_signed_in() -> bool:
+    `~/.claude.json` is deliberately not consulted: Claude Code writes it on
+    first run whether or not you ever sign in.
+    """
     if os.environ.get("ANTHROPIC_API_KEY"):
         return True
-    home = Path.home()
-    for candidate in (home / ".claude" / ".credentials.json", home / ".claude.json"):
-        if candidate.exists() and candidate.stat().st_size > 2:
-            return True
-    # Keychain-backed installs keep no credential file; fall back to asking the CLI.
-    if shutil.which("claude"):
-        code, out = _run(["claude", "auth", "status"], timeout=10)
-        if code == 0 and out and "not" not in out.lower()[:40]:
-            return True
-    return False
+    exe = tool_path("claude")
+    if exe:
+        try:
+            p = subprocess.run(
+                [exe, "auth", "status", "--json"],
+                capture_output=True, text=True, timeout=10,
+            )
+            out = p.stdout
+            data = json.loads(out[out.index("{"):]) if "{" in out else None
+            if isinstance(data, dict) and "loggedIn" in data:
+                return bool(data["loggedIn"])
+        except (subprocess.TimeoutExpired, OSError, ValueError):
+            pass
+    # Older CLIs without `auth status`: a credentials file is real evidence.
+    creds = Path.home() / ".claude" / ".credentials.json"
+    if creds.exists() and creds.stat().st_size > 2:
+        return True
+    return None if exe else False
 
 
-def _codex_signed_in() -> bool:
+def codex_signed_in() -> bool | None:
+    """`codex login status` exits 0 when signed in, 1 when not."""
     if os.environ.get("OPENAI_API_KEY"):
         return True
+    exe = tool_path("codex")
+    if exe:
+        code, out = _run([exe, "login", "status"], timeout=10)
+        if code == 0:
+            return True
+        if code == 1 and "not logged in" in out.lower():
+            return False
     auth = Path.home() / ".codex" / "auth.json"
-    return auth.exists() and auth.stat().st_size > 2
+    if auth.exists() and auth.stat().st_size > 2:
+        return True
+    return None if exe else False
 
 
 def _path_dirs() -> list[Path]:
@@ -167,6 +247,72 @@ def _npm_global_install(package: str) -> tuple[list[str], str]:
     return ["npm", "install", "-g", "--prefix", str(target), package], note + "\n"
 
 
+NATIVE_INSTALLERS = {
+    "claude": {
+        "name": "Claude Code",
+        "url": "https://claude.ai/install.sh",
+        "shell": "bash",
+        "env": {},
+    },
+    "codex": {
+        "name": "Codex CLI",
+        "url": "https://chatgpt.com/codex/install.sh",
+        "shell": "sh",
+        # Its prompts read /dev/tty, which a console job must never block on.
+        "env": {"CODEX_NON_INTERACTIVE": "1"},
+    },
+}
+
+# Download first, then run. `curl … | sh` reports the shell's exit status, so a
+# failed download that pipes nothing into sh looks like a successful install.
+_FETCH_AND_RUN = r"""
+tmp=$(mktemp) || exit 1
+trap 'rm -f "$tmp"' EXIT
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL "$PROPEL_INSTALLER_URL" -o "$tmp" || exit 1
+elif command -v wget >/dev/null 2>&1; then
+  wget -q -O "$tmp" "$PROPEL_INSTALLER_URL" || exit 1
+else
+  echo "Neither curl nor wget is installed, so the installer can't be downloaded." >&2
+  exit 127
+fi
+"$PROPEL_INSTALLER_SHELL" "$tmp"
+"""
+
+
+def native_install(tool: str) -> tuple[list[str], dict[str, str], str] | str:
+    """(command, env, display line) for the vendor installer, or an error string.
+
+    Windows has no POSIX installer to run, so it keeps the npm route.
+    """
+    spec = NATIVE_INSTALLERS[tool]
+    if platform.system() == "Windows":
+        package = "@anthropic-ai/claude-code" if tool == "claude" else "@openai/codex"
+        if shutil.which("npm") is None:
+            return "On Windows this installs with npm, and npm isn't installed. See the manual link."
+        cmd, _ = _npm_global_install(package)
+        return cmd, dict(os.environ), "$ " + " ".join(cmd)
+    if shutil.which("curl") is None and shutil.which("wget") is None:
+        return "Neither curl nor wget is installed, so the installer can't be downloaded."
+    env = dict(os.environ)
+    env.update(spec["env"])
+    env["PROPEL_INSTALLER_URL"] = spec["url"]
+    env["PROPEL_INSTALLER_SHELL"] = spec["shell"]
+    display = f"$ curl -fsSL {spec['url']} | {spec['shell']}"
+    return ["sh", "-c", _FETCH_AND_RUN], env, display
+
+
+def path_note() -> str:
+    """What to tell someone whose ~/.local/bin isn't on PATH yet."""
+    if local_bin_on_path():
+        return ""
+    return (
+        f"\n{LOCAL_BIN} is not on your PATH, so new shells won't find these tools.\n"
+        f"Add it:\n\n    echo '{path_line()}' >> {shell_rc()}\n\n"
+        "Propel itself already finds them there.\n"
+    )
+
+
 def _self_command(args: list[str]) -> list[str]:
     """Re-invoke Propel itself.
 
@@ -183,7 +329,13 @@ def _self_command(args: list[str]) -> list[str]:
 
 
 def _explain_failure(output: str) -> str:
-    """Turn a known npm failure into something actionable."""
+    """Turn a known installer failure into something actionable."""
+    if "curl:" in output or "wget:" in output or "Could not resolve host" in output:
+        return (
+            "\nThe installer couldn't be downloaded. On a cluster this is usually an\n"
+            "outbound-network restriction: check your proxy (https_proxy) or try\n"
+            "from a login node that has internet access.\n"
+        )
     if "EACCES" in output or "permission denied" in output:
         return (
             "\nThis is a permissions problem, not a package problem. npm's global\n"
@@ -217,6 +369,8 @@ PLUGINS = [
             "Codex task block renders beneath it."
         ),
         "used_for": "status line",
+        # Its status-line command runs under node (scripts/propel-statusline.sh).
+        "needs": "node",
     },
     {
         "key": "code-review",
@@ -234,9 +388,10 @@ PLUGINS = [
 
 
 def _installed_plugin_ids() -> set[str]:
-    if shutil.which("claude") is None:
+    exe = tool_path("claude")
+    if exe is None:
         return set()
-    code, out = _run(["claude", "plugin", "list", "--json"], timeout=20)
+    code, out = _run([exe, "plugin", "list", "--json"], timeout=20)
     if code != 0 or not out:
         return set()
     try:
@@ -264,7 +419,7 @@ def _project_root() -> Path:
 
 
 def collect_status() -> dict:
-    node_v = _version("node")
+    node_v = _version("node", path_only=True)
     claude_v = _version("claude")
     codex_v = _version("codex")
     root = _project_root()
@@ -274,6 +429,9 @@ def collect_status() -> dict:
 
     return {
         "platform": platform.system(),
+        "headless": is_headless(),
+        "local_bin_on_path": local_bin_on_path(),
+        "path_hint": f"echo '{path_line()}' >> {shell_rc()}",
         "plugins": [
             {
                 "key": p["key"],
@@ -283,6 +441,7 @@ def collect_status() -> dict:
                 "used_for": p["used_for"],
                 "installed": p["id"] in installed,
                 "install": f"install-plugin-{p['key']}",
+                "needs": p.get("needs"),
             }
             for p in PLUGINS
         ],
@@ -297,51 +456,50 @@ def collect_status() -> dict:
                 "key": "git",
                 "name": "git",
                 "blurb": "Propel scopes investigations and regressions to a repository.",
-                "version": _version("git"),
+                "version": _version("git", path_only=True),
                 "ok": shutil.which("git") is not None,
+                "has_auth": False,
                 "auth": None,
                 "install": "install-git" if has_brew else None,
                 "manual": "https://git-scm.com/downloads",
                 "required": True,
             },
             {
-                "key": "node",
-                "name": "Node.js 18.18+",
-                "blurb": "Required by the Codex CLI. Not needed if you only use Claude Code.",
-                "version": node_v,
-                "ok": _node_ok(node_v),
-                "auth": None,
-                "install": "install-node" if has_brew else None,
-                "manual": "https://nodejs.org/en/download",
-                "required": False,
-                "warn": (
-                    "Installed but older than 18.18 — Codex will not run."
-                    if node_v and not _node_ok(node_v)
-                    else None
-                ),
-            },
-            {
                 "key": "claude",
                 "name": "Claude Code",
-                "blurb": "The agent Propel runs inside. Required.",
+                "blurb": "The agent Propel runs inside. Required. Installed with Anthropic's native installer — no Node needed.",
                 "version": claude_v,
                 "ok": claude_v is not None,
-                "auth": _claude_signed_in() if claude_v else False,
+                "has_auth": True,
+                "auth": claude_signed_in() if claude_v else False,
                 "install": "install-claude",
                 "login": "login-claude",
-                "manual": "https://code.claude.com/docs/en/quickstart",
+                "manual": "https://code.claude.com/docs/en/setup",
                 "required": True,
             },
             {
                 "key": "codex",
                 "name": "OpenAI Codex",
-                "blurb": "The second model. Propel consults it automatically at every gate.",
+                "blurb": "The second model. Propel consults it automatically at every gate. Installed with OpenAI's native installer — no Node needed.",
                 "version": codex_v,
                 "ok": codex_v is not None,
-                "auth": _codex_signed_in() if codex_v else False,
+                "has_auth": True,
+                "auth": codex_signed_in() if codex_v else False,
                 "install": "install-codex",
                 "login": "login-codex",
                 "manual": "https://developers.openai.com/codex/cli",
+                "required": False,
+            },
+            {
+                "key": "node",
+                "name": "Node.js",
+                "blurb": "Only needed for the claude-hud status line plugin. Claude Code and Codex don't use it.",
+                "version": node_v,
+                "ok": node_v is not None,
+                "has_auth": False,
+                "auth": None,
+                "install": "install-node" if has_brew else None,
+                "manual": "https://nodejs.org/en/download",
                 "required": False,
             },
         ],
@@ -373,20 +531,22 @@ ACTIONS: dict[str, dict] = {
     },
     "install-claude": {
         "label": "Install Claude Code",
-        "npm": "@anthropic-ai/claude-code",
+        "native": "claude",
     },
     "install-codex": {
         "label": "Install Codex CLI",
-        "npm": "@openai/codex",
+        "native": "codex",
     },
+    # Login argv is resolved at click time (tool_path), because the binary may
+    # have been installed seconds ago into a directory that isn't on PATH.
     "login-claude": {
         "label": "Sign in to Claude Code",
-        "terminal": "claude",
-        "note": "A terminal window will open. Follow the /login flow there, then come back and press Re-check.",
+        "login": ("claude", ["auth", "login"]),
+        "note": "A terminal window will open. Finish the sign-in there, then come back and press Re-check.",
     },
     "login-codex": {
         "label": "Sign in to Codex",
-        "terminal": "codex login",
+        "login": ("codex", ["login"]),
         "note": "A terminal window will open for the OAuth flow. Finish it, then press Re-check.",
     },
     "install-plugin-claude-hud": {
@@ -450,6 +610,33 @@ def _open_terminal(command: str) -> tuple[bool, str]:
     return False, "Unsupported platform."
 
 
+def login_argv(key: str) -> list[str] | None:
+    """Resolved argv for a login action, or None if the tool isn't installed."""
+    tool, args = ACTIONS[key]["login"]
+    exe = tool_path(tool)
+    return [exe, *args] if exe else None
+
+
+def plugin_install_cmd(entry: dict, claude_exe: str) -> list[str]:
+    """Add the marketplace (a no-op when it's already configured), then install."""
+    _, market_repo = entry["marketplace"]
+    exe = shlex.quote(claude_exe)
+    return [
+        "sh", "-c",
+        f"{exe} plugin marketplace add {shlex.quote(market_repo)} 2>/dev/null; "
+        f"{exe} plugin install {shlex.quote(entry['id'])}",
+    ]
+
+
+def plugin_note(entry: dict) -> str:
+    return (
+        f"Installing {entry['name']} from {entry['publisher']}.\n"
+        f"Marketplace: {entry['marketplace'][1]}\n\n"
+        "Plugins can ship hooks, commands, agents and MCP servers -- they run\n"
+        "code in your Claude Code session. Propel never installs one on its own.\n\n"
+    )
+
+
 def _start_job(key: str) -> dict:
     spec = ACTIONS.get(key)
     if spec is None:
@@ -478,12 +665,26 @@ def _start_job(key: str) -> dict:
         }
 
     # Interactive logins get a real terminal.
-    if "terminal" in spec:
-        ok, msg = _open_terminal(spec["terminal"])
+    if "login" in spec:
+        argv = login_argv(key)
+        if argv is None:
+            return {
+                "job": job_id, "done": True, "ok": False,
+                "output": f"{spec['login'][0]} isn't installed yet. Install it first, then sign in.",
+            }
+        # cmd.exe doesn't understand POSIX single quotes around a C:\ path.
+        command = subprocess.list2cmdline(argv) if platform.system() == "Windows" else shlex.join(argv)
+        if is_headless():
+            ok, msg = False, "this machine has no display"
+        else:
+            ok, msg = _open_terminal(command)
         output = (
             f"{msg}\n\n{spec.get('note', '')}"
             if ok
-            else f"Could not open a terminal ({msg}).\n\nRun this yourself:\n\n    {spec['terminal']}\n"
+            else (
+                f"Could not open a terminal ({msg}).\n\nRun this in your shell:\n\n    {command}\n\n"
+                "On a remote machine, `propel setup` does every step in the terminal instead.\n"
+            )
         )
         return {"job": job_id, "done": True, "ok": ok, "output": output}
 
@@ -493,34 +694,31 @@ def _start_job(key: str) -> dict:
         entry = next((p for p in PLUGINS if p["key"] == spec["plugin"]), None)
         if entry is None:
             return {"error": f"unknown plugin: {spec['plugin']}"}
-        if shutil.which("claude") is None:
+        claude_exe = tool_path("claude")
+        if claude_exe is None:
             return {
                 "job": job_id, "done": True, "ok": False,
                 "output": "Claude Code isn't installed yet, so there's nothing to install a plugin into.",
             }
-        market_name, market_repo = entry["marketplace"]
-        note = (
-            f"Installing {entry['name']} from {entry['publisher']}.\n"
-            f"Marketplace: {market_repo}\n\n"
-            "Plugins can ship hooks, commands, agents and MCP servers -- they run\n"
-            "code in your Claude Code session. Propel never installs one on its own.\n\n"
-        )
-        # Adding an already-configured marketplace is a no-op, so this is safe to
-        # run every time and makes the action work on a fresh machine.
-        cmd = [
-            "sh", "-c",
-            f"claude plugin marketplace add {market_repo} 2>/dev/null; "
-            f"claude plugin install {entry['id']}",
-        ]
-        cwd = None
         with JOBS_LOCK:
-            JOBS[job_id] = {"done": False, "ok": None, "output": note + f"$ claude plugin install {entry['id']}\n"}
-        _spawn(job_id, cmd, cwd)
+            JOBS[job_id] = {
+                "done": False, "ok": None,
+                "output": plugin_note(entry) + f"$ claude plugin install {entry['id']}\n",
+            }
+        _spawn(job_id, plugin_install_cmd(entry, claude_exe), None)
         return {"job": job_id, "done": False}
 
-    if "npm" in spec:
-        cmd, note = _npm_global_install(spec["npm"])
-    elif "self" in spec:
+    if "native" in spec:
+        result = native_install(spec["native"])
+        if isinstance(result, str):
+            return {"job": job_id, "done": True, "ok": False, "output": result}
+        cmd, env, display = result
+        with JOBS_LOCK:
+            JOBS[job_id] = {"done": False, "ok": None, "output": display + "\n"}
+        _spawn(job_id, cmd, None, env=env, after_success=path_note)
+        return {"job": job_id, "done": False}
+
+    if "self" in spec:
         cmd = _self_command(spec["self"])
     else:
         cmd = spec["cmd"]
@@ -539,16 +737,27 @@ def _start_job(key: str) -> dict:
     return {"job": job_id, "done": False}
 
 
-def _spawn(job_id: str, cmd: list[str], cwd: str | None) -> None:
+def _spawn(
+    job_id: str,
+    cmd: list[str],
+    cwd: str | None,
+    env: dict[str, str] | None = None,
+    after_success=None,
+) -> None:
     def worker() -> None:
         try:
+            # No stdin and no controlling terminal: a job the browser can't
+            # answer must not be able to stop and wait for an answer.
             proc = subprocess.Popen(
                 cmd,
                 cwd=cwd,
+                env=env,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                start_new_session=True,
             )
             assert proc.stdout is not None
             for line in proc.stdout:
@@ -560,6 +769,8 @@ def _spawn(job_id: str, cmd: list[str], cwd: str | None) -> None:
                 JOBS[job_id]["ok"] = proc.returncode == 0
                 if proc.returncode == 0:
                     JOBS[job_id]["output"] += "\n✓ done.\n"
+                    if after_success:
+                        JOBS[job_id]["output"] += after_success()
                 else:
                     JOBS[job_id]["output"] += f"\n✗ exited {proc.returncode}.\n"
                     JOBS[job_id]["output"] += _explain_failure(JOBS[job_id]["output"])
@@ -575,6 +786,16 @@ def _spawn(job_id: str, cmd: list[str], cwd: str | None) -> None:
 # ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
+
+
+FORBIDDEN_HELP = (
+    "Forbidden: this URL is missing the console's access token, or has one from\n"
+    "an earlier run.\n\n"
+    "Open the full URL printed in the terminal where `propel launch` is running,\n"
+    "including everything after ?t= . A new token is made every time it starts.\n\n"
+    "On a remote machine you don't need this page at all: run `propel setup`\n"
+    "there, and it does every step in the terminal.\n"
+).encode()
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -609,7 +830,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if path == "/":
             if not self._authed():
-                self._send(403, b"Forbidden", "text/plain")
+                self._send(403, FORBIDDEN_HELP, "text/plain; charset=utf-8")
                 return
             html = PAGE.read_text(encoding="utf-8").replace("__TOKEN__", TOKEN)
             self._send(200, html.encode(), "text/html; charset=utf-8")
@@ -670,7 +891,12 @@ def serve(open_browser: bool = True, port: int = 0) -> None:
         url = f"http://127.0.0.1:{actual}/?t={TOKEN}"
         print("\n  Propel launcher")
         print(f"  {url}\n")
-        print("  Ctrl-C to close.\n")
+        if is_headless():
+            print("  This machine has no display. To use the page from your laptop:")
+            print(f"    ssh -L {actual}:localhost:{actual} <this-host>")
+            print("  then open the URL above there, token included.")
+            print("  Simpler: Ctrl-C and run `propel setup`, which needs no browser.\n")
+        print("  Ctrl-C to close.\n", flush=True)  # the URL must show up even under nohup/tee
         if open_browser:
             threading.Timer(0.4, lambda: webbrowser.open(url)).start()
         try:

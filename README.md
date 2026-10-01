@@ -116,27 +116,44 @@ Override any time: `/switch researcher`, `/switch engineer`, `/switch debugger`,
 git clone https://github.com/KevinBian107/propel.git
 cd propel
 
-pipx install -e .     # or: uv tool install -e .
-propel                # opens the setup console
+uv tool install -e .  # or, inside an activated conda env / virtualenv: pip install -e .
+propel                # setup: browser page locally, terminal prompts on a cluster
 ```
 
-`pipx` (or `uv tool`) is the reliable route: it puts `propel` on your PATH in its
-own environment, and the editable install means edits to the repo take effect
-immediately. Plain `pip install -e .` also works **inside an activated virtualenv
-or conda env** &mdash; but against a Homebrew or system Python it fails with
-`externally-managed-environment`, or installs into somewhere not on your PATH, and
-you end up with no `propel` command.
+Both are editable installs, so edits to the repo take effect immediately.
 
-`propel` opens a local setup page that detects Claude Code, Codex, Node and git,
-installs whatever is missing, opens a terminal for the two logins that genuinely
-need one, and installs Propel into your project. Nothing leaves your machine
-except the installers you click.
+- **`uv tool install -e .`** puts `propel` on your PATH in its own environment, so it
+  works from any project. No uv yet? `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+  That needs no sudo, which makes it a good fit for clusters.
+- **`pip install -e .`** works **inside an activated conda env or virtualenv**,
+  for example your cluster's `(base)`. Against a Homebrew or system Python it fails
+  with `externally-managed-environment`, or installs somewhere not on your PATH, and
+  you end up with no `propel` command.
 
-Prefer the command line?
+Then run `propel`. It checks for git, Claude Code and Codex, installs whatever is
+missing with the vendors' own native installers (no Node, no npm, no sudo), signs
+you in, and installs Propel into your project. There are two versions of this
+step, and `propel` picks one by itself and tells you which:
+
+| | **Local** (laptop / desktop) | **Cluster** (headless: HPC node, container, Jupyter terminal, SSH) |
+|---|---|---|
+| Run | `propel` &nbsp;(or `propel launch`) | `propel` &nbsp;(or `propel setup`) |
+| You get | a setup page in your browser, one button per step | the same steps as prompts in the terminal |
+| Sign-in | a terminal window opens for each login | inline: `claude auth login` and `codex login --device-auth` print a URL and code you approve on any device, e.g. your laptop |
+| Port forwarding | none | none |
+
+On a cluster the terminal setup is the way to go. The browser page still works
+over an SSH tunnel (`propel launch --no-browser`, then `ssh -L <port>:localhost:<port>`),
+but it adds a token and a port to manage for no gain.
+
+Prefer to do it by hand? This is everything the setup does:
 
 ```bash
-cd /path/to/your/project
-propel init
+curl -fsSL https://claude.ai/install.sh | bash          # Claude Code  -> ~/.local/bin
+curl -fsSL https://chatgpt.com/codex/install.sh | sh    # Codex        -> ~/.local/bin
+claude auth login
+codex login --device-auth
+cd /path/to/your/project && propel init
 ```
 
 Then start `claude` and just describe what you're working on. See the
@@ -147,7 +164,7 @@ for a full walkthrough.
 
 Full documentation is on the [Propel website](https://kbian.org/propel-website/docs/):
 
-- [Getting Started](https://kbian.org/propel-website/docs/getting-started.html) — Installation, the setup console, and your first workflow
+- [Getting Started](https://kbian.org/propel-website/docs/getting-started.html) — Installation, local and cluster setup, and your first workflow
 - [Core Principles](https://kbian.org/propel-website/docs/core-principles.html) — The non-negotiable principles injected into every session
 - [Automation](https://kbian.org/propel-website/docs/automation.html) — What dispatches itself, and what never will
 - [Codex](https://kbian.org/propel-website/docs/codex.html) — The automatic dual-model layer

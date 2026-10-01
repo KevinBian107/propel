@@ -16,7 +16,10 @@ HOOK_SCRIPT="$PLUGIN_DIR/hooks/session-start.sh"
 
 # Store output in a temp file to avoid shell escaping issues with large JSON
 TMPFILE=$(mktemp)
-trap 'rm -f "$TMPFILE"' EXIT
+# "No Codex installed" needs an empty HOME as well as a trimmed PATH: the
+# scripts also look in ~/.local/bin, where the native installer puts codex.
+NOCLI_HOME=$(mktemp -d)
+trap 'rm -f "$TMPFILE"; rm -rf "$NOCLI_HOME"' EXIT
 
 echo "Testing: hooks/session-start.sh"
 echo "================================"
@@ -209,7 +212,7 @@ CODEX_DIR=$(mktemp -d)
     }
 
     # And the same with the CLI unreachable, which is the path users actually hit.
-    printf 'test brief' | env PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" \
+    printf 'test brief' | env HOME="$NOCLI_HOME" PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" \
         --label "test" --timeout 5 | grep -q "CODEX UNAVAILABLE" || {
         echo "FAIL: missing CLI should report UNAVAILABLE"
         exit 1
@@ -247,7 +250,7 @@ LEDGER_DIR=$(mktemp -d)
   # 2. CLI missing — PATH stripped so `codex` cannot resolve
   echo '{"enabled": true}' > .propel/codex.json
   printf 'QUESTION\n  missing cli path\n' \
-    | env PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" \
+    | env HOME="$NOCLI_HOME" PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" \
         --label "Gate 4 (diagnosis)" >/dev/null
 
   python3 -c "
@@ -284,7 +287,7 @@ print('PASS: every consult path writes a ledger entry')
 (
   cd "$LEDGER_DIR"
   for FLAG in --label --timeout --model --question; do
-    ( printf 'x' | env PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" $FLAG ) \
+    ( printf 'x' | env HOME="$NOCLI_HOME" PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" $FLAG ) \
       >/dev/null 2>&1 &
     ARG_PID=$!
     ( sleep 6; kill -9 $ARG_PID 2>/dev/null ) >/dev/null 2>&1 &
@@ -321,10 +324,10 @@ print('PASS: every consult path writes a ledger entry')
 (
   cd "$LEDGER_DIR"
   printf 'CONTEXT\n  secret_token = "SHOULD_NEVER_BE_LOGGED"\n\nQUESTION\n  is this safe\n' \
-    | env PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" \
+    | env HOME="$NOCLI_HOME" PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" \
         --label "Gate 2" --question "is this safe" >/dev/null
   printf 'CONTEXT\nQUESTION\n  PRIVATE_TOKEN = ghp_NEVER_LOG_THIS\n\nQUESTION\n  the real one\n' \
-    | env PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" \
+    | env HOME="$NOCLI_HOME" PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" \
         --label "Gate 2" --question "the real one" >/dev/null
   if grep -qE "SHOULD_NEVER_BE_LOGGED|ghp_NEVER_LOG_THIS" .propel/codex-log.jsonl; then
     echo "FAIL: ledger leaked brief material"
@@ -369,7 +372,7 @@ if 'label' in d:
   bash "$SEG" | grep -q 'off' || { echo "FAIL: disabled state not shown"; exit 1; }
 
   echo '{"enabled": true}' > .propel/codex.json
-  env PATH=/usr/bin:/bin bash "$SEG" | grep -q 'no cli' \
+  env HOME="$NOCLI_HOME" PATH=/usr/bin:/bin bash "$SEG" | grep -q 'no cli' \
     || { echo "FAIL: missing-CLI state not shown"; exit 1; }
 
   # Every state must be valid JSON with a label inside the 50-char limit that
@@ -460,6 +463,26 @@ pathlib.Path('.propel/codex-running.json').write_text(json.dumps({
   echo "PASS: status-line wrapper degrades cleanly without claude-hud"
 ) || { rm -rf "$TASK_DIR"; exit 1; }
 rm -rf "$TASK_DIR"
+
+echo ""
+echo "Testing: Codex scripts with HOME unset"
+echo "================================"
+# The scripts look in $HOME/.local/bin under `set -u`; an unset HOME (cron,
+# env -i) must still degrade, never abort.
+(
+  D=$(mktemp -d); cd "$D"; mkdir -p .propel; echo '{"enabled": true}' > .propel/codex.json
+  OUT=$(printf 'x' | env -i PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-consult.sh" --label t 2>&1); RC=$?
+  if [ "$RC" -ne 0 ] || ! printf '%s' "$OUT" | grep -q "CODEX UNAVAILABLE"; then
+    echo "FAIL: codex-consult.sh with HOME unset (exit $RC)"; rm -rf "$D"; exit 1
+  fi
+  [ -s .propel/codex-log.jsonl ] || { echo "FAIL: no ledger entry with HOME unset"; rm -rf "$D"; exit 1; }
+  SEG_OUT=$(env -i PATH=/usr/bin:/bin bash "$PLUGIN_DIR/scripts/codex-statusline.sh" 2>&1); RC=$?
+  if [ "$RC" -ne 0 ] || ! printf '%s' "$SEG_OUT" | python3 -c "import json,sys; json.load(sys.stdin)" 2>/dev/null; then
+    echo "FAIL: codex-statusline.sh with HOME unset (exit $RC): $SEG_OUT"; rm -rf "$D"; exit 1
+  fi
+  rm -rf "$D"
+  echo "PASS: Codex scripts degrade with HOME unset"
+) || exit 1
 
 echo ""
 echo "================================"

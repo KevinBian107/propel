@@ -47,4 +47,4 @@ Take the reason seriously if they give one — it is usually diagnostic:
 - **"Privacy / this code can't leave the machine"** — completely legitimate, and
   the right call. Briefs sent to Codex leave the local machine. Don't argue.
 - **"Not installed"** — this is a *different* problem. Don't disable; point them
-  at `propel launch`, which installs and links Codex in a couple of clicks.
+  at `propel` (or `propel setup` on a cluster), which installs and links Codex.

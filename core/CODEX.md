@@ -106,7 +106,7 @@ If the `codex` CLI is missing or not authenticated:
 
 1. Say it **once** per session, plainly:
    > Codex is not available (not installed / not logged in), so this gate is
-   > single-model. Run `propel launch` to set it up, or `/disable-codex` to stop
+   > single-model. Run `propel` to set it up, or `/disable-codex` to stop
    > seeing this.
 2. Write `{"enabled": true, "available": false}` to `.propel/codex.json` so the
    notice is not repeated.

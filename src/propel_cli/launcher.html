@@ -240,8 +240,9 @@ function renderProject(p) {
 function renderTools(tools) {
   $("tools").innerHTML = tools.map(t => {
     const installed = t.ok;
-    const needsAuth = t.auth !== null && t.auth !== undefined;
+    const needsAuth = !!t.has_auth;
     const signedIn = t.auth === true;
+    const authUnknown = needsAuth && installed && (t.auth === null || t.auth === undefined);
     let state = "bad", note = "";
     if (installed && (!needsAuth || signedIn)) state = "ok";
     else if (installed) state = "warn";
@@ -259,7 +260,7 @@ function renderTools(tools) {
     }
 
     const ver = t.version
-      ? `<div class="ver${t.warn ? " warn" : ""}">${esc(t.version)}${note ? " — " + esc(note) : ""}${needsAuth ? (signedIn ? " · signed in" : " · not signed in") : ""}</div>`
+      ? `<div class="ver${t.warn ? " warn" : ""}">${esc(t.version)}${note ? " — " + esc(note) : ""}${needsAuth ? (signedIn ? " · signed in" : authUnknown ? " · sign-in status unknown" : " · not signed in") : ""}</div>`
       : `<div class="ver">not installed</div>`;
 
     return `<div class="card${installed ? "" : " blocked"}">
@@ -274,6 +275,9 @@ function renderTools(tools) {
   }).join("");
 }
 
+let toolState = {};
+const haveTool = (key) => !!toolState[key];
+
 function renderPlugins(plugins) {
   $("plugins").innerHTML = (plugins || []).map(p => `
     <div class="card">
@@ -286,7 +290,9 @@ function renderPlugins(plugins) {
       </div>
       <div class="acts">${p.installed
         ? '<span class="done">\u2713 installed</span>'
-        : `<button class="btn" data-act="${p.install}">Install</button>`}</div>
+        : (p.needs && !haveTool(p.needs))
+          ? `<span class="ver">needs ${esc(p.needs)} first</span>`
+          : `<button class="btn" data-act="${p.install}">Install</button>`}</div>
     </div>`).join("");
 }
 
@@ -348,15 +354,19 @@ document.addEventListener("click", (e) => {
 /* ── boot ── */
 async function refresh() {
   const s = await api("/api/status");
+  toolState = Object.fromEntries(s.tools.map(t => [t.key, t.ok]));
   renderProject(s.project);
   renderTools(s.tools);
   renderCodexToggle(s.project);
   renderPlugins(s.plugins);
   document.querySelectorAll("button[data-act]").forEach(b => b.disabled = false);
   const missingRequired = s.tools.some(t => t.required && !t.ok);
+  const pathWarn = !s.local_bin_on_path && s.tools.some(t => (t.key === "claude" || t.key === "codex") && t.ok);
   $("foot-note").textContent = missingRequired
     ? "Install the required tools above, then press a button again to re-check."
-    : "Nothing here leaves your machine except the installers you click.";
+    : pathWarn
+      ? "~/.local/bin isn't on your PATH yet, so new shells won't find claude/codex. Run: " + s.path_hint
+      : "Nothing here leaves your machine except the installers you click.";
 }
 refresh();
 </script>

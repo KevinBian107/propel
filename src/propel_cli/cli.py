@@ -37,7 +37,7 @@ def get_propel_root() -> Path:
             return current
     raise FileNotFoundError(
         "Could not locate Propel data directories (skills/, agents/). "
-        "Make sure you installed with `pip install -e .` from the propel directory."
+        "Install from the propel directory with `uv tool install -e .`, or `pip install -e .` inside an activated env."
     )
 
 
@@ -51,7 +51,7 @@ def get_project_root() -> Path:
             check=True,
         )
         return Path(result.stdout.strip())
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return Path.cwd()
 
 
@@ -330,26 +330,41 @@ def _cleanup_stale_files(claude_dir: Path, propel_root: Path) -> None:
 def cli(ctx):
     """Propel — research workflow CLI for Claude Code.
 
-    Run `propel` with no arguments to open the setup console.
+    Run `propel` with no arguments to set up. On a desktop that opens the
+    browser console (`propel launch`); on a machine with no display — a
+    cluster node, a container, anything over SSH — it runs the same steps in
+    the terminal (`propel setup`). It says which, and either can be forced.
     """
-    if ctx.invoked_subcommand is None:
-        ctx.invoke(launch)
+    if ctx.invoked_subcommand is not None:
+        return
+    from .launcher import is_headless
+
+    if is_headless():
+        click.echo("No display here (cluster, container or SSH), so setup runs in the terminal.")
+        click.echo("For the browser console instead: propel launch --no-browser")
+        ctx.invoke(setup)
+    else:
+        click.echo("Opening the setup console in your browser. On a remote machine: propel setup")
+        ctx.invoke(launch_console)
 
 
 # ---------------------------------------------------------------------------
-# propel launch
+# propel launch / propel setup
 # ---------------------------------------------------------------------------
 
 
-@cli.command()
-@click.option("--no-browser", is_flag=True, help="Print the URL instead of opening a browser.")
+# The function is not called `launch`: `propel session launch` below is, and a
+# second module-level `launch` would silently replace this one wherever the
+# name is looked up — which is how bare `propel` once ran session launch.
+@cli.command(name="launch")
+@click.option("--no-browser", is_flag=True, help="Print the URL instead of opening a browser (for SSH tunnels).")
 @click.option("--port", default=0, type=int, help="Bind to a specific port (default: random).")
-def launch(no_browser: bool, port: int):
-    """Open the Propel setup console in your browser.
+def launch_console(no_browser: bool, port: int):
+    """Open the Propel setup console in your browser (desktop).
 
-    Detects Claude Code, Codex, node and git; installs what's missing; opens a
-    terminal for the two logins that genuinely need one; and installs Propel
-    into the current project.
+    Detects git, Claude Code and Codex and whether each is signed in; installs
+    what's missing with the vendors' native installers; opens a terminal for
+    the two logins; and installs Propel into the current project.
     """
     from . import launcher
 
@@ -361,6 +376,20 @@ def launch(no_browser: bool, port: int):
     except OSError as exc:
         click.echo(f"Could not start the launcher: {exc}", err=True)
         raise SystemExit(1)
+
+
+@cli.command()
+def setup():
+    """Set up Propel in the terminal (cluster, container, SSH).
+
+    Same checklist as the browser console, with no browser and no port
+    forwarding: installs Claude Code and Codex with their native installers,
+    signs both in with codes you approve on any device, and installs Propel
+    into the current project. Asks before every change.
+    """
+    from . import terminal_setup
+
+    raise SystemExit(terminal_setup.run())
 
 
 # ---------------------------------------------------------------------------
@@ -461,7 +490,7 @@ def init():
         click.echo("  .propel/codex.json — dual-model layer enabled")
 
     click.echo(f"\nDone! {total_files} files installed into {claude_dir}/")
-    click.echo("Run `propel launch` to check your Claude Code / Codex setup,")
+    click.echo("Run `propel` to check your Claude Code / Codex setup,")
     click.echo("or `claude` to start working.")
 
 
@@ -727,7 +756,9 @@ def codex_status():
         except (json.JSONDecodeError, ValueError):
             pass
 
-    cli_path = shutil.which("codex")
+    from .launcher import tool_path
+
+    cli_path = tool_path("codex")
 
     click.echo("")
     click.echo(f"  project      {root}")
@@ -736,14 +767,14 @@ def codex_status():
         code, out = 0, ""
         try:
             proc = subprocess.run(
-                ["codex", "--version"], capture_output=True, text=True, timeout=10
+                [cli_path, "--version"], capture_output=True, text=True, timeout=10
             )
             out = (proc.stdout + proc.stderr).strip().splitlines()[0]
         except Exception:
             out = "installed"
         click.echo(f"  cli          {cli_path}  ({out})")
     else:
-        click.echo("  cli          NOT FOUND on PATH \u2014 run `propel` and click Install Codex")
+        click.echo("  cli          NOT FOUND \u2014 run `propel` to install it")
 
     if available is False and cli_path:
         click.echo(
@@ -777,9 +808,9 @@ def session():
     pass
 
 
-@session.command()
+@session.command(name="launch")
 @click.argument("description", nargs=-1, required=True)
-def launch(description: str):
+def session_launch(description: str):
     """Create a new session directory and launch Claude Code.
 
     DESCRIPTION: A short description of the session (e.g., "RVQ depth-2 rotation experiment")
@@ -817,14 +848,16 @@ def launch(description: str):
     click.echo(f"Prompt template: {session_dir / 'prompt.md'}")
 
     # Launch Claude Code with the session ID
+    from .launcher import tool_path
+
     click.echo(f"\nLaunching Claude Code...")
     try:
         subprocess.run(
-            ["claude", "--session-id", session_id],
+            [tool_path("claude") or "claude", "--session-id", session_id],
             cwd=get_project_root(),
         )
     except FileNotFoundError:
-        click.echo("Claude Code CLI not found. Run manually with:")
+        click.echo("Claude Code CLI not found. Install it with `propel setup`, then run:")
         click.echo(f"  claude --session-id {session_id}")
         return
 

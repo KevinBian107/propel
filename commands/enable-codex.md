@@ -31,12 +31,13 @@ command -v codex && codex --version
 
 - **Not found** → say so plainly and give the two routes:
   > Codex is enabled in config, but the `codex` CLI isn't on your PATH, so gates
-  > will run single-model until it is. Fix it with `propel launch` (detects,
-  > installs, and links your account), or manually:
+  > will run single-model until it is. Fix it with `propel` (detects, installs,
+  > and links your account; on a cluster it runs as `propel setup` in the
+  > terminal), or manually:
   >
   > ```
-  > npm install -g @openai/codex   # needs Node 18.18+
-  > codex login
+  > curl -fsSL https://chatgpt.com/codex/install.sh | sh
+  > codex login            # on a cluster: codex login --device-auth
   > ```
 
 Do not pretend the layer is active when the CLI is missing. An enabled flag over
@@ -45,5 +46,5 @@ a missing binary is exactly the kind of quiet gap Propel exists to surface.
 ## Related
 
 - `/disable-codex` — turn it off again
-- `propel launch` — install and link Codex from the setup console
+- `propel` — install and link Codex (browser console locally, `propel setup` on a cluster)
 - `codex-consult` skill — what actually runs at each gate
