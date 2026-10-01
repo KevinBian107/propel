@@ -22,6 +22,7 @@ checklist and the commands to run, and exits 0.
 from __future__ import annotations
 
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -337,8 +338,26 @@ def run(interactive: bool | None = None) -> int:
     click.echo(click.style("  Where things stand", bold=True))
     _print_status(status)
     tools = _tools(status)
+    if tools["claude"]["ok"] and tools["claude"]["auth"] is not True:
+        click.echo("  Claude Code isn't signed in. Run:  claude auth login")
+    if tools["codex"]["ok"] and tools["codex"]["auth"] is not True:
+        click.echo(
+            "  Codex isn't signed in, so gates run single-model. Sign in with:\n"
+            "    codex login --device-auth\n"
+            "  It prints a URL and a code: open the URL on your laptop and enter the code.\n"
+            "  (There is no browser pop-up on a remote machine; that's expected.)\n"
+        )
     if tools["claude"]["ok"] and status["project"]["initialized"]:
-        click.echo(f"  Next:  cd {shlex.quote(status['project']['root'])} && claude\n")
+        cd = f"cd {shlex.quote(status['project']['root'])}"
+        if shutil.which("claude"):
+            click.echo(f"  Next:  {cd} && claude\n")
+        else:
+            # setup can't change the PATH of the shell that started it, so the
+            # bare `claude` it would suggest is "command not found" right here.
+            click.echo(f"  claude is in {LOCAL_BIN}, which this shell's PATH doesn't include yet.")
+            click.echo("  Next (this shell):")
+            click.echo(f"    {path_line()}")
+            click.echo(f"    {cd} && claude\n")
     else:
         click.echo("  Re-run `propel setup` to finish the remaining steps.\n")
     return 0

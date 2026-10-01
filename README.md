@@ -116,19 +116,14 @@ Override any time: `/switch researcher`, `/switch engineer`, `/switch debugger`,
 git clone https://github.com/KevinBian107/propel.git
 cd propel
 
-uv tool install -e .  # or, inside an activated conda env / virtualenv: pip install -e .
+pip install -e .      # inside an activated conda env or virtualenv
 propel                # setup: browser page locally, terminal prompts on a cluster
 ```
 
-Both are editable installs, so edits to the repo take effect immediately.
-
-- **`uv tool install -e .`** puts `propel` on your PATH in its own environment, so it
-  works from any project. No uv yet? `curl -LsSf https://astral.sh/uv/install.sh | sh`.
-  That needs no sudo, which makes it a good fit for clusters.
-- **`pip install -e .`** works **inside an activated conda env or virtualenv**,
-  for example your cluster's `(base)`. Against a Homebrew or system Python it fails
-  with `externally-managed-environment`, or installs somewhere not on your PATH, and
-  you end up with no `propel` command.
+This is an editable install, so edits to the repo take effect immediately. Run it
+**inside an activated conda env or virtualenv**, for example your cluster's `(base)`.
+Against a Homebrew or system Python, pip fails with `externally-managed-environment`,
+or installs somewhere not on your PATH, and you end up with no `propel` command.
 
 Then run `propel`. It checks for git, Claude Code and Codex, installs whatever is
 missing with the vendors' own native installers (no Node, no npm, no sudo), signs

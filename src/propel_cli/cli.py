@@ -37,7 +37,7 @@ def get_propel_root() -> Path:
             return current
     raise FileNotFoundError(
         "Could not locate Propel data directories (skills/, agents/). "
-        "Install from the propel directory with `uv tool install -e .`, or `pip install -e .` inside an activated env."
+        "Install from the propel directory with `pip install -e .` inside an activated env."
     )
 
 
