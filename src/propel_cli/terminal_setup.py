@@ -253,8 +253,17 @@ def _sign_in() -> None:
                 if after is True:
                     click.echo(f"\n  {OK} Codex: signed in.\n")
                 else:
+                    # Device sign-in depends on an OpenAI endpoint that can be
+                    # down (503) or disabled for an account. Copying an existing
+                    # login needs neither that endpoint nor a tunnel.
                     click.echo(
-                        f"\n  {WARN} Codex sign-in didn't complete (exit {rc}). Other routes:\n"
+                        f"\n  {WARN} Codex sign-in didn't complete (exit {rc}). A 503 or 'not enabled'\n"
+                        "    error comes from OpenAI's device sign-in service, not from this machine.\n"
+                        "    Other routes:\n"
+                        "    • copy a login you already have: Codex keeps it in ~/.codex/auth.json.\n"
+                        "      From a signed-in laptop:  scp ~/.codex/auth.json <this-host>:~/.codex/\n"
+                        "      (no SSH? upload it with Jupyter, then move it to ~/.codex/auth.json\n"
+                        "      and chmod 600 it; it's a credential, so don't leave it on shared storage)\n"
                         "    • browser flow over a tunnel: on your laptop run\n"
                         "        ssh -L 1455:localhost:1455 <this-host>\n"
                         "      then here:  codex login\n"
