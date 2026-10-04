@@ -162,8 +162,8 @@ if [ -z "${BRIEF// }" ]; then
 fi
 
 # ── 4. Run it, with a portable hard timeout ──
-OUT=$(mktemp -t propel-codex-out) || unavailable "mktemp failed" "check TMPDIR"
-ERR=$(mktemp -t propel-codex-err) || unavailable "mktemp failed" "check TMPDIR"
+OUT=$(mktemp -t propel-codex-out.XXXXXX) || unavailable "mktemp failed" "check TMPDIR"
+ERR=$(mktemp -t propel-codex-err.XXXXXX) || unavailable "mktemp failed" "check TMPDIR"
 trap 'rm -f "$OUT" "$ERR"' EXIT
 
 ARGS=(exec --sandbox read-only --skip-git-repo-check --cd "$PWD")
