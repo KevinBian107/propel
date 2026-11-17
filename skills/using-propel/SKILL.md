@@ -44,7 +44,8 @@ the mode before anything else — but determine it yourself.
 
 ### Mode Selection — automatic
 
-If the hook injects `"mode_selection_needed": true` (no `.propel/mode.json`),
+If the hook injects `mode_selection_needed: true` (in the Mode section of the
+session-start context; no `.propel/mode.json`),
 **do not present a menu and do not block.** Infer the mode from the user's first
 substantive message, state the choice in one line with the reason, write the
 file, and get to work.
@@ -337,7 +338,7 @@ Check these in order. Use the FIRST one that matches:
 ### 1. Process Skills (check first)
 | Trigger | Skill | What It Does |
 |---------|-------|-------------|
-| User describes new task/idea | **Gate 0 (above)** | Intake questions before anything else |
+| User describes new task/idea | **Gate 0 (see "Gate 0: Intake")** | Intake questions before anything else |
 | "start an investigation", "trace X", "what touches X" | **investigation** | Scaffolds scratch/ with living README |
 | Confirmation-seeking statement, leading question | **think-deeply** | Anti-sycophancy: steel-man the opposite |
 | "retrospective", "capture learnings", ~20 turns without one | **retrospective** | Experiment registry with failed attempts table |

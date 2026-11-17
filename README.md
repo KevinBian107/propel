@@ -155,6 +155,41 @@ Then start `claude` and just describe what you're working on. See the
 [Getting Started guide](https://kbian.org/propel-website/docs/getting-started.html)
 for a full walkthrough.
 
+## Updating
+
+From inside your project:
+
+```bash
+propel status             # installed vs. available version, what would change, hook registrations pending
+propel update --dry-run   # preview; writes no working files (it may fetch from the remote)
+propel update             # pull Propel, reinstall if needed, refresh this project
+```
+
+`propel update` runs `git pull --ff-only` in your Propel clone (it refuses if the
+clone has uncommitted changes to tracked files; `--no-pull` skips this step),
+reinstalls the package when `pyproject.toml` or the version file changed, then
+re-runs `propel init` in the current project with the new code. `propel init
+--dry-run` previews the project step on its own, and `propel --version` prints the
+version you have installed.
+
+What an update touches in `.claude/`:
+
+| | |
+|---|---|
+| **Kept** | Skills, agents, commands and hooks you added yourself; your `CLAUDE.md`; everything in `.propel/` (except that `.propel/backup/` keeps only the newest 10 folders); your permissions and your own hooks in `settings.local.json` |
+| **Replaced** | Propel's own bundled files, even ones you edited. The edited copy is backed up first and named in the output |
+| **Removed** | Files Propel no longer ships, and Propel's own outdated hook registrations, both backed up |
+
+Backups go to `.propel/backup/<timestamp>/`, and the newest 10 are kept. If you
+have a file of your own at a path that a new Propel release starts shipping: once
+a manifest exists (after your first update with this version), your file stays and
+Propel's copy is skipped with a warning; on the first update from an older install,
+a differing file at one of Propel's paths is backed up and replaced. `propel status`
+also counts Propel hook registrations missing from `settings.local.json`; a
+pending one counts as an available update. A `settings.local.json`
+that isn't valid JSON stops init before anything is written. To customize Propel,
+add your own files next to Propel's instead of editing Propel's.
+
 ## Documentation
 
 Full documentation is on the [Propel website](https://kbian.org/propel-website/docs/):

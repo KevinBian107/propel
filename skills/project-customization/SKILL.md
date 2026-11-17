@@ -290,6 +290,6 @@ If confirmed → update only the changed sections in profile.md and conventions.
 
 ## Integration Points
 
-- **Session-start hook** reads `.propel/profile.md` and injects it as `project_profile` in the JSON context
+- **Session-start hook** reads `.propel/profile.md` and injects it in the `## Project profile` section of the session-start context
 - **using-propel skill** routes customization triggers to this skill
 - **/intro** offers this as Part 3 (optional)

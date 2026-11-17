@@ -12,11 +12,14 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
 
 import click
+
+from . import __version__, install
 
 
 # ---------------------------------------------------------------------------
@@ -160,47 +163,44 @@ def save_chat_history(session_id: str, session_dir: Path) -> bool:
     return False
 
 
-def copytree_merge(src: Path, dst: Path) -> int:
-    """Copy src tree into dst, merging directories and overwriting files.
-
-    Returns the number of files copied.
-    """
-    count = 0
-    for item in src.rglob("*"):
-        if item.is_file():
-            rel = item.relative_to(src)
-            dest = dst / rel
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(item, dest)
-            count += 1
-    return count
-
-
-VALID_HOOK_EVENTS = {
-    "SessionStart",
-    "UserPromptSubmit",
-    "PreToolUse",
-    "PermissionRequest",
-    "PostToolUse",
-    "PostToolUseFailure",
-    "Notification",
-    "SubagentStart",
-    "SubagentStop",
-    "Stop",
-    "TeammateIdle",
-    "TaskCompleted",
-    "PreCompact",
-    "SessionEnd",
-}
-
-
 def _is_new_format_group(entry: dict) -> bool:
     """Check if a hook entry uses the new matcher+hooks format."""
-    return "hooks" in entry and isinstance(entry["hooks"], list)
+    return isinstance(entry, dict) and "hooks" in entry and isinstance(entry["hooks"], list)
 
 
-def merge_hooks_config(settings_path: Path, hooks_config: list[dict]) -> None:
-    """Create or merge hook entries into .claude/settings.local.json.
+def _group_commands(group: dict) -> list:
+    return [h.get("command") if isinstance(h, dict) else None for h in group["hooks"]]
+
+
+def _group_key(event, group: dict) -> tuple:
+    """Identity of a matcher group for ownership: (event, matcher, commands).
+    Other fields (timeout, type) are ignored, so a user tweak doesn't orphan it."""
+    hooks = group.get("hooks") if isinstance(group.get("hooks"), list) else []
+    commands = tuple(h.get("command") if isinstance(h, dict) else None for h in hooks)
+    return (event, group.get("matcher") or "", commands)
+
+
+def read_settings(settings_path: Path) -> tuple[dict, str | None]:
+    """Parse .claude/settings.local.json. Returns (settings, original_text or None).
+
+    An empty or whitespace-only file counts as {}. A file that does not
+    parse, or is not a JSON object, or whose "hooks" is not an object, raises
+    a ClickException naming the file. Nothing is written. (The parsing lives
+    in install.read_settings, which `propel status` shares.)
+    """
+    try:
+        return install.read_settings(settings_path)
+    except install.SettingsError as exc:
+        raise click.ClickException(f"{exc} Fix it and re-run; nothing was changed.")
+
+
+def compute_hooks_merge(
+    settings: dict,
+    hooks_config: list[dict],
+    previous_hooks: list[dict] | None,
+    propel_registrations: set[tuple[str, str, str]],
+) -> tuple[dict, list[dict], list[tuple[str, dict]]]:
+    """Merge Propel's hook registrations into a settings dict, in memory only.
 
     Generates the current Claude Code hooks format:
     {
@@ -214,56 +214,153 @@ def merge_hooks_config(settings_path: Path, hooks_config: list[dict]) -> None:
       }
     }
 
-    Also cleans up invalid event names and old-format entries left from
-    previous installs.
-    """
-    if settings_path.exists():
-        try:
-            settings = json.loads(settings_path.read_text())
-        except (json.JSONDecodeError, ValueError):
-            settings = {}
-    else:
-        settings = {}
+    Only Propel's own registrations are ever removed. A matcher group is
+    removed when it is no longer in hooks.json AND it is Propel's:
+    - it matches a group recorded in the previous manifest (`previous_hooks`)
+      by (event, matcher, commands) — other fields are ignored; or
+    - when nothing was recorded (`previous_hooks` is None or empty), every
+      command in it, as the exact tuple (event, matcher, command), is one
+      Propel has registered: in `propel_registrations` (current hooks.json,
+      every version in git history, RETIRED_HOOK_REGISTRATIONS). A user's own
+      registration — even of a Propel script, with other arguments or under
+      another matcher or event — is never an exact match, so it is kept.
+    Old flat `{"command": ...}` entries are removed by that same exact rule,
+    with matcher "", manifest or not. Unknown event names and every other
+    settings key are kept.
 
+    Returns (new_settings, wanted, removed): `wanted` is the Propel groups now
+    registered, as [{"event", "matcher", "hooks"}], for the install manifest;
+    `removed` is [(event, entry)] for every entry taken out.
+    """
+    settings = json.loads(json.dumps(settings))
     existing_hooks = settings.get("hooks", {})
 
-    # Remove invalid event names (e.g. SessionResume, PostClear, PostCompact)
-    for key in list(existing_hooks.keys()):
-        if key not in VALID_HOOK_EVENTS:
-            del existing_hooks[key]
-
-    # Remove old-format entries (flat {"command": "..."} without matcher+hooks)
-    for event in list(existing_hooks.keys()):
-        existing_hooks[event] = [
-            e for e in existing_hooks[event] if _is_new_format_group(e)
-        ]
-
-    # Add new hooks
+    # The groups hooks.json asks for, in registration order, deduplicated.
+    wanted: list[dict] = []
+    wanted_pairs: dict[str, set] = {}
     for hook in hooks_config:
         event = hook["event"]
-        command = hook["command"]
         matcher = hook.get("matcher", "")
+        command = hook["command"]
+        if (matcher, command) in wanted_pairs.setdefault(event, set()):
+            continue
+        wanted_pairs[event].add((matcher, command))
+        wanted.append(
+            {
+                "event": event,
+                "matcher": matcher,
+                "hooks": [{"type": "command", "command": command}],
+            }
+        )
 
-        matcher_group = {
-            "matcher": matcher,
-            "hooks": [{"type": "command", "command": command}],
+    recorded = None
+    if previous_hooks:
+        recorded = {
+            _group_key(g.get("event"), g) for g in previous_hooks if isinstance(g, dict)
         }
 
-        if event not in existing_hooks:
-            existing_hooks[event] = []
+    def still_wanted(event: str, group: dict) -> bool:
+        pairs = wanted_pairs.get(event, set())
+        matcher = group.get("matcher", "")
+        commands = _group_commands(group)
+        return bool(commands) and all((matcher, c) in pairs for c in commands)
 
-        # Skip if the same command is already registered under the same matcher.
-        # (matcher, command) rather than command alone — the same script can
-        # legitimately be registered under two different tool matchers.
-        existing_pairs = set()
-        for group in existing_hooks[event]:
-            for h in group.get("hooks", []):
-                existing_pairs.add((group.get("matcher", ""), h.get("command", "")))
-        if (matcher, command) not in existing_pairs:
-            existing_hooks[event].append(matcher_group)
+    def is_propel_group(event: str, group: dict) -> bool:
+        if recorded is not None:
+            return _group_key(event, group) in recorded
+        commands = _group_commands(group)
+        matcher = group.get("matcher") or ""
+        return bool(commands) and all(
+            isinstance(c, str) and isinstance(matcher, str)
+            and (event, matcher, c) in propel_registrations
+            for c in commands
+        )
+
+    removed: list[tuple[str, dict]] = []
+    for event in list(existing_hooks.keys()):
+        entries = existing_hooks[event]
+        if not isinstance(entries, list):
+            continue  # not ours to interpret
+        kept = []
+        for entry in entries:
+            if not _is_new_format_group(entry):
+                # Old flat {"command": "..."} entry from a previous install.
+                command = entry.get("command") if isinstance(entry, dict) else None
+                if isinstance(command, str) and (event, "", command) in propel_registrations:
+                    removed.append((event, entry))
+                    continue
+                kept.append(entry)
+                continue
+            if is_propel_group(event, entry) and not still_wanted(event, entry):
+                removed.append((event, entry))
+                continue
+            kept.append(entry)
+        if len(kept) != len(entries):
+            if kept:
+                existing_hooks[event] = kept
+            else:
+                del existing_hooks[event]
+
+    # Add new hooks: every wanted (event, matcher, command) not already
+    # registered under the same matcher — (matcher, command) rather than
+    # command alone, since the same script can legitimately be registered under
+    # two different tool matchers. install.missing_hook_registrations is the
+    # same test `propel status` uses to count pending registrations.
+    for event, matcher, command in install.missing_hook_registrations(
+        {"hooks": existing_hooks}, hooks_config
+    ):
+        entries = existing_hooks.setdefault(event, [])
+        entries.append({"matcher": matcher, "hooks": [{"type": "command", "command": command}]})
 
     settings["hooks"] = existing_hooks
-    settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+    return settings, wanted, removed
+
+
+def settings_need_write(settings: dict, new_settings: dict, original_text: str | None) -> bool:
+    if original_text is None:
+        return bool(new_settings.get("hooks"))
+    return new_settings != settings
+
+
+def write_settings(
+    settings_path: Path,
+    new_settings: dict,
+    original_text: str | None,
+    backup_dir: Path | None,
+) -> Path | None:
+    """Write settings atomically. An existing file is first copied into
+    `backup_dir` (the run's .propel/backup/<ts>/). Returns the backup path."""
+    backup = None
+    if original_text is not None and backup_dir is not None:
+        backup = backup_dir / settings_path.name
+        backup.write_text(original_text)
+    install.atomic_write_text(settings_path, json.dumps(new_settings, indent=2) + "\n")
+    return backup
+
+
+def merge_hooks_config(
+    settings_path: Path,
+    hooks_config: list[dict],
+    previous_hooks: list[dict] | None = None,
+    propel_registrations: set[tuple[str, str, str]] | None = None,
+) -> list[dict]:
+    """Read, merge and write .claude/settings.local.json in one call.
+
+    See compute_hooks_merge for the ownership rules. A file that does not
+    parse aborts with a ClickException and nothing is written. An existing
+    file that changes is backed up to <project>/.propel/backup/<ts>/ first.
+    Returns the Propel groups now registered.
+    """
+    settings, original_text = read_settings(settings_path)
+    new_settings, wanted, _removed = compute_hooks_merge(
+        settings, hooks_config, previous_hooks, propel_registrations or set()
+    )
+    if settings_need_write(settings, new_settings, original_text):
+        backup_dir = None
+        if original_text is not None:
+            backup_dir = install.reserve_backup_dir(settings_path.parent.parent)
+        write_settings(settings_path, new_settings, original_text, backup_dir)
+    return wanted
 
 
 def ensure_gitignore_entries(project_root: Path, entries: list[str]) -> list[str]:
@@ -287,45 +384,13 @@ def ensure_gitignore_entries(project_root: Path, entries: list[str]) -> list[str
     return added
 
 
-def _cleanup_stale_files(claude_dir: Path, propel_root: Path) -> None:
-    """Remove files from previous installs that no longer exist in propel source.
-
-    For each Propel-managed directory, any file in the installed .claude/ copy
-    that doesn't have a corresponding file in the current propel source gets
-    removed. This handles renames (e.g. commands moved into a subdirectory).
-    """
-    dirs_to_check = ["skills", "agents", "commands", "hooks", "core", "scripts"]
-    removed = 0
-
-    for dirname in dirs_to_check:
-        src = propel_root / dirname
-        dst = claude_dir / dirname
-        if not dst.is_dir() or not src.is_dir():
-            continue
-
-        for installed_file in list(dst.rglob("*")):
-            if not installed_file.is_file():
-                continue
-            rel = installed_file.relative_to(dst)
-            if not (src / rel).exists():
-                installed_file.unlink()
-                removed += 1
-
-        # Remove empty directories left behind
-        for d in sorted(dst.rglob("*"), reverse=True):
-            if d.is_dir() and not any(d.iterdir()):
-                d.rmdir()
-
-    if removed:
-        click.echo(f"  Cleaned up {removed} stale file(s) from previous install\n")
-
-
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
 
 @click.group(invoke_without_command=True)
+@click.version_option(__version__, prog_name="propel")
 @click.pass_context
 def cli(ctx):
     """Propel — research workflow CLI for Claude Code.
@@ -397,50 +462,240 @@ def setup():
 # ---------------------------------------------------------------------------
 
 
+def _load_hooks_config(propel_root: Path) -> list[dict]:
+    """hooks/hooks.json with commands rewritten to .claude/ paths, or [] if absent.
+
+    See install.load_hooks_config, which `propel status` shares.
+    """
+    return install.load_hooks_config(propel_root)
+
+
+def _describe_hook_group(event: str, entry: dict) -> str:
+    if _is_new_format_group(entry):
+        commands = [c for c in _group_commands(entry) if isinstance(c, str)]
+        matcher = entry.get("matcher") or ""
+    else:
+        commands = [entry.get("command")] if isinstance(entry.get("command"), str) else []
+        matcher = ""
+    where = f"{event} [{matcher}]" if matcher else event
+    return f"{where}: {'; '.join(commands) or '(no command)'}"
+
+
+def _echo_hook_conflicts(the_plan, registered: list[dict]) -> None:
+    """Warn when a Propel hook registration points at a file Propel kept as the user's.
+
+    A conflict_user file under hooks/ or scripts/ means Propel's copy was not
+    installed — but the registration for it still is, so it runs the user's file.
+    """
+    for a in the_plan.of("conflict_user"):
+        if a.path.split("/", 1)[0] not in ("hooks", "scripts"):
+            continue
+        target = f".claude/{a.path}"
+        for group in registered:
+            for command in _group_commands(group):
+                if isinstance(command, str) and target in command.split():
+                    click.echo(
+                        f"  WARNING: hook {_describe_hook_group(group['event'], group)} — "
+                        f"the registration runs YOUR file {target}, not Propel's"
+                    )
+
+
+def _echo_install_summary(
+    the_plan, report: dict | None, project_root: Path, propel_root: Path, dry_run: bool
+) -> None:
+    """Print the plan grouped by action. `report` is None under --dry-run."""
+    added = the_plan.of("add")
+    replaced = the_plan.of("replace")
+    edited = the_plan.of("replace_edited")
+    removed = the_plan.of("remove")
+    removed_edited = the_plan.of("remove_edited")
+    kept = the_plan.of("keep_user")
+    conflicts = the_plan.of("conflict_user")
+    backups = (report or {}).get("backups", {})
+
+    def rel_to_project(path: Path) -> str:
+        try:
+            return str(path.relative_to(project_root))
+        except ValueError:
+            return str(path)
+
+    def with_backup(a) -> str:
+        line = f"    .claude/{a.path}"
+        if a.note:
+            line += f"  ({a.note})"
+        if a.path in backups:
+            line += f"  ->  backup {rel_to_project(backups[a.path])}"
+        return line
+
+    if not the_plan.changes:
+        click.echo("  Propel files — no changes")
+    if added:
+        per_dir: dict[str, int] = {}
+        for a in added:
+            top = a.path.split("/", 1)[0]
+            per_dir[top] = per_dir.get(top, 0) + 1
+        breakdown = ", ".join(f"{d}/ {n}" for d, n in per_dir.items())
+        verb = "would add" if dry_run else "added"
+        click.echo(f"  {verb} {len(added)} file(s) — {breakdown}")
+    if replaced:
+        verb = "would update" if dry_run else "updated"
+        click.echo(f"  {verb} {len(replaced)} file(s)")
+        for a in replaced:
+            click.echo(f"    .claude/{a.path}" + (f"  — {a.note}" if a.note else ""))
+    if edited:
+        if dry_run:
+            click.echo(f"  would replace {len(edited)} edited Propel file(s), backing each up first:")
+        else:
+            click.echo(f"  replaced {len(edited)} edited Propel file(s) — your copy is backed up:")
+        for a in edited:
+            click.echo(with_backup(a))
+    if removed:
+        verb = "would remove" if dry_run else "removed"
+        click.echo(f"  {verb} {len(removed)} stale Propel file(s), backed up first")
+        for a in removed:
+            click.echo(f"    .claude/{a.path}" + (f"  — {a.note}" if a.note else ""))
+    if removed_edited:
+        if dry_run:
+            click.echo(f"  would remove {len(removed_edited)} edited stale Propel file(s), backing each up first:")
+        else:
+            click.echo(f"  removed {len(removed_edited)} edited stale Propel file(s) — your copy is backed up:")
+        for a in removed_edited:
+            click.echo(with_backup(a))
+    if conflicts:
+        click.echo(
+            f"  WARNING: kept {len(conflicts)} file(s) of yours where Propel ships a file;"
+            " Propel's copy was not installed:"
+        )
+        for a in conflicts:
+            click.echo(f"    .claude/{a.path} — {a.note}")
+            click.echo(f"      Propel's copy is at {propel_root / a.path}")
+    unsafe = [a for a in kept if a.note]
+    if unsafe:
+        click.echo(f"  WARNING: left {len(unsafe)} path(s) alone:")
+        for a in unsafe:
+            click.echo(f"    .claude/{a.path} — {a.note}")
+    plain_kept = [a for a in kept if not a.note]
+    if plain_kept:
+        click.echo(f"  kept {len(plain_kept)} file(s) of your own, untouched")
+    if report and report.get("backup_dir"):
+        click.echo(f"  backups in {rel_to_project(report['backup_dir'])}/")
+
+
 @cli.command()
-def init():
-    """Set up .claude/ with Propel skills, agents, commands, and hooks."""
+@click.option("--dry-run", is_flag=True, help="Show what would change and write nothing.")
+@click.option("--yes", is_flag=True, help="Non-interactive; accepted for scripts and the console.")
+def init(dry_run: bool, yes: bool):
+    """Set up .claude/ with Propel skills, agents, commands, and hooks.
+
+    Propel's own files are added, updated or removed to match this Propel
+    version; any you had edited are backed up to .propel/backup/ first. Files
+    you added yourself are never touched.
+    """
+    # --yes is a placeholder: init asks nothing today, so there is nothing to
+    # confirm. It exists so non-interactive callers can pass it unconditionally.
+    del yes
     propel_root = get_propel_root()
     project_root = get_project_root()
     claude_dir = project_root / ".claude"
+    settings_path = claude_dir / "settings.local.json"
 
     click.echo(f"Initializing Propel in {project_root}")
     click.echo(f"Using Propel data from {propel_root}\n")
+    if dry_run:
+        click.echo("  Dry run — nothing will be written.\n")
 
-    # Clean up stale files from previous installs before copying
-    _cleanup_stale_files(claude_dir, propel_root)
+    # 1. Settings first: a settings file that doesn't parse aborts the whole
+    #    init (dry run included) before anything has been written.
+    try:
+        settings, original_text = read_settings(settings_path)
+    except click.ClickException as exc:
+        if dry_run:
+            raise click.ClickException(f"Dry run: init would abort here. {exc.message}")
+        raise
 
-    # Copy skills, agents, commands, hooks
-    dirs_to_copy = ["skills", "agents", "commands", "hooks", "core", "scripts"]
-    total_files = 0
+    # 2. Plan the files and compute the merged settings, both in memory. A
+    #    manifest that exists but cannot be used aborts here too.
+    try:
+        manifest = install.load_manifest(project_root)
+    except install.ManifestError as exc:
+        if dry_run:
+            raise click.ClickException(f"Dry run: init would abort here. {exc}")
+        raise click.ClickException(str(exc))
+    the_plan = install.plan(propel_root, claude_dir, manifest)
+    hooks_config = _load_hooks_config(propel_root)
+    previous_hooks = manifest.get("hooks") if manifest else None
+    if not isinstance(previous_hooks, list):
+        previous_hooks = None
+    propel_registrations = (
+        install.historical_hook_registrations(propel_root) | install.RETIRED_HOOK_REGISTRATIONS
+    )
+    new_settings, registered, removed_groups = compute_hooks_merge(
+        settings, hooks_config, previous_hooks, propel_registrations
+    )
+    write_needed = settings_need_write(settings, new_settings, original_text)
 
-    for dirname in dirs_to_copy:
-        src = propel_root / dirname
-        dst = claude_dir / dirname
-        if src.is_dir():
-            count = copytree_merge(src, dst)
-            total_files += count
-            click.echo(f"  {dirname}/ — {count} files")
-        else:
-            click.echo(f"  {dirname}/ — not found in propel, skipped")
+    if dry_run:
+        _echo_install_summary(the_plan, None, project_root, propel_root, dry_run=True)
+        _echo_hook_conflicts(the_plan, registered)
+        to_add = install.missing_hook_registrations(settings, hooks_config)
+        if removed_groups or to_add:
+            click.echo("\n  settings.local.json:")
+        if to_add:
+            click.echo(f"    would add {len(to_add)} Propel hook group(s):")
+            for event, matcher, command in to_add:
+                group = {"matcher": matcher, "hooks": [{"type": "command", "command": command}]}
+                click.echo(f"      {_describe_hook_group(event, group)}")
+        if removed_groups:
+            click.echo(f"    would remove {len(removed_groups)} stale Propel hook group(s):")
+            for event, entry in removed_groups:
+                click.echo(f"      {_describe_hook_group(event, entry)}")
+        if not (removed_groups or to_add):
+            if write_needed:
+                click.echo("\n  settings.local.json — hooks would be merged")
+            else:
+                click.echo("\n  settings.local.json — no changes")
+        click.echo("\nDry run complete. Re-run without --dry-run to apply.")
+        return
 
-    # Merge hooks into settings.local.json
-    hooks_json = propel_root / "hooks" / "hooks.json"
-    if hooks_json.exists():
-        hooks_config = json.loads(hooks_json.read_text()).get("hooks", [])
-        # Rewrite hook commands to use .claude/ relative paths
-        for hook in hooks_config:
-            hook["command"] = hook["command"].replace(
-                "bash hooks/", "bash .claude/hooks/"
-            ).replace("bash scripts/", "bash .claude/scripts/")
-        settings_path = claude_dir / "settings.local.json"
-        merge_hooks_config(settings_path, hooks_config)
-        click.echo(f"\n  settings.local.json — hooks configured")
+    # 3. Files, then 4. settings (into the same backup directory), then 5. the
+    #    manifest, last: if the settings write fails, the old manifest stays.
+    report = install.apply(
+        the_plan, project_root, install.source_info(propel_root), hooks=registered
+    )
+    _echo_install_summary(the_plan, report, project_root, propel_root, dry_run=False)
+    _echo_hook_conflicts(the_plan, registered)
+
+    backup_dir = report["backup_dir"]
+    settings_backup = None
+    if write_needed:
+        if original_text is not None and backup_dir is None:
+            backup_dir = install.reserve_backup_dir(project_root)
+        settings_backup = write_settings(settings_path, new_settings, original_text, backup_dir)
+    # Rewrite the manifest only when something besides the timestamp changed,
+    # so a no-op init leaves .propel/manifest.json byte-identical.
+    def without_timestamp(m):
+        return {k: v for k, v in (m or {}).items() if k != "installed_at"}
+
+    if manifest is None or without_timestamp(manifest) != without_timestamp(report["manifest"]):
+        install.write_manifest(project_root, report["manifest"])
+    install.prune_backups(project_root, protect=(backup_dir,))
+
+    if write_needed:
+        click.echo("\n  settings.local.json — hooks configured")
+        for event, entry in removed_groups:
+            click.echo(f"    removed stale Propel hook group {_describe_hook_group(event, entry)}")
+        if settings_backup is not None:
+            click.echo(f"    previous settings backed up to {settings_backup.relative_to(project_root)}")
+    else:
+        click.echo("\n  settings.local.json — hooks already configured")
 
     # Create CLAUDE.md template if one doesn't exist
     claude_md = claude_dir / "CLAUDE.md"
     template = propel_root / "templates" / "CLAUDE.md"
-    if not claude_md.exists() and template.exists():
+    if claude_md.is_symlink():
+        # Dangling or not, never write through a link.
+        click.echo("  CLAUDE.md — is a symlink, left alone")
+    elif not claude_md.exists() and template.exists():
         shutil.copy2(template, claude_md)
         click.echo(f"  CLAUDE.md — template created (fill in your research context!)")
     elif claude_md.exists():
@@ -453,11 +708,7 @@ def init():
     else:
         click.echo(f"  .gitignore — already up to date")
 
-    # Shell helpers must stay executable through the copy
-    for sh in list((claude_dir / "hooks").glob("*.sh")) + list(
-        (claude_dir / "scripts").glob("*.sh")
-    ):
-        sh.chmod(sh.stat().st_mode | 0o111)
+    # Shell helpers are made executable by install.apply (Propel's own only).
 
     # If the status line is wired up, refresh the global copies too. They live
     # outside the clone so moving the repo can't break them -- but that also
@@ -489,9 +740,210 @@ def init():
         )
         click.echo("  .propel/codex.json — dual-model layer enabled")
 
-    click.echo(f"\nDone! {total_files} files installed into {claude_dir}/")
+    click.echo(f"\nDone! Propel owns {len(report['manifest']['files'])} files in {claude_dir}/")
     click.echo("Run `propel` to check your Claude Code / Codex setup,")
     click.echo("or `claude` to start working.")
+
+
+# ---------------------------------------------------------------------------
+# propel status / propel update
+# ---------------------------------------------------------------------------
+
+
+def _describe_version(version, commit, dirty=False) -> str:
+    if version is None:
+        return "unknown"
+    if commit:
+        return f"{version} ({commit}{' + uncommitted changes' if dirty else ''})"
+    return f"{version} (uncommitted changes)" if dirty else str(version)
+
+
+@cli.command(name="status")
+def status_cmd():
+    """Show the installed and available Propel versions for this project."""
+    propel_root = get_propel_root()
+    project_root = get_project_root()
+    try:
+        s = install.status(propel_root, project_root)
+    except install.ManifestError as exc:
+        raise click.ClickException(str(exc))
+
+    click.echo(f"Project:   {project_root}")
+    click.echo(f"Propel:    {propel_root}")
+    available = _describe_version(s["available_version"], s["available_commit"], s.get("available_dirty"))
+    click.echo(f"Available: {available}")
+    if s["installed"]:
+        click.echo(f"Installed: {_describe_version(s['installed_version'], s['installed_commit'])}")
+    else:
+        click.echo("Installed: not installed")
+    def count(n):
+        return "n/a" if n is None else n
+
+    click.echo(f"Changes pending:       {count(s['changes'])}")
+    click.echo(f"Edited bundled files:  {count(s['edited_bundled'])} (replaced or removed on update, backed up first)")
+    click.echo(f"User files kept:       {count(s['user_files'])}")
+    click.echo(f"Hook registrations pending: {count(s.get('hooks_pending'))}")
+    if s.get("settings_error"):
+        click.echo(f"Settings: {s['settings_error']}")
+    if not s["installed"]:
+        click.echo("Update available: n/a — Propel isn't installed here; run `propel init`")
+    else:
+        click.echo(f"Update available: {'yes' if s['update_available'] else 'no'}")
+
+
+def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess:
+    """git -C root <args>, never raising; a missing git binary reads as returncode 127."""
+    try:
+        return subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        return subprocess.CompletedProcess(["git", *args], 127, "", str(exc))
+
+
+@cli.command(name="update")
+@click.option("--dry-run", is_flag=True, help="Show what would happen; changes no working files (may fetch from the remote).")
+@click.option("--no-pull", is_flag=True, help="Skip the git pull; just re-apply this Propel to the project.")
+@click.option("--yes", is_flag=True, help="Non-interactive; accepted for scripts and the console.")
+def update_cmd(dry_run: bool, no_pull: bool, yes: bool):
+    """Pull the latest Propel, reinstall if needed, and refresh this project.
+
+    Runs `git pull --ff-only` in the Propel clone (refusing if its tracked
+    files have local changes), reinstalls the package if pyproject.toml or
+    src/propel_cli/__init__.py changed, then re-runs `propel init` here with
+    the new code.
+    """
+    # --yes is a placeholder, as for init: nothing is asked today.
+    del yes
+    propel_root = get_propel_root()
+    project_root = get_project_root()
+    summary = []
+
+    # a. Pull the clone.
+    old_head = new_head = None
+    if no_pull:
+        summary.append("pull skipped")
+    elif not install._is_dedicated_repo(propel_root):
+        click.echo(f"Propel at {propel_root} is not a git clone; skipping pull")
+        summary.append("not a git clone, pull skipped")
+    else:
+        porcelain = _run_git(propel_root, "status", "--porcelain", "--untracked-files=no")
+        if porcelain.returncode != 0:
+            raise click.ClickException(
+                f"Could not check {propel_root} for local changes: {porcelain.stderr.strip()}"
+            )
+        dirty = [line for line in porcelain.stdout.splitlines() if line.strip()]
+        if dirty:
+            listing = "\n".join(f"  {line}" for line in dirty)
+            raise click.ClickException(
+                f"Propel at {propel_root} has local changes to tracked files:\n{listing}\n"
+                "Commit or stash them, or use --no-pull."
+            )
+        head = _run_git(propel_root, "rev-parse", "HEAD")
+        old_head = head.stdout.strip() if head.returncode == 0 else None
+        if dry_run:
+            fetch = _run_git(propel_root, "fetch")
+            if fetch.returncode != 0:
+                raise click.ClickException(f"git fetch failed in {propel_root}:\n{fetch.stderr.strip()}")
+            behind = _run_git(propel_root, "rev-list", "--count", "HEAD..@{u}")
+            if behind.returncode != 0:
+                click.echo(f"Propel at {propel_root} has no upstream branch; nothing to pull")
+                summary.append("no upstream")
+            else:
+                n = behind.stdout.strip()
+                click.echo(f"Propel at {propel_root} is {n} commit(s) behind its upstream (not pulled: dry run)")
+                summary.append(f"{n} commit(s) behind")
+        else:
+            click.echo(f"Pulling Propel in {propel_root}")
+            pull = _run_git(propel_root, "pull", "--ff-only")
+            if pull.returncode != 0:
+                raise click.ClickException(
+                    f"git pull --ff-only failed in {propel_root}:\n{(pull.stderr or pull.stdout).strip()}"
+                )
+            head = _run_git(propel_root, "rev-parse", "HEAD")
+            new_head = head.stdout.strip() if head.returncode == 0 else None
+            if old_head and new_head and old_head != new_head:
+                count = _run_git(propel_root, "rev-list", "--count", f"{old_head}..{new_head}")
+                n = count.stdout.strip() if count.returncode == 0 else "?"
+                click.echo(f"  pulled {n} commit(s): {old_head[:7]}..{new_head[:7]}")
+                summary.append(f"pulled {n} commit(s)")
+            else:
+                click.echo("  already up to date")
+                summary.append("already up to date")
+
+    # b. Reinstall the package if its metadata changed. The version lives in
+    # __init__.py, and editable-install metadata is only refreshed by a reinstall.
+    reinstall_failed = False
+    if old_head and new_head and old_head != new_head and not dry_run:
+        diff = _run_git(
+            propel_root, "diff", "--quiet", old_head, new_head, "--",
+            "pyproject.toml", "src/propel_cli/__init__.py",
+        )
+        reinstall = diff.returncode != 0
+        if diff.returncode == 1:
+            click.echo("pyproject.toml or __init__.py changed; reinstalling the package")
+        elif diff.returncode != 0:
+            click.echo(
+                f"could not compare pyproject.toml/__init__.py (git exit {diff.returncode}); "
+                "reinstalling to be safe"
+            )
+        if reinstall:
+            try:
+                pip = subprocess.run(
+                    [sys.executable, "-m", "pip", "install", "-e", str(propel_root)],
+                    capture_output=True,
+                    text=True,
+                )
+                pip_failed = pip.returncode != 0
+                pip_error = (pip.stderr or pip.stdout).strip()
+            except OSError as exc:
+                pip_failed = True
+                pip_error = str(exc)
+            if pip_failed:
+                reinstall_failed = True
+                click.echo(f"  Reinstall failed: {pip_error.splitlines()[-1] if pip_error else 'unknown error'}", err=True)
+                click.echo("  Reinstall by hand, then re-run `propel update --no-pull`:", err=True)
+                click.echo(f"    pip install -e {propel_root}     (inside the env you installed Propel into)", err=True)
+                click.echo("    pipx reinstall propel             (if you installed it with pipx)", err=True)
+                summary.append("reinstall failed — see above")
+            else:
+                click.echo("  reinstalled")
+                summary.append("reinstalled")
+
+    # c. Re-run init in a fresh interpreter, so the freshly pulled code runs.
+    # A cheap existence check, not install.status(): this is the OLD code, and a
+    # manifest-format change in the new code must not make it abort here.
+    installed = (project_root / ".propel" / "manifest.json").exists() or (
+        project_root / ".claude" / "skills" / "using-propel"
+    ).is_dir()
+    rc = 0
+    if installed:
+        # Strip '' / '.' from sys.path so a propel_cli/ in the project (the
+        # child's cwd) can't shadow the installed package.
+        cmd = [
+            sys.executable,
+            "-c",
+            "import sys; sys.path[:] = [p for p in sys.path if p not in ('', '.')]; "
+            "from propel_cli.cli import cli; cli(prog_name='propel')",
+            "init",
+        ]
+        if dry_run:
+            cmd.append("--dry-run")
+        click.echo(f"\nRe-running `propel init{' --dry-run' if dry_run else ''}` in {project_root}\n")
+        rc = subprocess.run(cmd, cwd=str(project_root)).returncode
+        summary.append(f"init {'dry run ' if dry_run else ''}{'ok' if rc == 0 else f'failed (exit {rc})'}")
+    else:
+        click.echo(f"No Propel install in {project_root}; run `propel init` there to install.")
+        summary.append("project not installed")
+
+    # d. Summary. init's own failure wins; otherwise a failed reinstall is exit 1.
+    click.echo(f"\nUpdate{' (dry run)' if dry_run else ''}: {'; '.join(summary)}.")
+    if rc != 0:
+        raise SystemExit(rc)
+    if reinstall_failed:
+        raise SystemExit(1)
 
 
 # ---------------------------------------------------------------------------

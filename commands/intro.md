@@ -149,7 +149,7 @@ asks at every one of those, and does not proceed until you answer.
 
 ## Part 2: Analyze the codebase and draft CLAUDE.md
 
-After presenting the intro above, check whether this is an **empty repo** or an **existing codebase**. The hook injects `"empty_repo": true/false` — or you can check directly: are there any source files (`.py`, `.js`, `.ts`, `.rs`, etc.) outside of `.claude/`, `scratch/`, and `.propel/`?
+After presenting the intro above, check whether this is an **empty repo** or an **existing codebase**. The hook injects the `## Empty repo` section of the session-start context (true/false) — or you can check directly: are there any source files (`.py`, `.js`, `.ts`, `.rs`, etc.) outside of `.claude/`, `scratch/`, and `.propel/`?
 
 ### Path A: Existing codebase — Scan and draft
 

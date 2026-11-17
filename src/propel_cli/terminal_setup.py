@@ -112,6 +112,18 @@ def _tools(status: dict) -> dict:
     return {t["key"]: t for t in status["tools"]}
 
 
+
+def _pending_summary(propel: dict) -> str:
+    """'3 file change(s) and 1 hook registration(s)' — whichever are non-zero."""
+    parts = []
+    files = propel.get("changes") or 0
+    hooks = propel.get("hooks_pending") or 0
+    if files:
+        parts.append(f"{files} file change(s)")
+    if hooks:
+        parts.append(f"{hooks} hook registration(s)")
+    return " and ".join(parts) or "changes"
+
 def _print_manual_steps(status: dict) -> None:
     """Everything the interactive path would do, as commands to paste."""
     tools = _tools(status)
@@ -134,8 +146,22 @@ def _print_manual_steps(status: dict) -> None:
         steps.append(f"{path_line()}   # this shell")
     if tools["claude"]["auth"] is not True:
         steps.append("claude auth login")
-    if not status["project"]["initialized"]:
-        steps.append(f"cd {shlex.quote(status['project']['root'])} && propel init")
+    propel = status.get("propel") or {}
+    init_cmd = f"cd {shlex.quote(status['project']['root'])} && propel init"
+    if "error" in propel:
+        steps.append(f"Couldn't check Propel in this project: {propel['error']}")
+        if propel.get("error_kind") == "manifest":
+            # ManifestError messages already carry their own "Fix or delete …".
+            if "Fix or delete" in propel["error"]:
+                steps.append(f"Then: {init_cmd}")
+            else:
+                steps.append(f"Fix or delete .propel/manifest.json, then: {init_cmd}")
+        else:
+            steps.append("Check that Propel was installed with `pip install -e <clone>`")
+    elif not status["project"]["initialized"]:
+        steps.append(init_cmd)
+    elif propel.get("installed") and propel.get("update_available"):
+        steps.append(f"Update Propel here ({_pending_summary(propel)}): {init_cmd}")
 
     if not steps and not optional:
         click.echo("  Everything is set up. Start with: claude\n")
@@ -298,16 +324,50 @@ def _plugins(status: dict) -> None:
             click.echo("")
 
 
+def _update_project(status: dict) -> None:
+    """Propel is already installed here: report whether it's current, offer an update."""
+    root = status["project"]["root"]
+    propel = status.get("propel") or {}
+    if "error" in propel:
+        click.echo(f"  {WARN} Couldn't check for a Propel update: {propel['error']}")
+        return
+    # No manifest (installed before manifests existed) means no recorded version.
+    version = propel.get("installed_version") or "(version unknown)"
+    if not propel.get("update_available"):
+        click.echo(f"  Propel {version} is up to date in this project.")
+        return
+    edited = propel.get("edited_bundled") or 0
+    click.echo(
+        f"  Propel {version} is installed; "
+        f"{_pending_summary(propel)} available from {propel.get('available_version')}."
+        + (f" {edited} file(s) you edited will be backed up and replaced." if edited > 0 else "")
+    )
+    # click.confirm on a non-TTY stdin reads EOF and aborts; ask only when someone can answer.
+    if not sys.stdin.isatty():
+        return
+    if _ask("  Update Propel in this project?", False):
+        click.echo("")
+        rc = _run_live(_self_command(["init"]), cwd=root)
+        if rc != 0:
+            click.echo(f"  {BAD} propel init failed (exit {rc}). Fix the error above, then: cd {shlex.quote(root)} && propel init")
+        click.echo("")
+    else:
+        click.echo(f"    Later:  cd {shlex.quote(root)} && propel init\n")
+
+
 def _init_project(status: dict) -> None:
     proj = status["project"]
     if proj["initialized"]:
+        _update_project(status)
         return
     root = proj["root"]
     if not proj["is_git"]:
         click.echo(f"  {WARN} {root} is not a git repository. Propel works best inside one.")
     if _ask(f"  Install Propel into {root}?", True):
         click.echo("")
-        _run_live(_self_command(["init"]), cwd=root)
+        rc = _run_live(_self_command(["init"]), cwd=root)
+        if rc != 0:
+            click.echo(f"  {BAD} propel init failed (exit {rc}). Fix the error above, then: cd {shlex.quote(root)} && propel init")
         click.echo("")
     else:
         click.echo(f"    Later:  cd {shlex.quote(root)} && propel init\n")
