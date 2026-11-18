@@ -75,6 +75,16 @@ propel codex log                   # what was asked, when, and what came back
 propel codex statusline --install  # live segment: codex * 3 . 7s
 ```
 
+The same goes for work in flight. Training launches, monitored runs and plan tasks
+are recorded per session in `.propel/tasks/` by a script, not by the model, and a
+training task's status comes from evidence (its exit file, a live `screen`/`tmux`
+session), never from a claim:
+
+```bash
+propel tasks         # open tasks: running, blocked, lost or unknown
+propel tasks --all   # plus finished tasks from the last 10 session files (--sessions N), within 14 days
+```
+
 ## The Pipeline
 
 <p align="center">

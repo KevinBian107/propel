@@ -114,6 +114,7 @@ asks at every one of those, and does not proceed until you answer.
 | Dual-model | codex-consult | Automatic at every gate — no phrase needed |
 | Review | c-review | Gate 3 on a substantive diff, or pre-PR |
 | Supervision | monitor | "watch this run", "make sure it finishes" |
+| Progress | check-progress | "check progress", "what's running", "where was I" |
 
 ### Auditor agents (auto-dispatched after code changes)
 

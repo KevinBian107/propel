@@ -139,7 +139,7 @@ Before routing to any skill, check the current mode. If the triggered skill is n
 | codex-consult | Yes | Yes | Yes | Yes |
 | c-review | — | Yes | Yes | — |
 | monitor | — | Yes | Yes | Yes |
-| subagent-driven-research | — | Yes | — | — |
+| check-progress | Yes | Yes | Yes | Yes |
 
 **Gates by mode:**
 - **Researcher**: Gate 0, Gate 1
@@ -373,6 +373,7 @@ Check these in order. Use the FIRST one that matches:
 | "new session", "archive this session" | Session management (/new-session) |
 | "create a worktree", "experiment branch" | **using-git-worktrees** |
 | Long run or command chain to supervise | **monitor** (ask first — token-costy) |
+| "check progress", "what's running", "status of my jobs", "what's left", "where was I" | **check-progress** (read-only task table) |
 
 ### 6. Dual-Model Skills
 | Trigger | Skill |

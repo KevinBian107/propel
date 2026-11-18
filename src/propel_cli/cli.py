@@ -791,6 +791,78 @@ def status_cmd():
         click.echo(f"Update available: {'yes' if s['update_available'] else 'no'}")
 
 
+# ---------------------------------------------------------------------------
+# propel tasks
+# ---------------------------------------------------------------------------
+
+
+TASK_QUEUE_REL = Path(".claude") / "scripts" / "task-queue.sh"
+
+
+def _find_tasks_root(start: Path) -> Path:
+    """The project whose ledger to read: the nearest ancestor of `start` (itself
+    included) with .propel/ or an installed task-queue.sh, else the git root / cwd."""
+    start = start.resolve()
+    for d in (start, *start.parents):
+        if (d / ".propel").is_dir() or (d / TASK_QUEUE_REL).is_file():
+            return d
+    return get_project_root()
+
+
+@cli.command(name="tasks")
+@click.option("--all", "show_all", is_flag=True, help="Also show finished tasks (done, failed, abandoned).")
+@click.option("--sessions", default=10, show_default=True, type=click.IntRange(min=1, max=1000),
+              help="With --all: finished tasks come from the newest N session files of the "
+                   "last 14 days. Open tasks are always shown.")
+def tasks_cmd(show_all: bool, sessions: int):
+    """Show the task ledger: training runs, plan tasks and monitor loops
+    recorded by Claude sessions in this project (.propel/tasks/).
+
+    One row per task, with its id, kind, status, progress, start time and the
+    session that started it. By default only open tasks are listed (running,
+    blocked, lost, unknown); --all adds recent finished ones. Read-only, apart
+    from recording a done/failed result the script reads from a run's exit file.
+    """
+    root = _find_tasks_root(Path.cwd())
+    if not (root / ".propel").is_dir():
+        # No ledger here. Calling the script would make it walk further up and
+        # read some ancestor's ledger instead.
+        click.echo("No tasks recorded." if show_all else "No open tasks.")
+        return
+    script = root / TASK_QUEUE_REL
+    if not script.is_file():
+        try:
+            script = get_propel_root() / "scripts" / "task-queue.sh"
+        except FileNotFoundError:
+            script = None
+    if script is None or not script.is_file():
+        raise click.ClickException(
+            f"task-queue.sh not found in {root / TASK_QUEUE_REL} or the Propel clone; run `propel init`."
+        )
+    bash = shutil.which("bash")
+    if bash is None:
+        raise click.ClickException("bash not found on PATH; `propel tasks` needs it to read the ledger.")
+
+    args = [bash, str(script), "list", "--table", "--sessions", str(sessions)]
+    if not show_all:
+        args.insert(4, "--open")
+    # The script prefers $CLAUDE_PROJECT_DIR over its cwd; pin it to the root
+    # found here so a stale value from the calling shell can't redirect the read.
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(root)}
+    try:
+        result = subprocess.run(
+            args, cwd=root, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace"
+        )
+    except KeyboardInterrupt:
+        raise SystemExit(130)
+    if result.stdout:
+        click.echo(result.stdout, nl=False)
+    if result.stderr:
+        click.echo(result.stderr, nl=False, err=True)
+    code = result.returncode
+    raise SystemExit(128 - code if code < 0 else code)
+
+
 def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess:
     """git -C root <args>, never raising; a missing git binary reads as returncode 127."""
     try:
