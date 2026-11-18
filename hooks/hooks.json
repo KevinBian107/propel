@@ -7,6 +7,11 @@
     },
     {
       "event": "SessionStart",
+      "command": "bash hooks/session-start.sh tasks",
+      "description": "Inject the open tasks from the task ledger (.propel/tasks/), flagging tasks from earlier sessions for the user to carry or abandon, and export PROPEL_SESSION via CLAUDE_ENV_FILE; prints nothing when no task is open"
+    },
+    {
+      "event": "SessionStart",
       "command": "bash hooks/session-start.sh core",
       "description": "Inject Propel's core principles (core/CORE.md) — its own hook entry because Claude Code truncates a single hook's output above ~10,000 characters"
     },

@@ -6,22 +6,28 @@
 # session-start.sh and working-memory.sh emit PLAIN TEXT: Claude Code adds
 # plain-text SessionStart stdout to context, while stdout that starts with `{`
 # is parsed as hook JSON (and a custom object is dropped). These tests verify:
-# 1. every session-start part (state, core, codex, routing1-4) runs, exits 0,
-#    is NOT a JSON object, and is under the ~10,000-character per-hook cap
+# 1. every session-start part (state, tasks, core, codex, routing1-4) runs,
+#    exits 0, is NOT a JSON object, and is under the ~10,000-character per-hook cap
 # 2. CORE.md and CODEX.md arrive untruncated; the routing parts reproduce
 #    using-propel/SKILL.md losslessly in no more chunks than are registered
 # 3. the version line comes from .propel/manifest.json, "unknown" without one
-# 4. working-memory prints nothing when empty, its sections when not, and caps
+# 4. the tasks part shows open ledger tasks (capped at 20 rows and 8,500
+#    characters), prints nothing without any, and exports a sanitized
+#    PROPEL_SESSION through CLAUDE_ENV_FILE exactly once
+# 5. working-memory prints nothing when empty, its sections when not, and caps
 #    long logs
-# 5. every hook exits 0 with no python3 on PATH
-# 6. plugin.json and the package agree on the version
+# 6. every hook exits 0 with no python3 on PATH; route.sh reads mode/Codex
+#    state without python3 and adds one tasks line when tasks are open
+# 7. plugin.json and the package agree on the version
 
 set -euo pipefail
 
 # Hooks prefer CLAUDE_PROJECT_DIR over the cwd. Running this test from inside a
 # Claude Code session exports it, which would point every hook run below at
 # the real project instead of the throwaway dirs. Tests that need it set it.
-unset CLAUDE_PROJECT_DIR
+# CLAUDE_ENV_FILE would let the tasks part write into the real session's env
+# file; PROPEL_SESSION would leak a session into task-queue.sh runs.
+unset CLAUDE_PROJECT_DIR CLAUDE_ENV_FILE PROPEL_SESSION
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
@@ -43,6 +49,69 @@ assert_contains() {  # <haystack-file> <needle> <label>
     fi
 }
 
+# A fresh bin dir holding the tools the hooks (and scripts/task-queue.sh, which
+# the tasks part and route.sh call) may use, and no python3. Prints its path.
+make_nopy_bin() {
+    local dir tool tool_path
+    dir=$(mktemp -d)
+    for tool in bash sh cat date ls find head tail sort grep sed dirname basename tr wc \
+                stat mkdir rmdir git awk cut printf env rm sleep; do
+        tool_path=$(command -v "$tool" 2>/dev/null || true)
+        case "$tool_path" in
+            /*) ln -s "$tool_path" "$dir/$tool" ;;
+        esac
+    done
+    printf '%s\n' "$dir"
+}
+
+# closed_stdin <command...>: run with stdin closed, killed after 10 s so a hook
+# that blocks fails here instead of stalling the suite. Returns the command's
+# status (137 when killed). The <&- is on the background command itself: an
+# `&` command otherwise gets /dev/null as stdin.
+closed_stdin() {
+    local pid watch rc=0
+    "$@" <&- >/dev/null 2>&1 &
+    pid=$!
+    ( sleep 10; kill -9 "$pid" ) >/dev/null 2>&1 &
+    watch=$!
+    wait "$pid" || rc=$?
+    kill "$watch" 2>/dev/null || true
+    wait "$watch" 2>/dev/null || true   # reaped quietly: no "Terminated" line
+    return "$rc"
+}
+
+# open_pipe <out-file> <payload> <command...>: run the command with stdin from a
+# FIFO that delivers <payload> and then stays open, without EOF, for 8 s.
+# stdout goes to <out-file>; OP_SECS is set to the wall seconds taken. Killed
+# after 10 s (status 137), so a hook that waits for EOF fails instead of hanging.
+open_pipe() {
+    local out="$1" payload="$2" d w pid watch start rc=0
+    shift 2
+    d=$(mktemp -d)
+    mkfifo "$d/fifo"
+    ( printf '%s' "$payload"; sleep 8 ) > "$d/fifo" 2>/dev/null &
+    w=$!
+    start=$(date +%s)
+    "$@" < "$d/fifo" > "$out" 2>/dev/null &
+    pid=$!
+    ( sleep 10; kill -9 "$pid" ) >/dev/null 2>&1 &
+    watch=$!
+    wait "$pid" || rc=$?
+    OP_SECS=$(( $(date +%s) - start ))
+    kill "$watch" "$w" 2>/dev/null || true
+    wait "$watch" 2>/dev/null || true
+    wait "$w" 2>/dev/null || true
+    rm -rf "$d"
+    return "$rc"
+}
+
+# A 200 KB prompt payload carrying session id <id>: big_payload <id>
+big_payload() {
+    printf '{"session_id":"%s","prompt":"' "$1"
+    head -c 200000 /dev/zero | tr '\0' 'x'
+    printf '"}'
+}
+
 echo "Testing: hooks/session-start.sh"
 echo "================================"
 
@@ -53,7 +122,7 @@ if [ ! -x "$HOOK_SCRIPT" ]; then
 fi
 echo "PASS: Script is executable"
 
-PARTS="state core codex routing1 routing2 routing3 routing4"
+PARTS="state tasks core codex routing1 routing2 routing3 routing4"
 ROUTING_REGISTERED=4
 PART_DIR=$(mktemp -d)
 trap 'rm -f "$TMPFILE"; rm -rf "$NOCLI_HOME" "$PROJ_DIR" "$PART_DIR"' EXIT
@@ -76,8 +145,10 @@ echo "PASS: hooks/hooks.json registers exactly the session-start parts: $PARTS"
 # Test 2: every part, run from the repo root, exits 0, is plain text, and stays
 # under Claude Code's per-hook cap (~10,000 characters; above it the output is
 # replaced by a short preview). wc -c counts bytes, which is >= characters.
+# The tasks part reads stdin, so stdin is /dev/null here (an inherited pipe
+# that never closes would stall it); with no ledger it prints nothing.
 for part in $PARTS; do
-    ( cd "$PLUGIN_DIR" && bash "$HOOK_SCRIPT" "$part" > "$PART_DIR/$part" 2>/dev/null ) || {
+    ( cd "$PLUGIN_DIR" && bash "$HOOK_SCRIPT" "$part" < /dev/null > "$PART_DIR/$part" 2>/dev/null ) || {
         echo "FAIL: part '$part' exited non-zero"
         exit 1
     }
@@ -180,7 +251,7 @@ echo "PASS: routing parts reproduce using-propel/SKILL.md losslessly in $M of $R
     mkdir -p .propel
     printf '{\n  "schema": 1,\n  "propel_version": "9.8.7",\n  "files": {}\n}\n' > .propel/manifest.json
     for part in $PARTS; do
-        OUT=$(bash "$HOOK_SCRIPT" "$part" 2>/dev/null) || { echo "FAIL: exit non-zero with manifest"; exit 1; }
+        OUT=$(bash "$HOOK_SCRIPT" "$part" < /dev/null 2>/dev/null) || { echo "FAIL: exit non-zero with manifest"; exit 1; }
         [ -n "$OUT" ] || continue
         case "$(printf '%s\n' "$OUT" | head -1)" in
             *"[propel:session-start $part] Propel 9.8.7 "*) ;;
@@ -248,6 +319,195 @@ done
 echo "PASS: unknown session-start parts print nothing and exit 0"
 
 echo ""
+echo "Testing: session-start tasks part"
+echo "================================"
+TQ_SCRIPT="$PLUGIN_DIR/scripts/task-queue.sh"
+tq() { bash "$TQ_SCRIPT" "$@" < /dev/null 2>/dev/null; }
+TASKS_DIR=$(mktemp -d)
+TASKS_NOPY=$(make_nopy_bin)
+# hook_tasks <env-file or "">: run the tasks part in the cwd with the caller's
+# stdin, with python3 on PATH (TQ_RUN=py) or under env -i with none (nopy).
+hook_tasks() {
+    if [ "$TQ_RUN" = nopy ]; then
+        env -i PATH="$TASKS_NOPY" ${1:+CLAUDE_ENV_FILE="$1"} "$TASKS_NOPY/bash" "$HOOK_SCRIPT" tasks 2>/dev/null
+    else
+        env ${1:+CLAUDE_ENV_FILE="$1"} bash "$HOOK_SCRIPT" tasks 2>/dev/null
+    fi
+}
+(
+    cd "$TASKS_DIR"
+    if [ -e "$TASKS_NOPY/python3" ]; then echo "FAIL: test setup — python3 leaked into the no-python3 PATH"; exit 1; fi
+    S2_JSON='{"session_id":"S2","transcript_path":"/tmp/t.jsonl","cwd":"/tmp","hook_event_name":"SessionStart","source":"startup"}'
+
+    # Ledgers, built once and read by both runs below.
+    mkdir -p main/.propel noledger/.propel closed/.propel many/.propel long/.propel
+    ID1=$(cd main && tq start --session S1 --kind impl --title "implement the vq loss")
+    [ -n "$ID1" ] || { echo "FAIL: test setup — task-queue.sh start printed no id"; exit 1; }
+    ID_CLOSED=$(cd closed && tq start --session S1 --kind impl --title "closed task")
+    (cd closed && tq abandon "$ID_CLOSED") || { echo "FAIL: test setup — task-queue.sh abandon failed"; exit 1; }
+    for i in $(seq 1 25); do (cd many && tq start --session S1 --kind other --title "task number $i" >/dev/null); done
+    mkdir -p many21/.propel
+    for i in $(seq 1 21); do (cd many21 && tq start --session S1 --kind other --title "task number $i" >/dev/null); done
+    # Titles and progress made of '|' are escaped to '\|' in the table, so 20
+    # rows of them would pass the 8,500-character budget.
+    PIPES=$(head -c 200 /dev/zero | tr '\0' '|')
+    for i in $(seq 1 25); do
+        (cd long && tq start --session S1 --kind other --title "$i$PIPES" --progress "$PIPES" >/dev/null)
+    done
+
+    for TQ_RUN in py nopy; do
+        E="$TASKS_DIR/env-$TQ_RUN"
+
+        # (a) another session sees S1's task, not as its own; the part opens
+        # with its header; PROPEL_SESSION=S2 is exported once over two runs.
+        for run in 1 2; do
+            RC=0
+            OUT=$(cd main && printf '%s' "$S2_JSON" | hook_tasks "$E-a") || RC=$?
+            [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC (run $run)"; exit 1; }
+        done
+        case "$OUT" in
+            "[propel:session-start tasks] Propel "*) ;;
+            *) echo "FAIL [$TQ_RUN]: tasks part does not open with its header line"; exit 1 ;;
+        esac
+        for needle in "## Open tasks" ".propel/tasks/" "bash .claude/scripts/task-queue.sh" \
+                      "task-queue.sh carry ID" "task-queue.sh abandon ID" "check-progress" \
+                      "| ID | Task | Kind | Status | Progress | Started | Session |" \
+                      "| $ID1 | implement the vq loss | impl | running |" \
+                      "Statuses lost, unknown and blocked need a decision."; do
+            case "$OUT" in *"$needle"*) ;; *) echo "FAIL [$TQ_RUN]: tasks part missing '$needle'"; exit 1 ;; esac
+        done
+        case "$OUT" in *"S1 (this)"*) echo "FAIL [$TQ_RUN]: S1's task is marked '(this)' in session S2"; exit 1 ;; esac
+        [ "$(cat "$E-a" 2>/dev/null)" = "export PROPEL_SESSION=S2" ] \
+            || { echo "FAIL [$TQ_RUN]: env file should hold exactly one 'export PROPEL_SESSION=S2'"; exit 1; }
+        # An env file whose last line has no newline gets a line of its own.
+        printf 'export OTHER=1' > "$E-a2"
+        (cd main && printf '%s' "$S2_JSON" | hook_tasks "$E-a2" >/dev/null) || { echo "FAIL [$TQ_RUN]: tasks part exited non-zero"; exit 1; }
+        [ "$(cat "$E-a2")" = "export OTHER=1
+export PROPEL_SESSION=S2" ] || { echo "FAIL [$TQ_RUN]: export glued onto an unterminated env-file line"; exit 1; }
+
+        # (b) the owning session sees its row marked "(this)".
+        OUT=$(cd main && printf '{"session_id":"S1","source":"resume"}' | hook_tasks "") \
+            || { echo "FAIL [$TQ_RUN]: tasks part exited non-zero as S1"; exit 1; }
+        ROW=$(printf '%s\n' "$OUT" | grep -F "| $ID1 |" || true)
+        case "$ROW" in *"| S1 (this) |"*) ;; *) echo "FAIL [$TQ_RUN]: the owning session's row is not marked '(this)': $ROW"; exit 1 ;; esac
+
+        # (c) no stdin (empty or closed): exit 0, table still shown, nothing exported.
+        RC=0
+        OUT=$(cd main && hook_tasks "$E-c" < /dev/null) || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC with stdin from /dev/null"; exit 1; }
+        [ ! -e "$E-c" ] || { echo "FAIL [$TQ_RUN]: tasks part exported a session with no stdin"; exit 1; }
+        case "$OUT" in *"| $ID1 |"*) ;; *) echo "FAIL [$TQ_RUN]: tasks part lost the table with no stdin"; exit 1 ;; esac
+        case "$OUT" in *" (this) |"*) echo "FAIL [$TQ_RUN]: a row is marked '(this)' with no session"; exit 1 ;; esac
+        RC=0
+        (cd main && closed_stdin hook_tasks "$E-c") || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC with stdin closed (137 = hung)"; exit 1; }
+        [ ! -e "$E-c" ] || { echo "FAIL [$TQ_RUN]: tasks part exported a session with stdin closed"; exit 1; }
+
+        # (d) no ledger, or no open task: no output at all — the session id is
+        # still exported.
+        for dir in noledger closed; do
+            RC=0
+            OUT=$(cd "$dir" && printf '%s' "$S2_JSON" | hook_tasks "$E-d-$dir") || RC=$?
+            [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC ($dir)"; exit 1; }
+            [ -z "$OUT" ] || { echo "FAIL [$TQ_RUN]: tasks part printed output with no open task ($dir)"; exit 1; }
+            [ "$(cat "$E-d-$dir" 2>/dev/null)" = "export PROPEL_SESSION=S2" ] \
+                || { echo "FAIL [$TQ_RUN]: PROPEL_SESSION not exported when there are no open tasks ($dir)"; exit 1; }
+        done
+
+        # (e) 25 open tasks: 20 rows and a "5 more" line; with rows too long
+        # for the budget, fewer rows, the "more" line counting the rest, and
+        # the whole part within 8,500 characters either way.
+        OUT=$(cd many && printf '{"session_id":"S1"}' | hook_tasks "") || { echo "FAIL [$TQ_RUN]: exit non-zero with 25 tasks"; exit 1; }
+        ROWS=$(printf '%s\n' "$OUT" | grep -c '^| t[0-9]' || true)
+        [ "$ROWS" -eq 20 ] || { echo "FAIL [$TQ_RUN]: 25 open tasks should show 20 rows, showed $ROWS"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | tail -n 1)" = "(5 more open tasks — run check-progress)" ] \
+            || { echo "FAIL [$TQ_RUN]: 25 open tasks should end with '(5 more open tasks — run check-progress)'"; exit 1; }
+        OUT=$(cd long && printf '{"session_id":"S1"}' | hook_tasks "") || { echo "FAIL [$TQ_RUN]: exit non-zero with long rows"; exit 1; }
+        SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
+        [ "$SIZE" -le 8500 ] || { echo "FAIL [$TQ_RUN]: tasks part is $SIZE bytes with long rows (max 8,500)"; exit 1; }
+        ROWS=$(printf '%s\n' "$OUT" | grep -c '^| t[0-9]' || true)
+        [ "$ROWS" -lt 20 ] || { echo "FAIL [$TQ_RUN]: long rows should have been dropped to fit 8,500 characters"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | tail -n 1)" = "($((25 - ROWS)) more open tasks — run check-progress)" ] \
+            || { echo "FAIL [$TQ_RUN]: long rows should end with '($((25 - ROWS)) more open tasks — run check-progress)'"; exit 1; }
+        for needle in "| ID | Task | Kind | Status | Progress | Started | Session |" "|---|---|---|---|---|---|---|"; do
+            case "$OUT" in *"$needle"*) ;; *) echo "FAIL [$TQ_RUN]: capped table lost its header line '$needle'"; exit 1 ;; esac
+        done
+
+        # 21 open tasks: one omitted, in the singular.
+        OUT=$(cd many21 && printf '{"session_id":"S1"}' | hook_tasks "") || { echo "FAIL [$TQ_RUN]: exit non-zero with 21 tasks"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | tail -n 1)" = "(1 more open task — run check-progress)" ] \
+            || { echo "FAIL [$TQ_RUN]: 21 open tasks should end with '(1 more open task — run check-progress)'"; exit 1; }
+
+        # (h) a stdin pipe that stays open without EOF: the part finishes in
+        # under 3 s and still uses the session id that arrived.
+        RC=0
+        (cd main && open_pipe "$E-h.out" '{"session_id":"OP1","source":"startup"}' hook_tasks "$E-h"
+         echo "$OP_SECS" > "$E-h.secs") || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC on an open stdin pipe (137 = hung)"; exit 1; }
+        [ "$(cat "$E-h.secs")" -lt 3 ] || { echo "FAIL [$TQ_RUN]: tasks part took $(cat "$E-h.secs") s on an open stdin pipe"; exit 1; }
+        [ "$(cat "$E-h" 2>/dev/null)" = "export PROPEL_SESSION=OP1" ] \
+            || { echo "FAIL [$TQ_RUN]: session id lost on an open stdin pipe"; exit 1; }
+        grep -qF "| $ID1 |" "$E-h.out" || { echo "FAIL [$TQ_RUN]: table lost on an open stdin pipe"; exit 1; }
+
+        # (i) a 200 KB payload: the writer is drained (no EPIPE / SIGPIPE),
+        # and the session id from the first 4,096 bytes is used.
+        RC=0
+        (cd main && big_payload BIG1 | hook_tasks "$E-i" > /dev/null; echo "${PIPESTATUS[*]}" > "$E-i.ps") || RC=$?
+        [ "$(cat "$E-i.ps")" = "0 0" ] || { echo "FAIL [$TQ_RUN]: 200 KB payload: writer/hook statuses $(cat "$E-i.ps") (writer must not get EPIPE)"; exit 1; }
+        [ "$(cat "$E-i" 2>/dev/null)" = "export PROPEL_SESSION=BIG1" ] \
+            || { echo "FAIL [$TQ_RUN]: session id lost with a 200 KB payload"; exit 1; }
+
+        # (j) sessions A, B, A against one env file: A is what sourcing yields.
+        for sid in SA SB SA; do
+            (cd noledger && printf '{"session_id":"%s"}' "$sid" | hook_tasks "$E-j" >/dev/null) \
+                || { echo "FAIL [$TQ_RUN]: tasks part exited non-zero ($sid)"; exit 1; }
+        done
+        [ "$(unset PROPEL_SESSION; . "$E-j"; printf '%s' "${PROPEL_SESSION:-}")" = "SA" ] \
+            || { echo "FAIL [$TQ_RUN]: after sessions A, B, A the env file does not leave PROPEL_SESSION=A"; exit 1; }
+
+        # (f) hostile session ids: nothing executes, and what is exported is a
+        # bare [A-Za-z0-9._-] token without leading dots — or nothing at all.
+        for raw in '../evil' 'a$(touch PWNED)b' 'x\"y' '..' '`touch PWNED`'; do
+            rm -f "$E-f"
+            RC=0
+            (cd main && printf '{"session_id":"%s","source":"startup"}' "$raw" | hook_tasks "$E-f" >/dev/null) || RC=$?
+            [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC for session id $raw"; exit 1; }
+            if [ "$raw" = ".." ]; then
+                [ ! -e "$E-f" ] || { echo "FAIL [$TQ_RUN]: session id '..' should export nothing"; exit 1; }
+                continue
+            fi
+            [ "$(grep -c '' "$E-f" 2>/dev/null || true)" = 1 ] || { echo "FAIL [$TQ_RUN]: session id $raw should export one line"; exit 1; }
+            VAL=$(sed -n 's/^export PROPEL_SESSION=//p' "$E-f")
+            case "$VAL" in
+                ''|.*|*[!A-Za-z0-9._-]*) echo "FAIL [$TQ_RUN]: session id $raw exported as '$VAL'"; exit 1 ;;
+            esac
+        done
+        if [ -n "$(find "$TASKS_DIR" -name PWNED 2>/dev/null)" ]; then
+            echo "FAIL [$TQ_RUN]: a hostile session id was executed"; exit 1
+        fi
+    done
+
+    # The exported id is the ledger's file stem: task-queue.sh, given the same
+    # raw id, names its file exactly what the hook exports.
+    LONGID=$(head -c 70 /dev/zero | tr '\0' 'L')
+    n=0
+    for raw in '../evil' 'a$(touch PWNED)b' '...lead' "$LONGID" '550e8400-e29b-41d4-a716-446655440000'; do
+        n=$((n + 1))
+        mkdir -p "stem$n/.propel"
+        (cd "stem$n" && tq start --session "$raw" --kind other --title t >/dev/null)
+        STEM=$(ls "stem$n/.propel/tasks" | sed -n 's/\.jsonl$//p')
+        (cd "stem$n" && printf '{"session_id":"%s"}' "$raw" | TQ_RUN=py hook_tasks "$TASKS_DIR/env-stem$n" >/dev/null)
+        [ -n "$STEM" ] && [ "$(cat "$TASKS_DIR/env-stem$n")" = "export PROPEL_SESSION=$STEM" ] \
+            || { echo "FAIL: session id $raw exported as '$(cat "$TASKS_DIR/env-stem$n" 2>/dev/null)', ledger file stem is '$STEM'"; exit 1; }
+    done
+    if [ -n "$(find "$TASKS_DIR" -name PWNED 2>/dev/null)" ]; then
+        echo "FAIL: a hostile session id was executed"; exit 1
+    fi
+) || { rm -rf "$TASKS_DIR" "$TASKS_NOPY"; exit 1; }
+rm -rf "$TASKS_DIR" "$TASKS_NOPY"
+echo "PASS: tasks part lists open tasks (20 rows, 8,500 characters max), is silent without any, and exports a sanitized PROPEL_SESSION once — with and without python3"
+
+echo ""
 echo "Testing: hooks/working-memory.sh"
 echo "================================"
 (
@@ -288,14 +548,7 @@ echo "PASS: working-memory is silent when empty, prints its sections otherwise, 
 echo ""
 echo "Testing: every hook with no python3 on PATH"
 echo "================================"
-NOPY_BIN=$(mktemp -d)
-for tool in bash sh cat date ls find head tail sort grep sed dirname basename tr wc \
-            stat mkdir git awk cut printf env rm; do
-    TOOL_PATH=$(command -v "$tool" 2>/dev/null || true)
-    case "$TOOL_PATH" in
-        /*) ln -s "$TOOL_PATH" "$NOPY_BIN/$tool" ;;
-    esac
-done
+NOPY_BIN=$(make_nopy_bin)
 if [ -e "$NOPY_BIN/python3" ]; then
     echo "FAIL: test setup — python3 leaked into the no-python3 PATH"
     rm -rf "$NOPY_BIN"; exit 1
@@ -369,7 +622,8 @@ echo ""
 echo "Testing: hooks/route.sh"
 echo "================================"
 
-ROUTE_OUT=$(bash "$PLUGIN_DIR/hooks/route.sh") || {
+# route.sh drains stdin (the prompt payload), so it gets /dev/null here.
+ROUTE_OUT=$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null) || {
     echo "FAIL: route.sh exited with error"
     exit 1
 }
@@ -380,6 +634,116 @@ for needle in "[propel:routing]" "mode:" "codex:" "Gate 0"; do
     esac
 done
 echo "PASS: route.sh emits the routing card"
+
+# Without python3, route.sh reads mode and Codex state with grep — the same
+# answers as the python path — and honours CLAUDE_PROJECT_DIR.
+ROUTE_DIR=$(mktemp -d)
+ROUTE_NOPY=$(make_nopy_bin)
+route_nopy() { env -i PATH="$ROUTE_NOPY" "$@" "$ROUTE_NOPY/bash" "$PLUGIN_DIR/hooks/route.sh" 2>/dev/null; }
+route_py() { bash "$PLUGIN_DIR/hooks/route.sh" 2>/dev/null; }
+(
+    cd "$ROUTE_DIR"
+    if [ -e "$ROUTE_NOPY/python3" ]; then echo "FAIL: test setup — python3 leaked into the no-python3 PATH"; exit 1; fi
+    mkdir -p .propel sub
+    echo '{"mode": "debugger", "selected_by": "auto", "previous_mode": "engineer"}' > .propel/mode.json
+    echo '{"enabled": false}' > .propel/codex.json
+    RC=0
+    OUT=$(route_nopy < /dev/null) || RC=$?
+    [ "$RC" -eq 0 ] || { echo "FAIL: route.sh exited $RC without python3"; exit 1; }
+    case "$OUT" in *"mode: debugger (selected_by: auto) — "*) ;; *) echo "FAIL: route.sh misread mode.json without python3"; exit 1 ;; esac
+    case "$OUT" in *"codex: OFF — "*) ;; *) echo "FAIL: route.sh missed a disabled Codex without python3"; exit 1 ;; esac
+    if command -v python3 >/dev/null 2>&1; then
+        [ "$OUT" = "$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null)" ] \
+            || { echo "FAIL: route.sh's python and grep paths disagree (Codex disabled)"; exit 1; }
+    fi
+    OUT=$(cd sub && route_nopy CLAUDE_PROJECT_DIR="$ROUTE_DIR" < /dev/null) || { echo "FAIL: route.sh exited non-zero from a subdirectory"; exit 1; }
+    case "$OUT" in *"mode: debugger (selected_by: auto) — "*) ;; *) echo "FAIL: route.sh ignored CLAUDE_PROJECT_DIR"; exit 1 ;; esac
+    echo '{"enabled": true, "available": false}' > .propel/codex.json
+    OUT=$(route_nopy < /dev/null) || { echo "FAIL: route.sh exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"codex: enabled but CLI unavailable — "*) ;; *) echo "FAIL: route.sh missed an unavailable Codex CLI without python3"; exit 1 ;; esac
+    if command -v python3 >/dev/null 2>&1; then
+        [ "$OUT" = "$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null)" ] \
+            || { echo "FAIL: route.sh's python and grep paths disagree (CLI unavailable)"; exit 1; }
+    fi
+    # A value on its own line is still seen by both grep fallbacks.
+    printf '{"enabled":\n  false}\n' > .propel/codex.json
+    OUT=$(route_nopy < /dev/null) || { echo "FAIL: route.sh exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"codex: OFF — "*) ;; *) echo "FAIL: route.sh missed a split-line \"enabled\": false without python3"; exit 1 ;; esac
+    OUT=$(env -i PATH="$ROUTE_NOPY" "$ROUTE_NOPY/bash" "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"enabled: false, available: null"*) ;; *) echo "FAIL: state missed a split-line \"enabled\": false without python3"; exit 1 ;; esac
+    printf '{"enabled": true,\n "available":\n false}\n' > .propel/codex.json
+    OUT=$(route_nopy < /dev/null) || { echo "FAIL: route.sh exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"codex: enabled but CLI unavailable — "*) ;; *) echo "FAIL: route.sh missed a split-line \"available\": false without python3"; exit 1 ;; esac
+    OUT=$(env -i PATH="$ROUTE_NOPY" "$ROUTE_NOPY/bash" "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"enabled: true, available: false"*) ;; *) echo "FAIL: state missed a split-line \"available\": false without python3"; exit 1 ;; esac
+    # Only JSON false turns Codex off: null leaves it on, with and without python3.
+    echo '{"enabled": null}' > .propel/codex.json
+    OUT=$(route_nopy < /dev/null) || { echo "FAIL: route.sh exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"codex: on (automatic at every gate)"*) ;; *) echo "FAIL: route.sh treats \"enabled\": null as off without python3"; exit 1 ;; esac
+    if command -v python3 >/dev/null 2>&1; then
+        OUT=$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null) || { echo "FAIL: route.sh exited non-zero"; exit 1; }
+        case "$OUT" in *"codex: on (automatic at every gate)"*) ;; *) echo "FAIL: route.sh treats \"enabled\": null as off with python3"; exit 1 ;; esac
+    fi
+) || { rm -rf "$ROUTE_DIR" "$ROUTE_NOPY"; exit 1; }
+echo "PASS: route.sh reads mode and Codex state without python3, and honours CLAUDE_PROJECT_DIR"
+
+# The tasks line: one line after `codex:`, only when tasks are open; nothing
+# else in the card changes.
+(
+    cd "$ROUTE_DIR"
+    rm -f .propel/codex.json
+    NO_LEDGER=$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null) || { echo "FAIL: route.sh exited non-zero"; exit 1; }
+    case "$NO_LEDGER" in *"tasks:"*) echo "FAIL: route.sh printed a tasks line with no ledger"; exit 1 ;; esac
+    T1=$(tq start --session S1 --kind impl --title "this session")
+    T2=$(tq start --session S0 --kind impl --title "earlier one")
+    T3=$(tq start --session S0 --kind impl --title "earlier two")
+    [ -n "$T1" ] && [ -n "$T2" ] && [ -n "$T3" ] || { echo "FAIL: test setup — task-queue.sh start printed no id"; exit 1; }
+    LINE_S1="tasks: 1 open in this session, 2 from earlier sessions — run check-progress"
+    for runner in py nopy; do
+        R="route_$runner"
+        OUT=$(printf '{"session_id":"S1","prompt":"go on"}' | $R) || { echo "FAIL [$runner]: route.sh exited non-zero with a session"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | sed -n 4p)" = "$LINE_S1" ] \
+            || { echo "FAIL [$runner]: route.sh line 4 should be '$LINE_S1'"; exit 1; }
+        case "$(printf '%s\n' "$OUT" | sed -n 3p)" in "codex: "*) ;; *) echo "FAIL [$runner]: the tasks line is not right after codex:"; exit 1 ;; esac
+        [ "$(printf '%s\n' "$OUT" | grep -v '^tasks: ')" = "$NO_LEDGER" ] \
+            || { echo "FAIL [$runner]: route.sh changed lines other than adding the tasks line"; exit 1; }
+        # A session_id inside the (escaped) prompt text is not the session.
+        OUT=$(printf '{"prompt":"say \\"session_id\\": \\"S1\\"","session_id":"S0"}' | $R) || { echo "FAIL [$runner]: route.sh exited non-zero"; exit 1; }
+        case "$OUT" in *"tasks: 2 open in this session, 1 from earlier sessions — run check-progress"*) ;;
+            *) echo "FAIL [$runner]: route.sh took the session id from inside the prompt"; exit 1 ;; esac
+        RC=0
+        OUT=$($R < /dev/null) || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$runner]: route.sh exited $RC with no stdin"; exit 1; }
+        case "$OUT" in *"tasks: 3 open — run check-progress"*) ;; *) echo "FAIL [$runner]: route.sh with no session should count 3 open"; exit 1 ;; esac
+        # A stdin pipe that stays open without EOF: done in under 3 s, and the
+        # session id that arrived is used.
+        RC=0
+        open_pipe "$ROUTE_DIR/op.out" '{"session_id":"S1","prompt":"go on"}' "$R" || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$runner]: route.sh exited $RC on an open stdin pipe (137 = hung)"; exit 1; }
+        [ "$OP_SECS" -lt 3 ] || { echo "FAIL [$runner]: route.sh took $OP_SECS s on an open stdin pipe"; exit 1; }
+        [ "$(sed -n 4p "$ROUTE_DIR/op.out")" = "$LINE_S1" ] || { echo "FAIL [$runner]: route.sh lost the session id on an open stdin pipe"; exit 1; }
+        # A 200 KB payload is drained: the writer never gets EPIPE.
+        big_payload S1 | "$R" > "$ROUTE_DIR/big.out"; PS="${PIPESTATUS[*]}"
+        [ "$PS" = "0 0" ] || { echo "FAIL [$runner]: 200 KB payload: writer/hook statuses $PS (writer must not get EPIPE)"; exit 1; }
+        [ "$(sed -n 4p "$ROUTE_DIR/big.out")" = "$LINE_S1" ] || { echo "FAIL [$runner]: route.sh lost the session id in a 200 KB payload"; exit 1; }
+        RC=0
+        closed_stdin "$R" || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$runner]: route.sh exited $RC with stdin closed (137 = hung)"; exit 1; }
+        RC=0
+        printf '{"session_id":"a$(touch PWNED)b`touch PWNED`"}' | $R >/dev/null || RC=$?
+        [ "$RC" -eq 0 ] && [ ! -e PWNED ] || { echo "FAIL [$runner]: route.sh mishandled a hostile session id"; exit 1; }
+    done
+    tq abandon "$T1" && tq abandon "$T2" && tq abandon "$T3" || { echo "FAIL: test setup — task-queue.sh abandon failed"; exit 1; }
+    for runner in py nopy; do
+        R="route_$runner"
+        for stdin in '{"session_id":"S1"}' ''; do
+            OUT=$(printf '%s' "$stdin" | $R) || { echo "FAIL [$runner]: route.sh exited non-zero with no open task"; exit 1; }
+            case "$OUT" in *"tasks:"*) echo "FAIL [$runner]: route.sh printed a tasks line with no open task"; exit 1 ;; esac
+        done
+    done
+) || { rm -rf "$ROUTE_DIR" "$ROUTE_NOPY"; exit 1; }
+rm -rf "$ROUTE_DIR" "$ROUTE_NOPY"
+echo "PASS: route.sh adds one tasks line after codex: when tasks are open, and none otherwise"
 
 echo ""
 echo "Testing: hooks/auditor-dispatch.sh"
@@ -712,6 +1076,13 @@ echo "================================"
   rm -rf "$D"
   echo "PASS: Codex scripts degrade with HOME unset"
 ) || exit 1
+
+echo ""
+echo "Testing: scripts/codex-consult.sh without python3 (tests/test_codex_consult.sh)"
+echo "================================"
+"${BASH:-bash}" "$PLUGIN_DIR/tests/test_codex_consult.sh" < /dev/null > /dev/null 2>&1 || {
+    echo "FAIL: tests/test_codex_consult.sh — run it directly for details"; exit 1; }
+echo "PASS: codex-consult.sh works without python3 and never stalls on a large brief"
 
 echo ""
 echo "================================"

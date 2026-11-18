@@ -44,19 +44,65 @@ believe it points at."*
    writable? Is there disk space? Are the GPUs visible and free? Does the config
    file parse? Does the entry point import? Thirty seconds here beats a failure
    at minute forty.
-3. **Launch detached.** `screen -dmS <name> bash -c '<cmd> 2>&1 | tee <log>'`,
-   or tmux if screen is unavailable. Record the session name and the log path —
-   they go in every report.
+3. **Record, then launch, in one Bash call.** `<name>` is
+   `propel-train-<YYYYmmdd-HHMMSS>` (letters, digits, `-`, `_` only), written out
+   literally. `<cmd>` is the approved command, verbatim.
+```bash
+R=$PWD; while [ "$R" != / ] && [ ! -f "$R/.claude/scripts/task-queue.sh" ]; do R=$(dirname "$R"); done; [ -f "$R/.claude/scripts/task-queue.sh" ] && cd "$R"
+[ ! -e .propel/runs/<name>.sh ] || { echo "<name> is taken, pick a new name"; exit 1; }
+mkdir -p .propel/runs && cat > .propel/runs/<name>.sh <<'PROPEL_CMD'
+<cmd>
+PROPEL_CMD
+ID=$(bash .claude/scripts/task-queue.sh start --kind train --title "<short title>" \
+       --session <session from the brief> --screen <name> \
+       --log .propel/runs/<name>.log --exit-file .propel/runs/<name>.exit --cmd '<cmd>') \
+  || ID="not tracked in the task ledger"
+screen -dmS <name> bash -c 'set -o pipefail; bash -o pipefail .propel/runs/<name>.sh 2>&1 | tee .propel/runs/<name>.log; echo $? > .propel/runs/<name>.exit' || echo "launch failed"
+echo "task: $ID"
+```
+   If screen is unavailable, replace the `screen` line with this one. Your shell
+   expands the outer double quotes, hence `\$?`:
+   `tmux new-session -d -s <name> "bash -c 'set -o pipefail; bash -o pipefail .propel/runs/<name>.sh 2>&1 | tee .propel/runs/<name>.log; echo \$? > .propel/runs/<name>.exit'" || echo "launch failed"`.
+   - The command always goes in `.propel/runs/<name>.sh`, through the quoted
+     heredoc, so no quoting rule depends on what it contains. The closing
+     `PROPEL_CMD` must start at column 0. It runs from the project root, so a
+     `cd` inside it is fine. `pipefail` makes the exit code the command's, not
+     `tee`'s, so a crash is not masked. `bash -o pipefail` extends that to
+     pipelines inside the command file.
+   - `--cmd` rule: pass `--cmd '<cmd>'` only when the command is one line with
+     no single quote. Otherwise replace it with
+     `--note "command: .propel/runs/<name>.sh"`.
+   - `start` runs first, while the exit file cannot exist yet. A run that dies
+     in milliseconds would otherwise write its `.exit` before `start` checks.
+     `start` never gates the launch. Pass `--session` the value your brief gives.
+     If it gives none, drop the flag and `$PROPEL_SESSION` is used if set. If
+     `start` fails for any reason, the block prints "not tracked in the task
+     ledger" and launches anyway.
+   - If it prints "launch failed", the task derives to lost. Close it:
+     `bash .claude/scripts/task-queue.sh done <id> --status failed --note "launch failed"`.
+     Run every ledger command from the project root, with the walk-up line that starts the block.
+   - The session name, log path and task id go in every report.
 4. **Watch.** Poll the log at widening intervals. Do not spin. Look for: the
    first loss value (is it the right order of magnitude?), NaN/Inf, the failure
    signatures above, throughput collapse, and silence — a process that has
-   stopped writing is as informative as one that crashed.
-5. **Fix or escalate**, per the boundary above. After a runtime fix, relaunch and
-   say what you changed and why.
+   stopped writing is as informative as one that crashed. The run has ended
+   when `.propel/runs/<name>.exit` exists (first line: the exit code). The
+   session closes with it, so read the log, not the session.
+5. **Fix or escalate**, per the boundary above. After a runtime fix, relaunch as a
+   **new** run: a new `<name>` and the step 3 block, with `--ref <old id>` added to `start`.
+   Then run
+   `bash .claude/scripts/task-queue.sh done <old id> --status failed --note "<error signature>; relaunched as <new id>"`,
+   and say what you changed and why. Never reuse a name or a task id, because the
+   old `.exit` would be read as the new run's result.
 6. **Three strikes.** If the same failure recurs three times, stop fixing. Report
    it as a hard blocker with everything you tried. Three failures of one approach
    means the hypothesis about the cause is wrong, and the fourth variation will
    not find it.
+7. **Close the ledger entry before you return**, with
+   `bash .claude/scripts/task-queue.sh done <id> --status ...`. STATE `completed`
+   → `done`. `crashed` → `failed`. `blocked` means the run has ended, so it is
+   also `failed`, with the escalation in `--note`. `running` → record nothing:
+   the ledger reads it from the session and the exit file.
 
 ## What You Return
 
@@ -65,7 +111,8 @@ TRAINING STATUS — <run name>
 
 COMMAND      <exact command as launched>
 SESSION      screen -r <name>
-LOG          <path>
+LOG          .propel/runs/<name>.log
+TASK         <task id> | not tracked in the task ledger
 STATE        running | completed | crashed | blocked
 
 PRE-FLIGHT

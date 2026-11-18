@@ -15,6 +15,11 @@
 #
 #   state     Codex state, mode (+ policy), investigations, project profile,
 #             empty repo, registry entries                (default, no argument)
+#   tasks     open tasks from the task ledger (.propel/tasks/, via
+#             scripts/task-queue.sh), at most 20 rows; prints nothing when there
+#             are none. Also exports PROPEL_SESSION (the session_id on stdin)
+#             through CLAUDE_ENV_FILE, so task-queue.sh in the Bash tool knows
+#             which session it is in
 #   core      core/CORE.md
 #   codex     core/CODEX.md
 #   routing1..routing4
@@ -48,6 +53,8 @@ MODE_MAX=2000       # .propel/mode.json above this is cut, with a "(truncated)" 
 LIST_MAX=1500       # max characters for each listing (investigations, registry)
 POLICY_MAX=9500     # CORE.md / CODEX.md above this are truncated
 TRUNC_KEEP=9000     # characters kept when they are
+TASKS_MAX=8500      # max characters for the tasks part
+TASKS_ROWS=20       # max open-task rows in the tasks part
 
 HAVE_PYTHON=false
 if command -v python3 >/dev/null 2>&1; then
@@ -183,16 +190,19 @@ print('enabled: %s, available: %s' % (
 " 2>/dev/null || echo "")
     fi
     if [ -z "$CODEX_STATE" ]; then
+      # Matched with all whitespace removed, so a value on its own line
+      # ({"enabled":\nfalse}) is still seen.
+      CODEX_FLAT=$(tr -d '[:space:]' < "$CODEX_CONFIG" 2>/dev/null)
       ENABLED="true"
-      if grep -Eq '"enabled"[[:space:]]*:[[:space:]]*false([^a-zA-Z0-9_]|$)' "$CODEX_CONFIG" 2>/dev/null; then
-        ENABLED="false"
-      fi
+      # Globs, not grep <<<: a here-string is a temp file on bash 3.2.
+      case "$CODEX_FLAT" in
+        *'"enabled":false'[!a-zA-Z0-9_]*|*'"enabled":false') ENABLED="false" ;;
+      esac
       AVAILABLE="null"
-      if grep -q '"available"[[:space:]]*:[[:space:]]*false' "$CODEX_CONFIG" 2>/dev/null; then
-        AVAILABLE="false"
-      elif grep -q '"available"[[:space:]]*:[[:space:]]*true' "$CODEX_CONFIG" 2>/dev/null; then
-        AVAILABLE="true"
-      fi
+      case "$CODEX_FLAT" in
+        *'"available":false'[!a-zA-Z0-9_]*|*'"available":false') AVAILABLE="false" ;;
+        *'"available":true'[!a-zA-Z0-9_]*|*'"available":true')   AVAILABLE="true" ;;
+      esac
       CODEX_STATE="enabled: ${ENABLED}, available: ${AVAILABLE}"
     fi
     echo "$CODEX_STATE"
@@ -322,8 +332,153 @@ print_state() {
   printf '%s\n' "$POST"
 }
 
+# ── Tasks part: open tasks from the task ledger ──
+# Session id from the hook's stdin JSON, sanitized exactly as
+# scripts/task-queue.sh sanitizes it, so the exported id equals the ledger's
+# file stem: [A-Za-z0-9._-], no leading dots, at most 64 characters. Empty after
+# sanitizing = no session.
+#
+# read_hook_input: at most 4,096 bytes of stdin into HOOK_INPUT, bounded in wall
+# time so a pipe that stays open without EOF cannot hang the session.
+# - A terminal is not read, nor a closed stdin (`true 3<&0` fails).
+# - Chunks end at each `"` (read -d '"'), each read waits at most 1 s, and the
+#   loop stops after 2 s. bash 3.2 drops a timed-out read's partial data, so
+#   ending chunks at quotes keeps every complete JSON string — session_id
+#   included — that arrived before the writer stalled.
+# - LC_ALL=C while reading, so -n and ${#} count bytes.
+# - Past 4,096 bytes the rest is drained by a background cat, killed after 1 s,
+#   so a writer that closes after its payload never gets EPIPE.
+# Normal payload + EOF: no waiting. Worst case: about 3-4 s extra (a 1 s read
+# timeout, a 2 s loop cap counted in whole SECONDS, and the 1 s drain window).
+# Accepted limit: a writer that resumes writing after the drain window can
+# still get EPIPE.
+read_hook_input() {
+  HOOK_INPUT=""
+  if [ -t 0 ] || ! { true 3<&0; } 2>/dev/null; then
+    return 0
+  fi
+  RH_LC_SET="${LC_ALL+1}"; RH_LC="${LC_ALL-}"
+  LC_ALL=C
+  RH_START=$SECONDS; RH_FULL=0
+  while :; do
+    RH_LEFT=$(( 4096 - ${#HOOK_INPUT} ))
+    if [ "$RH_LEFT" -le 0 ]; then RH_FULL=1; break; fi
+    [ $(( SECONDS - RH_START )) -lt 2 ] || break
+    RH_CHUNK=""
+    if IFS= read -r -t 1 -d '"' -n "$RH_LEFT" RH_CHUNK; then
+      if [ "${#RH_CHUNK}" -ge "$RH_LEFT" ]; then
+        HOOK_INPUT="$HOOK_INPUT$RH_CHUNK"; RH_FULL=1; break
+      fi
+      HOOK_INPUT="$HOOK_INPUT$RH_CHUNK\""
+    else
+      HOOK_INPUT="$HOOK_INPUT$RH_CHUNK"; break   # EOF (partial chunk kept) or timeout
+    fi
+  done
+  if [ -n "$RH_LC_SET" ]; then LC_ALL="$RH_LC"; else unset LC_ALL; fi
+  if [ "$RH_FULL" = 1 ]; then
+    exec 3<&0
+    cat <&3 >/dev/null 2>&1 &
+    RH_CAT=$!
+    exec 3<&-
+    ( sleep 1; kill "$RH_CAT" ) </dev/null >/dev/null 2>&1 &
+    RH_WD=$!
+    wait "$RH_CAT" 2>/dev/null
+    kill "$RH_WD" 2>/dev/null; wait "$RH_WD" 2>/dev/null
+  fi
+  return 0
+}
+
+read_session_id() {
+  SESSION_ID=""
+  read_hook_input
+  S=$(printf '%s' "$HOOK_INPUT" \
+    | LC_ALL=C grep -o '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' 2>/dev/null | head -1 \
+    | sed 's/^"session_id"[[:space:]]*:[[:space:]]*"//; s/"$//')
+  S=$(printf '%s' "$S" | LC_ALL=C tr -cd 'A-Za-z0-9._-')
+  while [ "${S:0:1}" = "." ]; do S="${S#.}"; done
+  SESSION_ID="${S:0:64}"
+}
+
+# Append `export PROPEL_SESSION=<id>` to CLAUDE_ENV_FILE (Claude Code sources it
+# before every Bash tool command) unless that exact line is already there —
+# SessionStart refires on resume, /clear and compaction. Best effort: a file
+# that is missing, unwritable or not a regular file is left alone.
+export_session() {
+  [ -n "$SESSION_ID" ] || return 0
+  ENV_FILE="${CLAUDE_ENV_FILE:-}"
+  [ -n "$ENV_FILE" ] || return 0
+  ENV_LINE="export PROPEL_SESSION=$SESSION_ID"
+  if [ -f "$ENV_FILE" ]; then
+    [ -w "$ENV_FILE" ] || return 0
+    # Skip only if the effective (last) PROPEL_SESSION line is already this
+    # one: after A, B, A the file must end with A.
+    LAST=$(grep '^export PROPEL_SESSION=' "$ENV_FILE" 2>/dev/null | tail -n 1)
+    if [ "$LAST" = "$ENV_LINE" ]; then
+      return 0
+    fi
+    # A last line without its newline would get this one glued onto it.
+    if [ -s "$ENV_FILE" ] && [ -n "$(tail -c 1 "$ENV_FILE" 2>/dev/null)" ]; then
+      ENV_LINE=$'\n'"$ENV_LINE"
+    fi
+  elif [ -e "$ENV_FILE" ] || [ ! -w "$(dirname "$ENV_FILE" 2>/dev/null)" ]; then
+    return 0
+  fi
+  { printf '%s\n' "$ENV_LINE" >> "$ENV_FILE"; } 2>/dev/null || true
+}
+
+# Its own function: bash 3.2 mis-parses quotes in a heredoc inside $(...).
+tasks_note() {
+  cat <<'EOF'
+Tasks recorded in the task ledger (.propel/tasks/), which is written only via `bash .claude/scripts/task-queue.sh`. Rows whose Session is not marked "(this)" or "(carried here)" are from earlier sessions and are NOT resumed automatically: show them to the user and ask, per task, whether to carry it (`task-queue.sh carry ID`) or abandon it (`task-queue.sh abandon ID`) — never change a task's state on your own. Statuses lost, unknown and blocked need a decision. The check-progress skill shows full status.
+EOF
+}
+
+print_tasks() {
+  read_session_id
+  export_session
+  [ -d ".propel/tasks" ] || return 0
+  TQ="$PLUGIN_DIR/scripts/task-queue.sh"
+  [ -f "$TQ" ] || return 0
+  # list may append a settle event (one lock try, never waits); its exit
+  # status is ignored — whatever it printed is what can be shown.
+  TABLE=$("${BASH:-bash}" "$TQ" list --open --table --session "$SESSION_ID" \
+    --sessions 10 --days 14 < /dev/null 2>/dev/null)
+  case "$TABLE" in
+    "| ID | Task |"*) ;;
+    *) return 0 ;;   # "No open tasks.", nothing, or anything unexpected
+  esac
+  PRE="$(print_header; echo "## Open tasks"; echo ""; tasks_note)"
+  # Budget for the table: everything else plus the newlines printed after PRE.
+  USED=$(printf '%s\n\n' "$PRE" | wc -c | tr -d '[:space:]')
+  BUDGET=$(( TASKS_MAX - ${USED:-0} ))
+  printf '%s\n\n' "$PRE"
+  # Keep the two header lines; at most TASKS_ROWS rows, then drop trailing
+  # rows at line boundaries until the table and its "more" line fit BUDGET.
+  # The "more" line is budgeted at its longest (all rows omitted).
+  printf '%s\n' "$TABLE" | LC_ALL=C awk -v max="$BUDGET" -v rows="$TASKS_ROWS" \
+      -v tail=" more open tasks — run check-progress)" \
+      -v tail1=" more open task — run check-progress)" '
+    { l[NR] = $0 }
+    END {
+      n = NR - 2
+      keep = (n > rows) ? rows : n
+      used = length(l[1]) + length(l[2]) + 2
+      for (i = 3; i <= keep + 2; i++) used += length(l[i]) + 1
+      if (keep == n && used <= max) { for (i = 1; i <= NR; i++) print l[i]; exit }
+      used = length(l[1]) + length(l[2]) + 2 + length("(" n tail) + 1
+      for (k = 0; k < keep; k++) {
+        if (used + length(l[k + 3]) + 1 > max) break
+        used += length(l[k + 3]) + 1
+      }
+      print l[1]; print l[2]
+      for (i = 3; i < k + 3; i++) print l[i]
+      print "(" (n - k) ((n - k == 1) ? tail1 : tail)
+    }'
+}
+
 case "$PART" in
   state)   print_state ;;
+  tasks)   print_tasks ;;
   core)    print_policy "$CORE_FILE" "## Core principles" "core/CORE.md" ;;
   codex)   print_policy "$CODEX_FILE" "## Dual-model (Codex) policy" "core/CODEX.md" ;;
   routing[1-9]|routing[1-9][0-9])

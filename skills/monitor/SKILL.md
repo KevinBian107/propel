@@ -63,6 +63,18 @@ Wait for user confirmation or edits before starting the loop.
 
 ## Phase 2 — The Loop
 
+When the loop begins (the user has said go and confirmed the card), record it in
+the task ledger:
+```bash
+R=$PWD; while [ "$R" != / ] && [ ! -f "$R/.claude/scripts/task-queue.sh" ]; do R=$(dirname "$R"); done; [ -f "$R/.claude/scripts/task-queue.sh" ] && cd "$R"
+bash .claude/scripts/task-queue.sh start --kind monitor --title "<goal>"
+```
+
+It prints a task id. Run the `update` and `done` calls below after the same
+first line, which walks up to the project root, because the ledger lives there.
+Note the id at the top of `log.md`. The ledger is advisory. If `start` fails,
+say "not tracked in the task ledger" in one line and carry on.
+
 Each iteration performs these steps in order. Record progress in
 `scratch/monitor/{YYYY-MM-DD}-{short-name}/log.md` so the user has an audit trail.
 
@@ -70,7 +82,8 @@ Each iteration performs these steps in order. Record progress in
    `nvidia-smi`, `squeue`, process status, last N lines of stdout). Prefer
    cheap reads (tail, head, grep) over full re-reads.
 2. **Evaluate against the checklist**: for each success criterion, mark met /
-   not-yet / regressed.
+   not-yet / regressed. Optionally, if tracked:
+   `bash .claude/scripts/task-queue.sh update <id> --progress "<n>/<m> criteria met"`.
 3. **Decide**:
    - All criteria met → **exit with success**, summarize outcome for user.
    - Hard blocker hit → **exit with failure**, explain what went wrong and
@@ -93,6 +106,13 @@ On exit (success, failure, or budget exhaustion), always produce:
 - **What I did**: iterations, debug actions taken, what changed
 - **What's left** (if partial)
 - **Suggested next step**
+
+If tracked, close the ledger entry with
+`bash .claude/scripts/task-queue.sh done <id> --status <status>`. Map the outcome
+like this: met → `done`, partial or timeout → `blocked`, failed → `failed`.
+`blocked` stays open on purpose. It shows at every session start until someone
+carries or abandons it, because what to do with an unmet goal is a human's
+decision.
 
 If the run produced learnings, recommend `/retrospective` to capture them.
 
