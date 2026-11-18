@@ -627,7 +627,7 @@ ROUTE_OUT=$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null) || {
     echo "FAIL: route.sh exited with error"
     exit 1
 }
-for needle in "[propel:routing]" "mode:" "codex:" "Gate 0"; do
+for needle in "[propel:routing]" "mode:" "codex:" "Gate 0" "  7. Claim first, then its evidence"; do
     case "$ROUTE_OUT" in
         *"$needle"*) ;;
         *) echo "FAIL: route.sh output missing '$needle'"; exit 1 ;;
@@ -1083,6 +1083,13 @@ echo "================================"
 "${BASH:-bash}" "$PLUGIN_DIR/tests/test_codex_consult.sh" < /dev/null > /dev/null 2>&1 || {
     echo "FAIL: tests/test_codex_consult.sh — run it directly for details"; exit 1; }
 echo "PASS: codex-consult.sh works without python3 and never stalls on a large brief"
+
+echo ""
+echo "Testing: scripts/claim-check.sh without python3 (tests/test_claim_check.sh)"
+echo "================================"
+"${BASH:-bash}" "$PLUGIN_DIR/tests/test_claim_check.sh" < /dev/null > /dev/null 2>&1 || {
+    echo "FAIL: tests/test_claim_check.sh — run it directly for details"; exit 1; }
+echo "PASS: claim-check.sh extracts and compares evidence tokens without python3, 1 MB in under 2 s"
 
 echo ""
 echo "================================"

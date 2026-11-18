@@ -25,6 +25,42 @@ This is a suggestion, not a gate — the user can decline. But always offer.
 2. Create a registry entry in `scratch/registry/{YYYY-MM-DD}-{experiment-short-name}/SKILL.md`.
 3. The registry entry must follow the format below exactly.
 4. Registry entries are **searchable by the investigation skill** — when a new investigation starts, matching entries are auto-surfaced. Write descriptions and tags accordingly.
+5. Apply the **`concise`** skill to the entry.
+6. Consult Codex before the entry is final — see below.
+
+## Codex Consult on the Conclusions (automatic)
+
+After the entry is written and `concise` is applied, dispatch **`codex-bridge`**
+(per the `codex-consult` skill) with the entry's conclusions inlined (or
+summarized) and these two questions — one call, which also counts as the
+writeup review:
+
+> "Which of these conclusions does the evidence not actually support?"
+>
+> "Compare the draft and the rewrite at <the draft path the `concise` skill gives
+> (under `.propel/concise/`)> and `scratch/registry/<entry>/SKILL.md`: is any claim, caveat or evidence item lost
+> or changed, and where does a reader meet evidence before the claim it supports?
+> Name passages by heading, or say 'no additional findings'."
+
+Only the second question gets paths instead of inlined content; ask Codex to
+answer it under the heading `Writeup review:`. If the entry or draft holds
+secrets, credentials or unpublished data, drop the second question and say so.
+Omit `CLAUDE'S POSITION` from the brief — Claude wrote the entry — and present
+the result in `codex-consult`'s card format. Announce it first:
+
+```
+◆ Consulting Codex — Retrospective: "Which of these conclusions does the evidence not actually support? + writeup review"
+```
+
+A retrospective is written by the model that ran the session, so it inherits that
+session's reading of the evidence — the conclusions most likely to be wrong are
+the ones it never thought to doubt. Fold verified findings into the entry with
+`[codex]` attribution (`[codex · unverified]` for what you could not confirm),
+then re-run the `concise` check (`claim-check.sh` on the draft vs the final entry)
+so the fold-in did not drop evidence.
+If `.propel/codex.json` has `"enabled": false`, skip it (one `◇ Codex disabled`
+line at the session's first gate); if the CLI is missing, say so once and proceed
+single-model.
 
 ## Registry Entry Format
 

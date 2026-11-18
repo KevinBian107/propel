@@ -402,6 +402,23 @@ echo ""
 echo "Testing: codex-consult.sh speed on a large brief ($SLOW_BASH, LC_ALL=${UTF8_LOC:-C})"
 echo "================================"
 
+# ── l. no-findings only when the whole reply is the phrase ──
+CPATH="$FAKE_BIN:$NOPY_BIN"; LOC=""
+echo reply > "$STUB_MODE"
+new_proj '{"enabled": true}'
+n=0
+for pair in "no-findings|no additional findings" \
+            "no-findings|  No additional findings.  " \
+            "no-findings|\"No Additional Findings.\"" \
+            "reply|Gate: the loss sign at train.py:42 is wrong. Writeup review: no additional findings" \
+            "reply|no additional findings, except the off-by-one in eval.py"; do
+    n=$((n + 1))
+    printf '%s\n' "${pair#*|}" > "$STUB_REPLY"
+    consult nopy "$RUN_BASH" "$T/in.brief" --label "Gate 2" --question "q"
+    check_ledger bash $n "${pair%%|*}"
+done
+pass "l. only a reply that is exactly 'no additional findings' (trimmed, any case, optional period/quotes) logs no-findings"
+
 # ── f. the blank checks are linear; ${X// } took ~5 s on 8 KB under bash 3.2 ──
 # Any consult that reaches codex pays the wrapper's fixed 1 s poll interval, so
 # the large run is measured against a 1-byte baseline rather than against 1 s.
@@ -420,6 +437,10 @@ case "$OUT" in *"=== CODEX REPLY ==="*"--- end ---"*) ;; *) fail "40 KB brief go
 [ "${#OUT}" -ge 40000 ] || fail "40 KB reply not passed through (${#OUT} chars of output)"
 [ $((BIG_MS - BASE_MS)) -lt 1000 ] || fail "40 KB brief + reply took ${BIG_MS} ms vs ${BASE_MS} ms for 1 byte"
 check_ledger bash 2 reply
+{ cat "$T/in.big"; printf '\nWriteup review: no additional findings\n'; } > "$STUB_REPLY"
+timed_consult nopy "$SLOW_BASH" "$T/in.big" --label "speed 40 KB + phrase" --question "q"
+[ $((MS - BASE_MS)) -lt 1000 ] || fail "40 KB reply ending in the phrase took ${MS} ms vs ${BASE_MS} ms"
+check_ledger bash 3 reply
 
 printf '%40960s' '' > "$T/in.wsbig"; printf '\n\t\n' >> "$T/in.wsbig"
 new_proj '{"enabled": true}'

@@ -2,7 +2,8 @@
 
 By default, Propel consults OpenAI Codex automatically at every major decision
 point — Gate 0 scope, Gate 1 findings, Gate 2 design, Gate 3 audit, Gate 4
-diagnosis, bug classification, 3-strike breaks, and retrospective conclusions.
+diagnosis, bug classification, 3-strike breaks, retrospective conclusions, and
+writeup review of finished write-ups.
 This command turns that off.
 
 ## Process

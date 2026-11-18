@@ -115,6 +115,7 @@ asks at every one of those, and does not proceed until you answer.
 | Review | c-review | Gate 3 on a substantive diff, or pre-PR |
 | Supervision | monitor | "watch this run", "make sure it finishes" |
 | Progress | check-progress | "check progress", "what's running", "where was I" |
+| Writing | concise | "make this concise", "tighten this", "write this up"; auto before a finished write-up |
 
 ### Auditor agents (auto-dispatched after code changes)
 

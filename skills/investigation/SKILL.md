@@ -108,16 +108,27 @@ These are common patterns, not rigid categories. Most investigations blend multi
 
 ## Codex Consult Before Gate 1 (automatic)
 
-Once findings are assembled and before Gate 1 is presented, dispatch
-**`codex-bridge`** with the findings summary and this question:
+Once findings are assembled, first apply the **`concise`** skill to the README's
+Findings section only — the rest of the living README (dead ends, failed
+attempts, task checklist) stays as written. Then, before Gate 1 is presented,
+dispatch **`codex-bridge`** with the findings summary inlined and these two
+questions — one call, which also counts as the writeup review:
 
 > "Given these findings, what should this investigation have checked and didn't?
 > Name one thing."
+>
+> "Compare the draft and the rewrite at <the draft path the `concise` skill gives
+> (under `.propel/concise/`)> and `scratch/<investigation>/README.md`: is any claim, caveat or evidence item lost
+> or changed, and where does a reader meet evidence before the claim it supports?
+> Name passages by heading, or say 'no additional findings'."
 
+Only the second question gets paths instead of inlined content; ask Codex to
+answer it under the heading `Writeup review:`. If the README or draft holds
+secrets, credentials or unpublished data, drop the second question and say so.
 Announce it:
 
 ```
-◆ Consulting Codex — Gate 1 (findings): "What should this investigation have checked and didn't?"
+◆ Consulting Codex — Gate 1 (findings): "What should this investigation have checked and didn't? + writeup review"
 ```
 
 An investigation's blind spots are structurally invisible from inside it — the

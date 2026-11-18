@@ -475,10 +475,34 @@ case "$REPLY" in   # linear, unlike "${REPLY// }" on bash 3.2 (see the brief che
   *) unavailable "codex returned an empty response" "retry or proceed single-model" ;;
 esac
 
-case "$REPLY" in
-  *"no additional findings"*|*"No additional findings"*) log_event "no-findings" "" ;;
-  *) log_event "reply" "$(printf '%s' "$REPLY" | wc -c | tr -d ' ') bytes" ;;
-esac
+# no-findings only when the WHOLE reply is the phrase (trimmed, any case, an
+# optional trailing period, optional quotes). A consult can carry two
+# questions, and "no additional findings" for one must not hide findings for
+# the other. Only replies of <= 64 bytes are examined, so this stays O(1)
+# on a large reply (no ${REPLY//...}, which is super-linear on bash 3.2).
+OUTCOME_KIND=reply
+if [ ${#REPLY} -le 64 ]; then
+  R="$REPLY"
+  R_PAD="${R%%[![:space:]]*}"; R="${R#"$R_PAD"}"
+  R_PAD="${R##*[![:space:]]}"; R="${R%"$R_PAD"}"
+  for _ in 1 2 3; do
+    case "$R" in
+      [\"\']*) R="${R#?}" ;;
+    esac
+    case "$R" in
+      *[.\"\']) R="${R%?}" ;;
+    esac
+  done
+  case "$R" in
+    [Nn][Oo]' '[Aa][Dd][Dd][Ii][Tt][Ii][Oo][Nn][Aa][Ll]' '[Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss])
+      OUTCOME_KIND=no-findings ;;
+  esac
+fi
+if [ "$OUTCOME_KIND" = no-findings ]; then
+  log_event "no-findings" ""
+else
+  log_event "reply" "$(printf '%s' "$REPLY" | wc -c | tr -d ' ') bytes"
+fi
 
 cat <<EOF
 === CODEX REPLY ===

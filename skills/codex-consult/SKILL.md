@@ -3,7 +3,8 @@ name: codex-consult
 description: >
   [Propel] The automatic dual-model layer. Fires on its own at every major Propel
   decision point — Gate 0 scope, Gate 1 findings, Gate 2 design, Gate 3 audit,
-  Gate 4 diagnosis, bug classification, 3-strike breaks — with no user action
+  Gate 4 diagnosis, bug classification, 3-strike breaks, retrospective
+  conclusions, writeup review of a finished write-up — with no user action
   required. Sends a short brief to OpenAI Codex via the codex-bridge subagent,
   verifies every claim Codex makes against the actual repository, and presents an
   attributed comparison card. There is no command to invoke — if the user asks for
@@ -38,12 +39,21 @@ Fire automatically at these points and nowhere else:
 | **Classification** | A bug is about to be classified as code / design / config |
 | **3-strike** | The third attempt at the same approach has failed |
 | **Retrospective** | Conclusions are written, before they enter the registry |
+| **Writeup review** | A finished written artifact outside `scratch/` with no consult of its own (docs page, long write-up outside a gate) has had a substantive `concise` rewrite (≥ ~30 changed lines of prose). At Gate 1 / Gate 2 / Retrospective the question is folded into that gate's consult instead — one call, both questions, which counts as the writeup review |
+
+The writeup-review question (from `core/CODEX.md`) is in the template table below.
+It is the one question that gets *paths* instead of inlined material: the draft
+path the `concise` skill gives (under `.propel/concise/`) and the rewrite. Never on
+chat replies; never on a trivial or formatting-only change.
 
 **Do not fire** for: Q0 / Q1 (those are questions for the human), mode selection,
-reads, renames, formatting, comment edits, trivial diffs, or anything confined to
-`scratch/`. Over-firing is a real failure mode — it makes the `◆ Consulting
-Codex` line into noise the user scrolls past, and at that point the second model
-has stopped working even though it is still running.
+reads, renames, formatting (except as part of a writeup review of a finished
+artifact), comment edits, trivial diffs, or `scratch/` working notes and edits.
+Precedence: Gate 1, Gate 2 and Retrospective review their own artifact wherever
+it lives — investigation READMEs and the registry are in `scratch/` and still get
+their consult. A standalone Writeup review never fires on `scratch/` files. Over-firing is a real failure mode — it
+makes the `◆ Consulting Codex` line into noise the user scrolls past, and at that
+point the second model has stopped working even though it is still running.
 
 Check `.propel/codex.json` first. If `enabled` is `false`, skip silently except
 for one `◇ Codex disabled — single-model gate.` line at the session's first gate.
@@ -74,12 +84,15 @@ CONTEXT
   Project: <one line — what this codebase is>
   Decision: <what is being decided right now>
   Material: <the design / diff / diagnosis, inlined or summarized>
+  Paths:    <writeup review only: draft path + rewrite path, for Codex to read>
 
 CLAUDE'S POSITION
   <2-4 lines: what Claude currently thinks and why>
 
 QUESTION
-  <one sharp, falsifiable question — see the table below>
+  <one sharp, falsifiable question — see the table below; a folded consult
+   sends the gate question, then the writeup-review question, and asks Codex
+   to answer the second under its own heading `Writeup review:`>
 
 CONSTRAINTS
   Answer in under 400 words. Cite file:line for every code claim. If you have no
@@ -96,10 +109,15 @@ CONSTRAINTS
   reading of their own work throws away most of the value of asking. Keep the
   position line for material Claude did not author, where it saves a round-trip.
 - **Redact.** Keys, tokens, credentials, unpublished data. If the brief cannot be
-  written without a secret, skip the consult and tell the user why.
-- **Inline the material.** Codex does not share Claude's context, working memory,
-  registry, or CLAUDE.md. A brief that references "the design we discussed"
-  produces a hallucinated review of a design Codex has never seen.
+  written without a secret, skip the consult and tell the user why. Codex reads a
+  path in its sandbox, bypassing redaction — so if the draft or rewrite contains
+  secrets, credentials or unpublished data, skip the writeup-review question (say
+  so) rather than pass the path.
+- **Inline the material** (or summarize it) for the gate's own question, as
+  always. Codex does not share Claude's context, working memory, registry, or
+  CLAUDE.md. A brief that references "the design we discussed" produces a
+  hallucinated review of a design Codex has never seen. Only the writeup-review
+  question passes paths instead — the comparison needs both full files, verbatim.
 
 ### Question templates by decision point
 
@@ -113,6 +131,10 @@ CONSTRAINTS
 | Classification | "This was classified as a `<code bug / design issue / config issue>`. Argue against that classification." |
 | 3-strike | "Three attempts have failed: `<list>`. What assumption do all three share?" |
 | Retrospective | "Which of these conclusions does the evidence presented not actually support?" |
+| Writeup review | "Compare the draft and the rewrite at <paths>: is any claim, caveat or evidence item lost or changed, and where does a reader meet evidence before the claim it supports? Name passages by heading, or say 'no additional findings'." |
+
+Gate 1, Gate 2 and Retrospective consults with a folded writeup review send both
+questions in one brief, and pass `--question "<gate question> + writeup review"`.
 
 ---
 

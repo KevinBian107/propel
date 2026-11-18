@@ -140,6 +140,7 @@ Before routing to any skill, check the current mode. If the triggered skill is n
 | c-review | — | Yes | Yes | — |
 | monitor | — | Yes | Yes | Yes |
 | check-progress | Yes | Yes | Yes | Yes |
+| concise | Yes | Yes | Yes | Yes |
 
 **Gates by mode:**
 - **Researcher**: Gate 0, Gate 1
@@ -343,6 +344,7 @@ Check these in order. Use the FIRST one that matches:
 | Confirmation-seeking statement, leading question | **think-deeply** | Anti-sycophancy: steel-man the opposite |
 | "retrospective", "capture learnings", ~20 turns without one | **retrospective** | Experiment registry with failed attempts table |
 | "getting long", context feels large, >15 substantive turns | **context-hygiene** | /clear discipline + session archival |
+| "make this concise", "tighten this", "too long", "cut this down", "shorter", "write this up"; a finished write-up about to be presented (automatic) | **concise** | Claim before evidence; every evidence item survives (claim-check.sh) |
 
 ### 2. Research Skills
 | Trigger | Skill |

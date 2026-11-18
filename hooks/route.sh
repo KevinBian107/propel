@@ -202,5 +202,6 @@ rules that must not decay:
      Gate questions are disjunctive ("A or B, because...") — never "shall I proceed?".
   5. Code changed -> the auditors named by the auto-dispatch hook are required.
   6. Never claim done/fixed/working without fresh evidence you just observed.
+  7. Claim first, then its evidence; cut narration and restatement; never drop evidence (concise skill).
 EOF
 exit 0

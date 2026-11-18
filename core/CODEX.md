@@ -38,11 +38,24 @@ disagreements are exactly what a human should be spending attention on.
 | **Bug classification** (Debugger) | "Is this a code bug, a design issue, or a config issue? Argue against the classification given." |
 | **3-strike break** | "Three attempts have failed. What assumption is shared by all three?" |
 | **Retrospective conclusions** | "Which of these conclusions does the evidence not actually support?" |
+| **Writeup review** (finished docs page or long write-up outside `scratch/`, no consult of its own, rewritten by ≥ ~30 prose lines) | "Compare the draft and the rewrite at <paths>: is any claim, caveat or evidence item lost or changed, and where does a reader meet evidence before the claim it supports? Name passages by heading, or say 'no additional findings'." |
+
+At Gate 1, Gate 2 and Retrospective, the writeup-review question joins that
+gate's own consult: one call, both questions, counts as the writeup review. The
+brief inlines (or summarizes) the material for the gate's own question as before;
+only the writeup-review question gets *paths* (the draft path the `concise` skill
+gives, under `.propel/concise/`, and the rewrite). Codex reads those files itself,
+bypassing redaction — if either holds secrets, credentials or unpublished data,
+skip that question and say so. Never for chat replies or a formatting-only change.
 
 **Codex does NOT fire for:** Q0/Q1 (those are questions *for the human*, not for
 a model), mode selection, file reads, trivial edits (< ~10 lines, no logic
-change), formatting, or anything in `scratch/`. Firing on trivia trains the user
-to ignore the Codex line, which is worse than not firing at all.
+change), formatting (except inside a writeup review of a finished artifact), or
+`scratch/` working notes and edits. Precedence: Gate 1, Gate 2 and Retrospective
+review their own artifact wherever it lives (investigation READMEs and the
+registry are in `scratch/`); a standalone Writeup review never fires on
+`scratch/` files or trivial edits. Firing on trivia trains the user to ignore the Codex line, which
+is worse than not firing at all.
 
 ---
 
