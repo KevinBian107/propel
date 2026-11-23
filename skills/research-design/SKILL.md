@@ -59,9 +59,12 @@ Write the design proposal with:
 - Explicit statement of what will NOT be changed
 - Estimated scope: number of components, files modified, new files
 
+Save it to `scratch/{investigation-name}/design.md` now: the `concise` step below
+needs the file on disk.
+
 ### Step 4.5: Codex Consult (automatic)
 
-First apply the **`concise`** skill to the design doc. Then, before the design
+First apply the **`concise`** skill to the saved `design.md`. Then, before the design
 reaches the user, dispatch **`codex-bridge`** with the proposal inlined (or
 summarized) as before and these two questions — one call, which also counts as
 the writeup review:
@@ -135,4 +138,5 @@ Present in this format:
 
 ## Output
 
-Save the design proposal to `scratch/{investigation-name}/design.md`.
+The design proposal lives at `scratch/{investigation-name}/design.md`, saved at
+Step 4 and rewritten in place by `concise` at Step 4.5.

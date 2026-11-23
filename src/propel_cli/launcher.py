@@ -537,11 +537,15 @@ def collect_status() -> dict:
 
 
 def _codex_config(root: Path) -> bool | None:
+    """Whether .propel/codex.json turns Codex on (install.codex_enabled), or
+    None when there is no such file or it cannot be read."""
+    from . import install
+
     f = root / ".propel" / "codex.json"
     if not f.exists():
         return None
     try:
-        return bool(json.loads(f.read_text()).get("enabled", True))
+        return install.codex_enabled(json.loads(f.read_text()))
     except Exception:
         return None
 

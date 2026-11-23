@@ -112,7 +112,10 @@ If tracked, close the ledger entry with
 like this: met → `done`, partial or timeout → `blocked`, failed → `failed`.
 `blocked` stays open on purpose. It shows at every session start until someone
 carries or abandons it, because what to do with an unmet goal is a human's
-decision.
+decision. Carrying does not close it. When the follow-up work on a carried task
+finishes, close it with `bash .claude/scripts/task-queue.sh done <id> --status
+done` (or `--status failed`), or drop it with
+`bash .claude/scripts/task-queue.sh abandon <id>`.
 
 If the run produced learnings, recommend `/retrospective` to capture them.
 

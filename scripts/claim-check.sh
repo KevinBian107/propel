@@ -127,7 +127,7 @@ if [ "$MODE" = save-draft ]; then
   esac
   DRAFT=".propel/concise/$(printf '%s' "$REL" | sed 's|/|__|g').draft.md"
   if [ -e "$DRAFT" ]; then
-    printf 'claim-check: a draft is already pending at %s. Finish that rewrite first: get the user to accept it, then delete the draft.\n' "$DRAFT" >&2
+    printf 'claim-check: a draft is already pending at %s. If it is from this session and its gate or acceptance is still unanswered, finish that rewrite first. Delete it only if its gate was visibly answered; otherwise it is the baseline: check the rewrite against it.\n' "$DRAFT" >&2
     exit 1
   fi
   mkdir -p .propel/concise 2>/dev/null || { printf 'claim-check: cannot create .propel/concise\n' >&2; exit 2; }

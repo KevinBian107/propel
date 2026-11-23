@@ -771,6 +771,7 @@ class PlannerTests(InstallTestCase):
             "user_files": None,
             "hooks_pending": None,
             "settings_error": None,
+            "skipped_symlinked": None,
             "update_available": False,
         })
 
@@ -1243,6 +1244,153 @@ class InitCommandTests(InstallTestCase):
         result = self.invoke_init()
         self.assertEqual(result.exit_code, 0, result.output)
         self.assertIn(f"Done! Propel owns {len(INITIAL_FILES)} files in", result.output)
+
+    # Restart hint: Claude Code loads hook registrations at session start.
+    def test_restart_hint_when_hook_registrations_change(self):
+        result = self.invoke_init()
+        self.assertEqual(result.exit_code, 0, result.output)
+        lines = result.output.rstrip("\n").splitlines()
+        self.assertEqual(lines[-1], cli_mod.RESTART_HINT)
+        self.assertEqual(
+            cli_mod.RESTART_HINT,
+            "Restart any Claude Code session open in this project: hook changes load at session start.",
+        )
+        # A registration dropped upstream is a change too.
+        hooks = json.loads(self.propel.root.joinpath("hooks/hooks.json").read_text())
+        hooks["hooks"] = [h for h in hooks["hooks"] if h["event"] != "UserPromptSubmit"]
+        self.propel.write("hooks/hooks.json", json.dumps(hooks, indent=2) + "\n")
+        self.propel.commit("drop route")
+        result = self.invoke_init()
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("removed stale Propel hook group", result.output)
+        self.assertEqual(result.output.rstrip("\n").splitlines()[-1], cli_mod.RESTART_HINT)
+
+    def test_no_restart_hint_when_hooks_unchanged_or_dry_run(self):
+        self.assertNotIn(cli_mod.RESTART_HINT, self.invoke_init("--dry-run").output)
+        self.assertEqual(self.invoke_init().exit_code, 0)
+        # A second run has nothing to merge: settings untouched, no hint.
+        settings = json.loads((self.claude / "settings.local.json").read_text())
+        result = self.invoke_init()
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("hooks already configured", result.output)
+        self.assertNotIn(cli_mod.RESTART_HINT, result.output)
+        self.assertEqual(json.loads((self.claude / "settings.local.json").read_text()), settings)
+
+    def test_restart_hint_deferred_to_update(self):
+        with mock.patch.dict(os.environ, {cli_mod._RESTART_HINT_ENV: "1"}):
+            result = self.invoke_init()
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertNotIn(cli_mod.RESTART_HINT, result.output)
+
+    # A symlinked settings.local.json is written through, never replaced.
+    def link_settings(self, target: Path, data: dict | None = None) -> Path:
+        self.claude.mkdir(exist_ok=True)
+        if data is not None:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(data))
+        link = self.claude / "settings.local.json"
+        link.symlink_to(target)
+        return link
+
+    def assert_written_through(self, link: Path, target: Path, original: dict):
+        result = self.invoke_init()
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(Path(os.readlink(link)), target)
+        merged = json.loads(target.read_text())
+        self.assertEqual(merged["permissions"], original["permissions"])
+        self.assertIn("SessionStart", merged["hooks"])
+        self.assertIn(
+            f"wrote through symlink .claude/settings.local.json -> {target.resolve()}", result.output
+        )
+        # Backed up, as for a regular file.
+        [backup] = list((self.project / ".propel" / "backup").glob("*/settings.local.json"))
+        self.assertEqual(json.loads(backup.read_text()), original)
+        # No temp files left next to the target or the link.
+        self.assertEqual([p.name for p in target.parent.iterdir() if p.name.endswith(".tmp")], [])
+        self.assertEqual([p.name for p in self.claude.iterdir() if p.name.endswith(".tmp")], [])
+
+    def test_settings_symlink_outside_claude_is_written_through(self):
+        original = {"permissions": {"allow": ["Bash(ls:*)"]}}
+        target = Path(self._tmp.name) / "dotfiles" / "claude-settings.json"
+        link = self.link_settings(target, original)
+        self.assert_written_through(link, target, original)
+
+    def test_settings_symlink_inside_claude_is_written_through(self):
+        original = {"permissions": {"allow": ["Bash(ls:*)"]}}
+        target = self.claude / "shared" / "settings.json"
+        link = self.link_settings(target, original)
+        self.assert_written_through(link, target, original)
+
+    def test_broken_settings_symlink_aborts_before_any_write(self):
+        target = Path(self._tmp.name) / "dotfiles" / "missing.json"
+        link = self.link_settings(target)
+        before = self.snapshot()
+        for args in ((), ("--dry-run",)):
+            runner = CliRunner()
+            with mock.patch.object(cli_mod, "get_propel_root", return_value=self.propel.root), \
+                    mock.patch.object(cli_mod, "get_project_root", return_value=self.project), \
+                    mock.patch.object(cli_mod, "GLOBAL_DIR", self.project / "no-global-dir"):
+                result = runner.invoke(cli_mod.cli, ["init", *args])
+            self.assertEqual(result.exit_code, 1, result.output)
+            self.assertIn("is a symlink to", result.output)
+            self.assertIn("does not exist", result.output)
+            self.assertFalse(target.exists())
+            self.assertFalse(target.parent.exists())
+            self.assertTrue(link.is_symlink())
+            self.assertEqual(self.snapshot(), before)
+            self.assertEqual(sorted(p.name for p in self.claude.iterdir()), ["settings.local.json"])
+            self.assertFalse((self.project / ".propel").exists())
+
+    def test_hooks_pending_reports_broken_settings_symlink_as_error(self):
+        # status must not offer an update that init would refuse.
+        target = Path(self._tmp.name) / "dotfiles" / "missing.json"
+        link = self.link_settings(target)
+        pending, error = install._hooks_pending(self.propel.root, link)
+        self.assertIsNone(pending)
+        self.assertIn("does not exist", error)
+        self.assertFalse(install.status(self.propel.root, self.project)["update_available"])
+        # A symlink loop must not raise (Path.resolve raises on a loop before 3.13).
+        link.unlink()
+        link.symlink_to(link.name)
+        pending, error = install._hooks_pending(self.propel.root, link)
+        self.assertIsNone(pending)
+        self.assertIsNotNone(error)
+
+    # Paths under a symlink pointing outside .claude/ are skipped, and said so.
+    def link_skills_outside(self) -> Path:
+        shared = Path(self._tmp.name) / "shared-skills"
+        shutil.copytree(self.claude / "skills", shared)
+        shutil.rmtree(self.claude / "skills")
+        (self.claude / "skills").symlink_to(shared)
+        return shared
+
+    def test_status_counts_paths_skipped_under_outside_symlink(self):
+        self.assertEqual(self.invoke_init().exit_code, 0)
+        self.assertEqual(install.status(self.propel.root, self.project)["skipped_symlinked"], 0)
+        self.link_skills_outside()
+        s = install.status(self.propel.root, self.project)
+        skills = [rel for rel in INITIAL_FILES if rel.startswith("skills/")]
+        self.assertEqual(s["skipped_symlinked"], len(skills))
+        self.assertIs(s["update_available"], False)  # the user's choice, not an update
+
+        with mock.patch.object(cli_mod, "get_propel_root", return_value=self.propel.root), \
+                mock.patch.object(cli_mod, "get_project_root", return_value=self.project):
+            result = CliRunner().invoke(cli_mod.cli, ["status"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn(
+            f"WARNING: {len(skills)} Propel path(s) left alone under a symlink pointing outside"
+            " .claude/ — they are not updated",
+            result.output,
+        )
+        self.assertIn("Update available: no", result.output)
+
+    def test_status_has_no_symlink_warning_without_one(self):
+        self.assertEqual(self.invoke_init().exit_code, 0)
+        with mock.patch.object(cli_mod, "get_propel_root", return_value=self.propel.root), \
+                mock.patch.object(cli_mod, "get_project_root", return_value=self.project):
+            result = CliRunner().invoke(cli_mod.cli, ["status"])
+        self.assertNotIn("left alone under a symlink", result.output)
 
 
 class SettingsMergeTests(unittest.TestCase):

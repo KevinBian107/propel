@@ -324,17 +324,64 @@ EOF
 }
 
 # ── 1. Is the dual-model layer switched on for this project? ──
+# The "enabled" rule, identical in every Propel script that reads
+# .propel/codex.json (codex-consult.sh, route.sh, session-start.sh,
+# codex-statusline.sh), in python and in the fallback: Codex is OFF when
+# "enabled" is JSON false, null or 0, or a string that, trimmed and
+# lowercased, is "false", "0", "off", "no" or empty. A missing file or key
+# leaves it ON. Fail-closed: a value that reads as "off" never sends a brief.
+#
+# codex_flat_off <flat>: the fallback. <flat> is the file with all whitespace
+# removed; returns 0 (off) if any "enabled" value is off. Globs and parameter
+# expansion only, no subprocess.
+codex_flat_off() {
+  local rest="$1" v t
+  while :; do
+    case "$rest" in
+      *'"enabled":'*) rest=${rest#*'"enabled":'} ;;
+      *) return 1 ;;
+    esac
+    case "$rest" in
+      '"'*)
+        v=${rest#?}; v=${v%%'"'*}
+        # A JSON escape (\t, \u0066...) is not decoded here, so fail closed: off.
+        case "$v" in *\\*|''|0|[Ff][Aa][Ll][Ss][Ee]|[Oo][Ff][Ff]|[Nn][Oo]) return 0 ;; esac ;;
+      *)
+        v=${rest%%,*}; v=${v%%'}'*}; v=${v%%']'*}
+        case "$v" in [Ff][Aa][Ll][Ss][Ee]|[Nn][Uu][Ll][Ll]) return 0 ;; esac
+        t=${v#-}; t=${t%%[eE]*}
+        case "$t" in
+          0|0.*) t=${t#0}; t=${t#.}
+                 case "$t" in *[!0]*) ;; *) return 0 ;; esac ;;
+        esac ;;
+    esac
+  done
+}
+
 CONFIG=".propel/codex.json"
 ENABLED=""
 if [ -f "$CONFIG" ]; then
   if [ -n "$HAVE_PY" ]; then
+    # Prints nothing when the file is not a JSON object, so the fallback
+    # below decides (and can still see "enabled": "false" in a broken file).
     ENABLED=$(python3 -c "
-import json,sys
+import json
+def off(v):
+    if v is None or v is False:
+        return True
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return v == 0
+    if isinstance(v, str):
+        return v.strip().lower() in ('false', '0', 'off', 'no', '')
+    return False
 try:
-    # Only JSON false switches it off -- the same rule as the bash fallback.
-    print('false' if json.load(open('$CONFIG')).get('enabled', True) is False else 'true')
+    d = json.load(open('$CONFIG'))
 except Exception:
-    print('true')
+    d = None
+if isinstance(d, dict):
+    print('false' if off(d.get('enabled', True)) else 'true')
 " 2>/dev/null)
   fi
   case "${ENABLED:-}" in
@@ -343,11 +390,8 @@ except Exception:
       # No python3, or it printed nothing usable: match the file with all
       # whitespace removed, so a pretty-printed or multi-line value counts. A
       # case glob, not `| grep -q`, which can SIGPIPE under pipefail.
-      CFG_FLAT=$(tr -d '[:space:]' < "$CONFIG" 2>/dev/null)
-      case "$CFG_FLAT" in
-        *'"enabled":false'|*'"enabled":false'[!a-zA-Z0-9_]*) ENABLED=false ;;
-        *) ENABLED=true ;;
-      esac ;;
+      CFG_FLAT=$(head -c 8192 "$CONFIG" 2>/dev/null | LC_ALL=C tr -d '[:space:]' 2>/dev/null)
+      if codex_flat_off "$CFG_FLAT"; then ENABLED=false; else ENABLED=true; fi ;;
   esac
   if [ "$ENABLED" = "false" ]; then
     log_event "disabled" "codex disabled for this project"
@@ -396,7 +440,12 @@ PY
 fi
 
 # ── 3. Read the brief ──
-BRIEF=$(cat)
+# With fd 0 closed, $(cat) would read its own output pipe (which becomes
+# fd 0) and never finish. A closed stdin is an empty brief.
+BRIEF=""
+if { true 3<&0; } 2>/dev/null; then
+  BRIEF=$(cat)
+fi
 # Whitespace-only is blank. A case glob is linear; the old "${BRIEF// }" test
 # was super-linear on bash 3.2 (an 8 KB brief took ~5 s) and stalled the gate.
 case "$BRIEF" in

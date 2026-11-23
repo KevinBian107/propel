@@ -48,27 +48,34 @@ believe it points at."*
    `propel-train-<YYYYmmdd-HHMMSS>` (letters, digits, `-`, `_` only), written out
    literally. `<cmd>` is the approved command, verbatim.
 ```bash
-R=$PWD; while [ "$R" != / ] && [ ! -f "$R/.claude/scripts/task-queue.sh" ]; do R=$(dirname "$R"); done; [ -f "$R/.claude/scripts/task-queue.sh" ] && cd "$R"
+O=$PWD; R=$PWD; while [ "$R" != / ] && [ ! -f "$R/.claude/scripts/task-queue.sh" ]; do R=$(dirname "$R"); done; [ -f "$R/.claude/scripts/task-queue.sh" ] && cd "$R"
 [ ! -e .propel/runs/<name>.sh ] || { echo "<name> is taken, pick a new name"; exit 1; }
-mkdir -p .propel/runs && cat > .propel/runs/<name>.sh <<'PROPEL_CMD'
+mkdir -p .propel/runs && printf 'cd %q || exit 1\n' "$O" > .propel/runs/<name>.sh && cat >> .propel/runs/<name>.sh <<'PROPEL_CMD'
 <cmd>
 PROPEL_CMD
 ID=$(bash .claude/scripts/task-queue.sh start --kind train --title "<short title>" \
        --session <session from the brief> --screen <name> \
        --log .propel/runs/<name>.log --exit-file .propel/runs/<name>.exit --cmd '<cmd>') \
   || ID="not tracked in the task ledger"
-screen -dmS <name> bash -c 'set -o pipefail; bash -o pipefail .propel/runs/<name>.sh 2>&1 | tee .propel/runs/<name>.log; echo $? > .propel/runs/<name>.exit' || echo "launch failed"
+screen -dmS <name> bash -c 'set -o pipefail; bash .propel/runs/<name>.sh 2>&1 | tee .propel/runs/<name>.log; echo $? > .propel/runs/<name>.exit' || echo "launch failed"
 echo "task: $ID"
 ```
    If screen is unavailable, replace the `screen` line with this one. Your shell
    expands the outer double quotes, hence `\$?`:
-   `tmux new-session -d -s <name> "bash -c 'set -o pipefail; bash -o pipefail .propel/runs/<name>.sh 2>&1 | tee .propel/runs/<name>.log; echo \$? > .propel/runs/<name>.exit'" || echo "launch failed"`.
+   `tmux new-session -d -s <name> "bash -c 'set -o pipefail; bash .propel/runs/<name>.sh 2>&1 | tee .propel/runs/<name>.log; echo \$? > .propel/runs/<name>.exit'" || echo "launch failed"`.
    - The command always goes in `.propel/runs/<name>.sh`, through the quoted
      heredoc, so no quoting rule depends on what it contains. The closing
-     `PROPEL_CMD` must start at column 0. It runs from the project root, so a
-     `cd` inside it is fine. `pipefail` makes the exit code the command's, not
-     `tee`'s, so a crash is not masked. `bash -o pipefail` extends that to
-     pipelines inside the command file.
+     `PROPEL_CMD` must start at column 0. The file's first line `cd`s back to
+     the directory the Bash call started in, so the command runs where it
+     would have run by hand. The ledger and the run files live at the project
+     root. `pipefail` applies only to the outer `| tee`, so the recorded exit
+     code is the command's own, not `tee`'s, and a crash is not masked.
+     Pipelines inside the approved command behave exactly as written, because
+     Propel never changes the approved command.
+   - Output goes through a pipe to `tee`, so Python may block-buffer it and the
+     log can lag. Do not edit the command to fix that. Say in your report that
+     `PYTHONUNBUFFERED=1` or `python -u` would make the log live, and let the
+     human decide.
    - `--cmd` rule: pass `--cmd '<cmd>'` only when the command is one line with
      no single quote. Otherwise replace it with
      `--note "command: .propel/runs/<name>.sh"`.

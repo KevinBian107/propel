@@ -526,8 +526,24 @@ for path in py nopy; do
 done
 pass "j. ledger: lost WROTE signal never double-writes, exit 3 falls back, a 0200 ledger gets one line"
 
-# ── k. only JSON false disables: "false" and null still consult ──
-for cfg in '{"enabled": "false"}' '{"enabled": null}'; do
+# ── k. fail-closed: "false", "False", 0 and null disable; codex is never called ──
+# OFF when "enabled" is JSON false, null or 0, or a string that, trimmed and
+# lowercased, is "false", "0", "off", "no" or empty — with and without python3.
+for cfg in '{"enabled": "false"}' '{"enabled": "False"}' '{"enabled": 0}' '{"enabled": null}' \
+           '{"enabled": " Off "}' '{"enabled": "no"}' '{"enabled": ""}' '{"enabled": "false",}' \
+           '{"enabled": "\tfalse\t"}' '{"enabled": "\n"}' '{"enabled": "false"}'; do
+    for path in py nopy; do
+        new_proj "$cfg"
+        if [ $path = py ]; then CPATH="$FAKE_BIN:$PATH"; else CPATH="$FAKE_BIN:$NOPY_BIN"; fi
+        echo reply > "$STUB_MODE"; printf 'ok\n' > "$STUB_REPLY"
+        consult "$path" "$RUN_BASH" "$T/in.brief" --label "Gate 1" --question "q"
+        [ ! -e "$STUB_MARK" ] || fail "codex was called although $cfg is off ($path)"
+        case "$OUT" in *"reason: codex disabled for this project"*) ;; *) fail "$cfg not reported as disabled ($path)" ;; esac
+        check_ledger "$([ $path = py ] && echo py || echo bash)" 1 disabled
+    done
+done
+# ...and true, "yes", 1 and a missing key still consult.
+for cfg in '{"enabled": true}' '{"enabled": "yes"}' '{"enabled": 1}' '{"available": true}'; do
     for path in py nopy; do
         new_proj "$cfg"
         if [ $path = py ]; then CPATH="$FAKE_BIN:$PATH"; else CPATH="$FAKE_BIN:$NOPY_BIN"; fi
@@ -536,7 +552,28 @@ for cfg in '{"enabled": "false"}' '{"enabled": null}'; do
         check_ledger "$([ $path = py ] && echo py || echo bash)" 1 reply
     done
 done
-pass "k. {\"enabled\": \"false\"} and {\"enabled\": null} consult, with and without python3"
+pass "k. \"false\", \"False\", 0, null and the other off values never reach codex; true / \"yes\" / 1 / no key consult — with and without python3"
+
+# ── m. a closed stdin is an empty brief, not a hang ──
+# $(cat) with fd 0 closed reads its own output pipe forever. A watchdog kills
+# a hung run after 20 s (status 137).
+for path in py nopy; do
+    new_proj '{"enabled": true}'
+    if [ $path = py ]; then CPATH="$FAKE_BIN:$PATH"; else CPATH="$FAKE_BIN:$NOPY_BIN"; fi
+    rm -f "$STUB_MARK" "$T/out"
+    env -i PATH="$CPATH" HOME="$EMPTY_HOME" "$RUN_BASH" "$CONSULT" --label "Gate 1" --question "q" 0<&- >"$T/out" 2>&1 &
+    pid=$!
+    ( trap 'kill $s 2>/dev/null; exit 0' TERM; sleep 20 & s=$!; wait $s; kill -9 $pid ) >/dev/null 2>&1 &
+    wd=$!
+    wait "$pid"; RC=$?
+    kill "$wd" 2>/dev/null; wait "$wd" 2>/dev/null
+    OUT=$(cat "$T/out"); RUNS=$((RUNS + 1))
+    [ "$RC" -eq 0 ] || fail "consult with stdin closed exited $RC (137 = killed by the 20 s watchdog: it hung) ($path)"
+    case "$OUT" in *"reason: empty brief"*) ;; *) fail "closed stdin not reported as an empty brief ($path)" ;; esac
+    [ ! -e "$STUB_MARK" ] || fail "codex was called with stdin closed ($path)"
+    check_ledger "$([ $path = py ] && echo py || echo bash)" 1 unavailable
+done
+pass "m. stdin closed: no hang, the graceful 'empty brief' path, codex not called — with and without python3"
 
 # ── g. ──
 pass "g. all $RUNS consults exited 0"

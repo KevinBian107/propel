@@ -344,7 +344,7 @@ Check these in order. Use the FIRST one that matches:
 | Confirmation-seeking statement, leading question | **think-deeply** | Anti-sycophancy: steel-man the opposite |
 | "retrospective", "capture learnings", ~20 turns without one | **retrospective** | Experiment registry with failed attempts table |
 | "getting long", context feels large, >15 substantive turns | **context-hygiene** | /clear discipline + session archival |
-| "make this concise", "tighten this", "too long", "cut this down", "shorter", "write this up"; a finished write-up about to be presented (automatic) | **concise** | Claim before evidence; every evidence item survives (claim-check.sh) |
+| "make this concise", "tighten this", "this is too long", "cut this down", "make it shorter", "write this up"; a finished write-up about to be presented (automatic) | **concise** | Claim before evidence; every evidence item survives (claim-check.sh) |
 
 ### 2. Research Skills
 | Trigger | Skill |
@@ -364,7 +364,7 @@ Check these in order. Use the FIRST one that matches:
 ### 4. Training & Debugging Skills
 | Trigger | Skill |
 |---------|-------|
-| "train", "launch training", "run training" (Trainer Mode) | **trainer-mode** |
+| "train", "launch training", "run training" (Trainer Mode; status questions → check-progress) | **trainer-mode** |
 | Training issue (NaN, plateau, collapse) | **systematic-debugging** |
 | Stuck on a failure mode | **failure-mode-researcher** (via subagent) |
 
@@ -375,7 +375,7 @@ Check these in order. Use the FIRST one that matches:
 | "new session", "archive this session" | Session management (/new-session) |
 | "create a worktree", "experiment branch" | **using-git-worktrees** |
 | Long run or command chain to supervise | **monitor** (ask first — token-costy) |
-| "check progress", "what's running", "status of my jobs", "what's left", "where was I" | **check-progress** (read-only task table) |
+| "check progress", "what's running", "status of my jobs", "what's left", "where was I", "is my training done", "did my run finish" | **check-progress** (read-only task table) |
 
 ### 6. Dual-Model Skills
 | Trigger | Skill |

@@ -175,13 +175,24 @@ for part in $PARTS; do
 done
 echo "PASS: every part exits 0, is plain text, and is under 10,000 characters"
 
-# Test 3: no argument is the state part (a stale no-arg registration stays small)
-( cd "$PLUGIN_DIR" && bash "$HOOK_SCRIPT" > "$TMPFILE" 2>/dev/null ) || { echo "FAIL: no-arg run exited non-zero"; exit 1; }
-if ! diff -q "$TMPFILE" "$PART_DIR/state" >/dev/null; then
-    echo "FAIL: running with no argument should equal the 'state' part"
+# Test 3: no argument is a legacy registration (a session open across an
+# upgrade): the state part, then a notice to restart and, until then, to read
+# the three files the session did not receive. Explicit `state` has no notice.
+( cd "$PLUGIN_DIR" && bash "$HOOK_SCRIPT" < /dev/null > "$TMPFILE" 2>/dev/null ) || { echo "FAIL: no-arg run exited non-zero"; exit 1; }
+STATE_LINES=$(wc -l < "$PART_DIR/state" | tr -d '[:space:]')
+if ! head -n "$STATE_LINES" "$TMPFILE" | diff -q - "$PART_DIR/state" >/dev/null; then
+    echo "FAIL: running with no argument should start with the 'state' part"
     exit 1
 fi
-echo "PASS: no argument == state part"
+for needle in "Propel was updated while this session was open" "Restart Claude Code" \
+              ".claude/core/CORE.md" ".claude/core/CODEX.md" ".claude/skills/using-propel/SKILL.md"; do
+    assert_contains "$TMPFILE" "$needle" "no-arg legacy notice"
+done
+if grep -qF "Propel was updated while this session was open" "$PART_DIR/state"; then
+    echo "FAIL: the explicit 'state' part must not carry the legacy notice"
+    exit 1
+fi
+echo "PASS: no argument == state part + legacy restart notice; explicit state unchanged"
 
 # Test 4: required content per part
 assert_contains "$PART_DIR/state" "## Codex state" "Codex state section"
@@ -262,9 +273,10 @@ echo "PASS: routing parts reproduce using-propel/SKILL.md losslessly in $M of $R
 ) || exit 1
 echo "PASS: version comes from .propel/manifest.json, 'unknown' without one"
 
-# Test 7: state edge cases — a huge profile is truncated under the cap, a
-# mode.json without a non-empty "mode" still needs selection, a non-boolean
-# "enabled" does not disable Codex, and CLAUDE_PROJECT_DIR wins over the cwd.
+# Test 7: state edge cases — a huge profile is truncated under the cap (also
+# with the no-argument legacy notice), a mode.json without a non-empty "mode"
+# still needs selection, the string "false" disables Codex (fail-closed), and
+# CLAUDE_PROJECT_DIR wins over the cwd.
 (
     cd "$PROJ_DIR"
     mkdir -p .propel sub
@@ -275,12 +287,29 @@ echo "PASS: version comes from .propel/manifest.json, 'unknown' without one"
     SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
     [ "$SIZE" -le 9000 ] || { echo "FAIL: state part is $SIZE bytes with a huge profile (max 9,000)"; exit 1; }
     for needle in "## Project profile" "profile line 1:" "(profile truncated — full text at .propel/profile.md)" \
-                  "## Registry entries" "mode_selection_needed: true" "enabled: true, available: null"; do
+                  "## Registry entries" "mode_selection_needed: true" "enabled: false, available: null"; do
         case "$OUT" in *"$needle"*) ;; *) echo "FAIL: state edge case missing '$needle'"; exit 1 ;; esac
     done
+    # Worst case for the no-argument call: the huge profile plus the notice.
+    OUT=$(cd sub && CLAUDE_PROJECT_DIR="$PROJ_DIR" bash "$HOOK_SCRIPT" < /dev/null 2>/dev/null) || { echo "FAIL: no-arg run exited non-zero with a huge profile"; exit 1; }
+    SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
+    [ "$SIZE" -le 9000 ] || { echo "FAIL: no-arg output is $SIZE bytes with a huge profile (max 9,000)"; exit 1; }
+    for needle in "(profile truncated — full text at .propel/profile.md)" "## Registry entries" \
+                  "Propel was updated while this session was open"; do
+        case "$OUT" in *"$needle"*) ;; *) echo "FAIL: no-arg run with a huge profile missing '$needle'"; exit 1 ;; esac
+    done
+    # "mode" on the line after its key still counts as selected, with and
+    # without python3 (as route.sh reads it).
+    printf '{\n  "mode":\n    "engineer",\n  "selected_by":\n "auto"\n}\n' > .propel/mode.json
+    OUT=$(bash "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero with a multi-line mode.json"; exit 1; }
+    case "$OUT" in *"mode_selection_needed: false"*) ;; *) echo "FAIL: state missed a multi-line \"mode\" value"; exit 1 ;; esac
+    MM_NOPY=$(make_nopy_bin)
+    OUT=$(env -i PATH="$MM_NOPY" "$MM_NOPY/bash" "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { rm -rf "$MM_NOPY"; echo "FAIL: state exited non-zero without python3"; exit 1; }
+    rm -rf "$MM_NOPY"
+    case "$OUT" in *"mode_selection_needed: false"*) ;; *) echo "FAIL: state missed a multi-line \"mode\" value without python3"; exit 1 ;; esac
     rm -rf .propel sub
 ) || exit 1
-echo "PASS: state truncates a huge profile, reads mode/codex strictly, honours CLAUDE_PROJECT_DIR"
+echo "PASS: state truncates a huge profile (with or without the legacy notice), reads mode/codex fail-closed, honours CLAUDE_PROJECT_DIR"
 
 # Test 8: state stays under the cap with a huge mode.json and 10 registry
 # entries with 200-character names (plus 5 long-named investigations).
@@ -676,16 +705,44 @@ route_py() { bash "$PLUGIN_DIR/hooks/route.sh" 2>/dev/null; }
     case "$OUT" in *"codex: enabled but CLI unavailable — "*) ;; *) echo "FAIL: route.sh missed a split-line \"available\": false without python3"; exit 1 ;; esac
     OUT=$(env -i PATH="$ROUTE_NOPY" "$ROUTE_NOPY/bash" "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero without python3"; exit 1; }
     case "$OUT" in *"enabled: true, available: false"*) ;; *) echo "FAIL: state missed a split-line \"available\": false without python3"; exit 1 ;; esac
-    # Only JSON false turns Codex off: null leaves it on, with and without python3.
-    echo '{"enabled": null}' > .propel/codex.json
-    OUT=$(route_nopy < /dev/null) || { echo "FAIL: route.sh exited non-zero without python3"; exit 1; }
-    case "$OUT" in *"codex: on (automatic at every gate)"*) ;; *) echo "FAIL: route.sh treats \"enabled\": null as off without python3"; exit 1 ;; esac
-    if command -v python3 >/dev/null 2>&1; then
-        OUT=$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null) || { echo "FAIL: route.sh exited non-zero"; exit 1; }
-        case "$OUT" in *"codex: on (automatic at every gate)"*) ;; *) echo "FAIL: route.sh treats \"enabled\": null as off with python3"; exit 1 ;; esac
-    fi
+    # Fail-closed: "false", "False", 0, null (and the other off strings) turn
+    # Codex off, with and without python3; true, "yes" and a missing key leave
+    # it on. session-start's state part agrees.
+    for cfg in '{"enabled": "false"}' '{"enabled": "False"}' '{"enabled": 0}' '{"enabled": null}' \
+               '{"enabled": " off "}' '{"enabled": "no"}' '{"enabled": "0"}' '{"enabled": ""}' $'{"enabled":\n "false"}'; do
+        printf '%s\n' "$cfg" > .propel/codex.json
+        for runner in py nopy; do
+            OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero"; exit 1; }
+            case "$OUT" in *"codex: OFF — "*) ;; *) echo "FAIL [$runner]: route.sh does not treat $cfg as off"; exit 1 ;; esac
+        done
+        OUT=$(env -i PATH="$ROUTE_NOPY" "$ROUTE_NOPY/bash" "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero without python3"; exit 1; }
+        case "$OUT" in *"enabled: false, "*) ;; *) echo "FAIL: state does not treat $cfg as off without python3"; exit 1 ;; esac
+        OUT=$(bash "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero"; exit 1; }
+        case "$OUT" in *"enabled: false, "*) ;; *) echo "FAIL: state does not treat $cfg as off"; exit 1 ;; esac
+    done
+    for cfg in '{"enabled": true}' '{"enabled": "yes"}' '{"enabled": 1}' '{"available": true}'; do
+        printf '%s\n' "$cfg" > .propel/codex.json
+        for runner in py nopy; do
+            OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero"; exit 1; }
+            case "$OUT" in *"codex: on (automatic at every gate)"*) ;; *) echo "FAIL [$runner]: route.sh does not treat $cfg as on"; exit 1 ;; esac
+        done
+    done
+    # A corrupt mode.json cannot bloat the per-turn card: mode and selected_by
+    # are cut to 40 characters each.
+    LONG=$(head -c 5000 /dev/zero | tr '\0' 'm')
+    printf '{"mode": "%s", "selected_by": "%s"}\n' "$LONG" "$LONG" > .propel/mode.json
+    CAP40=$(head -c 40 /dev/zero | tr '\0' 'm')
+    for runner in py nopy; do
+        OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero with a huge mode"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | sed -n 2p)" = "mode: $CAP40 (selected_by: $CAP40) — if this request belongs to a different mode, switch automatically, say so in one line, and continue." ] \
+            || { echo "FAIL [$runner]: route.sh did not cut mode/selected_by to 40 characters"; exit 1; }
+        SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
+        [ "$SIZE" -lt 2000 ] || { echo "FAIL [$runner]: routing card is $SIZE bytes with a huge mode.json"; exit 1; }
+    done
+    rm -f .propel/codex.json
+    echo '{"mode": "debugger", "selected_by": "auto", "previous_mode": "engineer"}' > .propel/mode.json
 ) || { rm -rf "$ROUTE_DIR" "$ROUTE_NOPY"; exit 1; }
-echo "PASS: route.sh reads mode and Codex state without python3, and honours CLAUDE_PROJECT_DIR"
+echo "PASS: route.sh reads mode and Codex state without python3 (fail-closed enabled rule, 40-char mode/selected_by), and honours CLAUDE_PROJECT_DIR"
 
 # The tasks line: one line after `codex:`, only when tasks are open; nothing
 # else in the card changes.
@@ -963,6 +1020,11 @@ if 'label' in d:
 
   echo '{"enabled": false}' > .propel/codex.json
   bash "$SEG" | grep -q 'off' || { echo "FAIL: disabled state not shown"; exit 1; }
+  # The same fail-closed "enabled" rule as codex-consult.sh and the hooks.
+  for cfg in '{"enabled": "false"}' '{"enabled": "False"}' '{"enabled": 0}' '{"enabled": null}' '{"enabled": "false",}'; do
+    printf '%s\n' "$cfg" > .propel/codex.json
+    bash "$SEG" | grep -q 'off' || { echo "FAIL: status line does not show $cfg as off"; exit 1; }
+  done
 
   echo '{"enabled": true}' > .propel/codex.json
   env HOME="$NOCLI_HOME" PATH=/usr/bin:/bin bash "$SEG" | grep -q 'no cli' \

@@ -109,8 +109,8 @@ These are common patterns, not rigid categories. Most investigations blend multi
 ## Codex Consult Before Gate 1 (automatic)
 
 Once findings are assembled, first apply the **`concise`** skill to the README's
-Findings section only — the rest of the living README (dead ends, failed
-attempts, task checklist) stays as written. Then, before Gate 1 is presented,
+Findings section only — the rest of the living README (Task Checklist,
+Surprises / Risks and every other section) stays as written. Then, before Gate 1 is presented,
 dispatch **`codex-bridge`** with the findings summary inlined and these two
 questions — one call, which also counts as the writeup review:
 

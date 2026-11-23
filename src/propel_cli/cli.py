@@ -7,6 +7,7 @@ Adapted from scott-yj-yang/new-prompt with:
 - Session index maintenance (sessions/INDEX.md)
 """
 
+import importlib.metadata
 import json
 import os
 import re
@@ -188,10 +189,34 @@ def read_settings(settings_path: Path) -> tuple[dict, str | None]:
     a ClickException naming the file. Nothing is written. (The parsing lives
     in install.read_settings, which `propel status` shares.)
     """
+    settings_write_target(settings_path)
     try:
         return install.read_settings(settings_path)
     except install.SettingsError as exc:
         raise click.ClickException(f"{exc} Fix it and re-run; nothing was changed.")
+
+
+def settings_write_target(settings_path: Path) -> Path | None:
+    """The file a settings write lands in when settings_path is a symlink, else None.
+
+    Users link .claude/settings.local.json to share a permission allowlist from
+    their dotfiles, so the write goes through the link (to its resolved target)
+    and the link stays. A broken link raises a ClickException: the target is
+    never created. read_settings calls this first, so init stops on a broken
+    link before anything is written.
+    """
+    if not settings_path.is_symlink():
+        return None
+    if not settings_path.exists():
+        raise click.ClickException(
+            f"{settings_path} is a symlink to {os.readlink(settings_path)}, which does not exist. "
+            "Create the target or remove the link, then re-run; nothing was changed."
+        )
+    return settings_path.resolve()
+
+
+def _describe_settings_link(settings_path: Path, target: Path) -> str:
+    return f"wrote through symlink {settings_path.parent.name}/{settings_path.name} -> {target}"
 
 
 def compute_hooks_merge(
@@ -329,12 +354,17 @@ def write_settings(
     backup_dir: Path | None,
 ) -> Path | None:
     """Write settings atomically. An existing file is first copied into
-    `backup_dir` (the run's .propel/backup/<ts>/). Returns the backup path."""
+    `backup_dir` (the run's .propel/backup/<ts>/). Returns the backup path.
+
+    A symlinked settings_path is written through: atomically to its resolved
+    target (temp file in the target's directory), keeping the link. See
+    settings_write_target."""
+    target = settings_write_target(settings_path) or settings_path
     backup = None
     if original_text is not None and backup_dir is not None:
         backup = backup_dir / settings_path.name
         backup.write_text(original_text)
-    install.atomic_write_text(settings_path, json.dumps(new_settings, indent=2) + "\n")
+    install.atomic_write_text(target, json.dumps(new_settings, indent=2) + "\n")
     return backup
 
 
@@ -360,6 +390,9 @@ def merge_hooks_config(
         if original_text is not None:
             backup_dir = install.reserve_backup_dir(settings_path.parent.parent)
         write_settings(settings_path, new_settings, original_text, backup_dir)
+        link_target = settings_write_target(settings_path)
+        if link_target is not None:
+            click.echo(f"  {_describe_settings_link(settings_path, link_target)}")
     return wanted
 
 
@@ -633,11 +666,12 @@ def init(dry_run: bool, yes: bool):
         settings, hooks_config, previous_hooks, propel_registrations
     )
     write_needed = settings_need_write(settings, new_settings, original_text)
+    to_add = install.missing_hook_registrations(settings, hooks_config)
+    hooks_changed = bool(removed_groups or to_add)
 
     if dry_run:
         _echo_install_summary(the_plan, None, project_root, propel_root, dry_run=True)
         _echo_hook_conflicts(the_plan, registered)
-        to_add = install.missing_hook_registrations(settings, hooks_config)
         if removed_groups or to_add:
             click.echo("\n  settings.local.json:")
         if to_add:
@@ -682,6 +716,9 @@ def init(dry_run: bool, yes: bool):
 
     if write_needed:
         click.echo("\n  settings.local.json — hooks configured")
+        link_target = settings_write_target(settings_path)
+        if link_target is not None:
+            click.echo(f"    {_describe_settings_link(settings_path, link_target)}")
         for event, entry in removed_groups:
             click.echo(f"    removed stale Propel hook group {_describe_hook_group(event, entry)}")
         if settings_backup is not None:
@@ -743,11 +780,22 @@ def init(dry_run: bool, yes: bool):
     click.echo(f"\nDone! Propel owns {len(report['manifest']['files'])} files in {claude_dir}/")
     click.echo("Run `propel` to check your Claude Code / Codex setup,")
     click.echo("or `claude` to start working.")
+    # `propel update` prints this itself, after its own summary.
+    if hooks_changed and write_needed and not os.environ.get(_RESTART_HINT_ENV):
+        click.echo(RESTART_HINT)
 
 
 # ---------------------------------------------------------------------------
 # propel status / propel update
 # ---------------------------------------------------------------------------
+
+
+RESTART_HINT = (
+    "Restart any Claude Code session open in this project: hook changes load at session start."
+)
+# Set for the child `propel init` that `propel update` runs, so the hint is
+# printed once, after update's summary, rather than in the middle of the output.
+_RESTART_HINT_ENV = "PROPEL_DEFER_RESTART_HINT"
 
 
 def _describe_version(version, commit, dirty=False) -> str:
@@ -783,6 +831,11 @@ def status_cmd():
     click.echo(f"Edited bundled files:  {count(s['edited_bundled'])} (replaced or removed on update, backed up first)")
     click.echo(f"User files kept:       {count(s['user_files'])}")
     click.echo(f"Hook registrations pending: {count(s.get('hooks_pending'))}")
+    if s.get("skipped_symlinked"):
+        click.echo(
+            f"WARNING: {s['skipped_symlinked']} Propel path(s) left alone under a symlink pointing"
+            " outside .claude/ — they are not updated (`propel init --dry-run` lists them)"
+        )
     if s.get("settings_error"):
         click.echo(f"Settings: {s['settings_error']}")
     if not s["installed"]:
@@ -863,6 +916,41 @@ def tasks_cmd(show_all: bool, sessions: int):
     raise SystemExit(128 - code if code < 0 else code)
 
 
+_UNKNOWN = object()
+
+
+def _registered_hooks(settings_path: Path):
+    """The "hooks" object of a settings file ({} when absent), or _UNKNOWN if
+    it cannot be read. Used to tell whether the child init changed them."""
+    try:
+        settings, _text = install.read_settings(settings_path)
+    except Exception:  # noqa: BLE001 — only decides whether to print a hint
+        return _UNKNOWN
+    return settings.get("hooks", {})
+
+
+def _installed_version() -> str | None:
+    """Version of the installed `propel` distribution, or None if it has no metadata."""
+    try:
+        return importlib.metadata.version("propel")
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def _source_version(propel_root: Path) -> str | None:
+    """`__version__` as written in the clone's src/propel_cli/__init__.py, or None.
+
+    Read from the file, not imported: after a pull this process still holds the
+    old module, and the file is what a reinstall would pick up.
+    """
+    try:
+        text = (propel_root / "src" / "propel_cli" / "__init__.py").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+    match = re.search(r"""(?m)^__version__\s*=\s*["']([^"']+)["']""", text)
+    return match.group(1) if match else None
+
+
 def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess:
     """git -C root <args>, never raising; a missing git binary reads as returncode 127."""
     try:
@@ -883,9 +971,10 @@ def update_cmd(dry_run: bool, no_pull: bool, yes: bool):
     """Pull the latest Propel, reinstall if needed, and refresh this project.
 
     Runs `git pull --ff-only` in the Propel clone (refusing if its tracked
-    files have local changes), reinstalls the package if pyproject.toml or
-    src/propel_cli/__init__.py changed, then re-runs `propel init` here with
-    the new code.
+    files have local changes), reinstalls the package if the pull changed
+    pyproject.toml or src/propel_cli/__init__.py, or if the installed
+    package's version differs from the clone's __version__, then re-runs
+    `propel init` here with the new code.
     """
     # --yes is a placeholder, as for init: nothing is asked today.
     del yes
@@ -927,6 +1016,8 @@ def update_cmd(dry_run: bool, no_pull: bool, yes: bool):
                 n = behind.stdout.strip()
                 click.echo(f"Propel at {propel_root} is {n} commit(s) behind its upstream (not pulled: dry run)")
                 summary.append(f"{n} commit(s) behind")
+                if n != "0":
+                    new_head = "@{u}"  # what the pull would move HEAD to
         else:
             click.echo(f"Pulling Propel in {propel_root}")
             pull = _run_git(propel_root, "pull", "--ff-only")
@@ -947,21 +1038,40 @@ def update_cmd(dry_run: bool, no_pull: bool, yes: bool):
 
     # b. Reinstall the package if its metadata changed. The version lives in
     # __init__.py, and editable-install metadata is only refreshed by a reinstall.
+    # Two triggers: (1) this run's pull changed pyproject.toml or __init__.py;
+    # (2) the installed distribution's version differs from the clone's
+    # __version__ — which also catches a manual `git pull` or --no-pull. A
+    # dependency change without a version bump after a manual pull is missed.
     reinstall_failed = False
-    if old_head and new_head and old_head != new_head and not dry_run:
+    reasons = []  # (why, what the real run says it does about it)
+    if old_head and new_head and old_head != new_head:
         diff = _run_git(
             propel_root, "diff", "--quiet", old_head, new_head, "--",
             "pyproject.toml", "src/propel_cli/__init__.py",
         )
-        reinstall = diff.returncode != 0
         if diff.returncode == 1:
-            click.echo("pyproject.toml or __init__.py changed; reinstalling the package")
+            reasons.append(("pyproject.toml or __init__.py changed", "reinstalling the package"))
         elif diff.returncode != 0:
-            click.echo(
-                f"could not compare pyproject.toml/__init__.py (git exit {diff.returncode}); "
-                "reinstalling to be safe"
-            )
-        if reinstall:
+            reasons.append((
+                f"could not compare pyproject.toml/__init__.py (git exit {diff.returncode})",
+                "reinstalling to be safe",
+            ))
+    installed_version = _installed_version()
+    source_version = _source_version(propel_root)
+    if installed_version and source_version and installed_version != source_version:
+        reasons.append((
+            f"installed package is version {installed_version} but the clone is {source_version}",
+            "reinstalling the package",
+        ))
+    if dry_run:
+        for why, _ in reasons:
+            click.echo(f"{why}; would reinstall the package (not done: dry run)")
+        if reasons:
+            summary.append("would reinstall")
+    else:
+        for why, action in reasons:
+            click.echo(f"{why}; {action}")
+        if reasons:
             try:
                 pip = subprocess.run(
                     [sys.executable, "-m", "pip", "install", "-e", str(propel_root)],
@@ -991,6 +1101,7 @@ def update_cmd(dry_run: bool, no_pull: bool, yes: bool):
         project_root / ".claude" / "skills" / "using-propel"
     ).is_dir()
     rc = 0
+    hooks_changed = False
     if installed:
         # Strip '' / '.' from sys.path so a propel_cli/ in the project (the
         # child's cwd) can't shadow the installed package.
@@ -1004,7 +1115,16 @@ def update_cmd(dry_run: bool, no_pull: bool, yes: bool):
         if dry_run:
             cmd.append("--dry-run")
         click.echo(f"\nRe-running `propel init{' --dry-run' if dry_run else ''}` in {project_root}\n")
-        rc = subprocess.run(cmd, cwd=str(project_root)).returncode
+        settings_path = project_root / ".claude" / "settings.local.json"
+        hooks_before = _registered_hooks(settings_path)
+        rc = subprocess.run(
+            cmd, cwd=str(project_root), env={**os.environ, _RESTART_HINT_ENV: "1"}
+        ).returncode
+        hooks_after = _registered_hooks(settings_path)
+        hooks_changed = (
+            not dry_run and hooks_before is not _UNKNOWN and hooks_after is not _UNKNOWN
+            and hooks_before != hooks_after
+        )
         summary.append(f"init {'dry run ' if dry_run else ''}{'ok' if rc == 0 else f'failed (exit {rc})'}")
     else:
         click.echo(f"No Propel install in {project_root}; run `propel init` there to install.")
@@ -1012,6 +1132,8 @@ def update_cmd(dry_run: bool, no_pull: bool, yes: bool):
 
     # d. Summary. init's own failure wins; otherwise a failed reinstall is exit 1.
     click.echo(f"\nUpdate{' (dry run)' if dry_run else ''}: {'; '.join(summary)}.")
+    if hooks_changed:
+        click.echo(RESTART_HINT)
     if rc != 0:
         raise SystemExit(rc)
     if reinstall_failed:
@@ -1275,8 +1397,8 @@ def codex_status():
     if config_path.exists():
         try:
             cfg = json.loads(config_path.read_text())
-            enabled = cfg.get("enabled", True)
-            available = cfg.get("available")
+            enabled = install.codex_enabled(cfg)
+            available = cfg.get("available") if isinstance(cfg, dict) else None
         except (json.JSONDecodeError, ValueError):
             pass
 

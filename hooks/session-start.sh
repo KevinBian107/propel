@@ -14,7 +14,11 @@
 #   bash hooks/session-start.sh <part>
 #
 #   state     Codex state, mode (+ policy), investigations, project profile,
-#             empty repo, registry entries                (default, no argument)
+#             empty repo, registry entries
+#   (none)    a legacy registration, from a session that was open across an
+#             upgrade (Claude Code snapshots hook registrations at session
+#             start): the state part, then a notice to restart Claude Code and,
+#             until then, to read CORE.md, CODEX.md and the using-propel skill
 #   tasks     open tasks from the task ledger (.propel/tasks/, via
 #             scripts/task-queue.sh), at most 20 rows; prints nothing when there
 #             are none. Also exports PROPEL_SESSION (the session_id on stdin)
@@ -41,6 +45,11 @@ SKILL_FILE="$PLUGIN_DIR/skills/using-propel/SKILL.md"
 CORE_FILE="$PLUGIN_DIR/core/CORE.md"
 CODEX_FILE="$PLUGIN_DIR/core/CODEX.md"
 
+# No argument at all = a registration from before the split into parts.
+LEGACY=false
+if [ $# -eq 0 ]; then
+  LEGACY=true
+fi
 PART="${1:-state}"
 
 # Number of routing parts registered in hooks.json. If SKILL.md needs more
@@ -55,6 +64,15 @@ POLICY_MAX=9500     # CORE.md / CODEX.md above this are truncated
 TRUNC_KEEP=9000     # characters kept when they are
 TASKS_MAX=8500      # max characters for the tasks part
 TASKS_ROWS=20       # max open-task rows in the tasks part
+
+# Printed after the state part on a no-argument (legacy) call.
+LEGACY_NOTICE="[propel] Propel was updated while this session was open, so this session still runs its old hook registrations and did not receive the core policy, the Codex policy or skill routing. Restart Claude Code to load them. Until then, read .claude/core/CORE.md, .claude/core/CODEX.md and .claude/skills/using-propel/SKILL.md now."
+if [ "$LEGACY" = true ]; then
+  # The notice shares the state part's budget, so state + notice stay under
+  # STATE_MAX (and the hook under Claude Code's per-hook cap).
+  LEGACY_LEN=$(printf '\n%s\n' "$LEGACY_NOTICE" | wc -c | tr -d '[:space:]')
+  STATE_MAX=$(( STATE_MAX - ${LEGACY_LEN:-0} ))
+fi
 
 HAVE_PYTHON=false
 if command -v python3 >/dev/null 2>&1; then
@@ -104,7 +122,7 @@ print_policy() {  # <file> <heading> <repo-relative path>
   fi
   echo "$2"
   echo ""
-  SIZE=$(wc -c < "$1" 2>/dev/null | tr -d '[:space:]')
+  SIZE=$(wc -c < "$1" 2>/dev/null | LC_ALL=C tr -d '[:space:]' 2>/dev/null)
   if [ "${SIZE:-0}" -gt "$POLICY_MAX" ]; then
     head_lines "$1" "$TRUNC_KEEP"
     echo "(truncated — read $3)"
@@ -167,6 +185,36 @@ print_routing() {  # <n>
 }
 
 # ── State part ──
+# The Codex "enabled" rule, identical in every Propel script that reads
+# .propel/codex.json (see scripts/codex-consult.sh): OFF when "enabled" is JSON
+# false, null or 0, or a string that, trimmed and lowercased, is "false", "0",
+# "off", "no" or empty. A missing file or key leaves it ON.
+# codex_flat_off <flat>: the fallback, on the file with all whitespace removed;
+# returns 0 (off) if any "enabled" value is off.
+codex_flat_off() {
+  local rest="$1" v t
+  while :; do
+    case "$rest" in
+      *'"enabled":'*) rest=${rest#*'"enabled":'} ;;
+      *) return 1 ;;
+    esac
+    case "$rest" in
+      '"'*)
+        v=${rest#?}; v=${v%%'"'*}
+        # A JSON escape (\t, \u0066...) is not decoded here, so fail closed: off.
+        case "$v" in *\\*|''|0|[Ff][Aa][Ll][Ss][Ee]|[Oo][Ff][Ff]|[Nn][Oo]) return 0 ;; esac ;;
+      *)
+        v=${rest%%,*}; v=${v%%'}'*}; v=${v%%']'*}
+        case "$v" in [Ff][Aa][Ll][Ss][Ee]|[Nn][Uu][Ll][Ll]) return 0 ;; esac
+        t=${v#-}; t=${t%%[eE]*}
+        case "$t" in
+          0|0.*) t=${t#0}; t=${t#.}
+                 case "$t" in *[!0]*) ;; *) return 0 ;; esac ;;
+        esac ;;
+    esac
+  done
+}
+
 state_pre() {
   # Codex state
   echo "## Codex state"
@@ -175,30 +223,40 @@ state_pre() {
   if [ -f "$CODEX_CONFIG" ]; then
     CODEX_STATE=""
     if [ "$HAVE_PYTHON" = true ]; then
+      # Prints nothing when the file is not a JSON object: the fallback decides.
       CODEX_STATE=$(python3 -c "
 import json
+def off(v):
+    if v is None or v is False:
+        return True
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return v == 0
+    if isinstance(v, str):
+        return v.strip().lower() in ('false', '0', 'off', 'no', '')
+    return False
 try:
     d = json.load(open('$CODEX_CONFIG'))
 except Exception:
-    d = {}
-if not isinstance(d, dict):
-    d = {}
-available = d.get('available', None)
-print('enabled: %s, available: %s' % (
-    'false' if d.get('enabled') is False else 'true',
-    ('true' if available else 'false') if isinstance(available, bool) else 'null'))
+    d = None
+if isinstance(d, dict):
+    available = d.get('available', None)
+    print('enabled: %s, available: %s' % (
+        'false' if off(d.get('enabled', True)) else 'true',
+        ('true' if available else 'false') if isinstance(available, bool) else 'null'))
 " 2>/dev/null || echo "")
     fi
     if [ -z "$CODEX_STATE" ]; then
       # Matched with all whitespace removed, so a value on its own line
       # ({"enabled":\nfalse}) is still seen.
-      CODEX_FLAT=$(tr -d '[:space:]' < "$CODEX_CONFIG" 2>/dev/null)
+      CODEX_FLAT=$(head -c 8192 "$CODEX_CONFIG" 2>/dev/null | LC_ALL=C tr -d '[:space:]' 2>/dev/null)
       ENABLED="true"
-      # Globs, not grep <<<: a here-string is a temp file on bash 3.2.
-      case "$CODEX_FLAT" in
-        *'"enabled":false'[!a-zA-Z0-9_]*|*'"enabled":false') ENABLED="false" ;;
-      esac
+      if codex_flat_off "$CODEX_FLAT"; then
+        ENABLED="false"
+      fi
       AVAILABLE="null"
+      # Globs, not grep <<<: a here-string is a temp file on bash 3.2.
       case "$CODEX_FLAT" in
         *'"available":false'[!a-zA-Z0-9_]*|*'"available":false') AVAILABLE="false" ;;
         *'"available":true'[!a-zA-Z0-9_]*|*'"available":true')   AVAILABLE="true" ;;
@@ -215,7 +273,7 @@ print('enabled: %s, available: %s' % (
   echo "## Mode"
   echo ""
   if [ -f ".propel/mode.json" ]; then
-    MODE_SIZE=$(wc -c < ".propel/mode.json" 2>/dev/null | tr -d '[:space:]')
+    MODE_SIZE=$(wc -c < ".propel/mode.json" 2>/dev/null | LC_ALL=C tr -d '[:space:]' 2>/dev/null)
     if [ "${MODE_SIZE:-0}" -gt "$MODE_MAX" ]; then
       # Byte cap, then drop a multi-byte character the cut may have split
       # (iconv -c); without iconv, the raw bytes pass through.
@@ -232,11 +290,16 @@ print('enabled: %s, available: %s' % (
   fi
   echo ""
   echo "Mode selection policy: AUTO. When mode_selection_needed is true, do NOT present a menu and do NOT block. Infer the mode from the user's first substantive message using the routing table in the using-propel skill, announce the choice in one line with the reason, write .propel/mode.json with \"selected_by\": \"auto\", and continue with the work. Only present the four-mode menu if the user opens with /intro, asks which modes exist, or the message is too ambiguous to classify."
-  if grep -Eq '"mode"[[:space:]]*:[[:space:]]*"[^"]+' ".propel/mode.json" 2>/dev/null; then
-    echo "mode_selection_needed: false"
-  else
-    echo "mode_selection_needed: true"
+  # Matched with all whitespace removed, as for codex.json, so a value on the
+  # line after "mode": still counts (route.sh's python path reads it too).
+  MODE_FLAT=""
+  if [ -f ".propel/mode.json" ]; then
+    MODE_FLAT=$(tr -d '[:space:]' < ".propel/mode.json" 2>/dev/null)
   fi
+  case "$MODE_FLAT" in
+    *'"mode":"'[!\"]*) echo "mode_selection_needed: false" ;;
+    *)                 echo "mode_selection_needed: true" ;;
+  esac
   echo ""
 
   # Active investigations
@@ -316,7 +379,7 @@ print_state() {
     # Budget: everything else, the section heading, the note, and newlines.
     USED=$(printf '%s\n\n## Project profile\n\n\n%s\n\n%s\n' "$PRE" "$PROFILE_NOTE" "$POST" | wc -c | tr -d '[:space:]')
     BUDGET=$(( STATE_MAX - ${USED:-0} ))
-    SIZE=$(wc -c < ".propel/profile.md" 2>/dev/null | tr -d '[:space:]')
+    SIZE=$(wc -c < ".propel/profile.md" 2>/dev/null | LC_ALL=C tr -d '[:space:]' 2>/dev/null)
     echo "## Project profile"
     echo ""
     if [ "${SIZE:-0}" -le "$BUDGET" ]; then
@@ -429,7 +492,7 @@ export_session() {
 # Its own function: bash 3.2 mis-parses quotes in a heredoc inside $(...).
 tasks_note() {
   cat <<'EOF'
-Tasks recorded in the task ledger (.propel/tasks/), which is written only via `bash .claude/scripts/task-queue.sh`. Rows whose Session is not marked "(this)" or "(carried here)" are from earlier sessions and are NOT resumed automatically: show them to the user and ask, per task, whether to carry it (`task-queue.sh carry ID`) or abandon it (`task-queue.sh abandon ID`) — never change a task's state on your own. Statuses lost, unknown and blocked need a decision. The check-progress skill shows full status.
+Tasks recorded in the task ledger (.propel/tasks/), which is written only via `bash .claude/scripts/task-queue.sh`. Rows whose Session is not marked "(this)" or "(carried here)" are from earlier sessions and are NOT resumed automatically: show them to the user and ask one disjunctive question for the whole batch: carry them into this session (`task-queue.sh carry ID`), abandon them (`task-queue.sh abandon ID`), or leave them open for later — never change a task's state on your own. Statuses lost, unknown and blocked need a decision. The check-progress skill shows full status.
 EOF
 }
 
@@ -477,7 +540,10 @@ print_tasks() {
 }
 
 case "$PART" in
-  state)   print_state ;;
+  state)   print_state
+           if [ "$LEGACY" = true ]; then
+             printf '\n%s\n' "$LEGACY_NOTICE"
+           fi ;;
   tasks)   print_tasks ;;
   core)    print_policy "$CORE_FILE" "## Core principles" "core/CORE.md" ;;
   codex)   print_policy "$CODEX_FILE" "## Dual-model (Codex) policy" "core/CODEX.md" ;;

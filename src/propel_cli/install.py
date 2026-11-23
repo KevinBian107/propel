@@ -21,7 +21,11 @@ Ownership rules (Gate 2 and Gate 3, 2026-11-16):
   differing bytes go through the rules above. Its existing case is kept.
 - Anything else under the managed directories is user-authored. It is never
   opened for writing, never chmodded and never deleted. Nothing is ever
-  written or removed outside `.claude/`, symlinks included.
+  written or removed outside `.claude/`, symlinks included — with one
+  exception: a `.claude/settings.local.json` that is a symlink is written
+  through to its target (atomically, in the target's directory) and the link
+  is kept, because users link it to share a permission allowlist from their
+  dotfiles. A broken link is refused, never created (cli.settings_write_target).
 
 Paths are relative to `.claude/` ("skills/x/SKILL.md"), which is also how they
 appear relative to the propel clone root, so one key works for upstream files,
@@ -104,6 +108,28 @@ class ManifestError(Exception):
 
 class SettingsError(Exception):
     """.claude/settings.local.json exists but does not parse into a usable object."""
+
+
+_CODEX_OFF_STRINGS = frozenset({"false", "0", "off", "no", ""})
+
+
+def codex_enabled(config: object) -> bool:
+    """Whether a parsed .propel/codex.json turns the dual-model layer on.
+
+    The shared rule: OFF when "enabled" is false, null or 0, or a string that,
+    trimmed and lowercased, is "false", "0", "off", "no" or "". A missing key
+    (or a config that is not a JSON object) means on.
+    """
+    if not isinstance(config, dict) or "enabled" not in config:
+        return True
+    value = config["enabled"]
+    if value is None or value is False:
+        return False
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value == 0:
+        return False
+    if isinstance(value, str) and value.strip().lower() in _CODEX_OFF_STRINGS:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -912,6 +938,12 @@ def status(propel_root: Path, project_root: Path) -> dict:
     "settings_error" says why. update_available is true when files would change
     or a registration is pending.
 
+    "skipped_symlinked" counts the paths left alone because they sit under (or
+    are) a symlink pointing outside .claude/ — e.g. `.claude/skills -> ~/shared`.
+    They do not make update_available true: linking them was the user's choice,
+    but `propel status` warns that they are not being updated. None when not
+    installed.
+
     Raises ManifestError if .propel/manifest.json exists but is unusable.
     """
     manifest = load_manifest(project_root)
@@ -930,6 +962,7 @@ def status(propel_root: Path, project_root: Path) -> dict:
             "user_files": None,
             "hooks_pending": None,
             "settings_error": None,
+            "skipped_symlinked": None,
             "update_available": False,
         }
     p = plan(propel_root, claude_dir, manifest)
@@ -948,7 +981,10 @@ def status(propel_root: Path, project_root: Path) -> dict:
         "user_files": len(p.of("keep_user")) + len(p.of("conflict_user")),
         "hooks_pending": hooks_pending,
         "settings_error": settings_error,
-        "update_available": changes > 0 or (hooks_pending or 0) > 0,
+        "skipped_symlinked": sum(1 for a in p.of("keep_user") if a.note == REASON_SYMLINK),
+        # init refuses to run while the settings file is unreadable or a broken
+        # link, so don't offer an update it would refuse.
+        "update_available": settings_error is None and (changes > 0 or (hooks_pending or 0) > 0),
     }
 
 
@@ -958,6 +994,15 @@ def _hooks_pending(propel_root: Path, settings_path: Path) -> tuple[int | None, 
         hooks_config = load_hooks_config(propel_root)
     except Exception as exc:  # noqa: BLE001 — status must never raise
         return None, f"could not read {propel_root / 'hooks' / 'hooks.json'}: {exc}"
+    if settings_path.is_symlink() and not settings_path.exists():
+        # init refuses a broken link (or a loop) before any write; report it as
+        # an error, not as an update. os.readlink, not resolve(): resolve raises
+        # RuntimeError on a loop before Python 3.13.
+        try:
+            target = os.readlink(settings_path)
+        except (OSError, RuntimeError, ValueError):
+            return None, f"{settings_path} is a broken symlink"
+        return None, f"{settings_path} is a symlink to {target}, which does not exist"
     try:
         settings, _text = read_settings(settings_path)
     except SettingsError as exc:

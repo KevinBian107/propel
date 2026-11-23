@@ -259,6 +259,71 @@ class ManualStepsTests(LauncherStatusTestCase):
 
 
 
+class SkippedSymlinkedTests(LauncherStatusTestCase):
+    def test_propel_block_carries_skipped_symlinked(self):
+        self.run_install()
+        self.assertEqual(self.collect()["propel"]["skipped_symlinked"], 0)
+        shared = Path(self._tmp.name) / "shared-skills"
+        shutil.copytree(self.claude / "skills", shared)
+        shutil.rmtree(self.claude / "skills")
+        (self.claude / "skills").symlink_to(shared)
+        p = self.collect()["propel"]
+        self.assertEqual(p["skipped_symlinked"], 2)
+        self.assertIs(p["update_available"], False)
+
+
+class CodexEnabledTests(LauncherStatusTestCase):
+    OFF = [False, None, 0, 0.0, "false", " FALSE ", "0", "off", "Off", "no", "", "   "]
+    ON = [True, 1, "true", "yes", "on", "1", [], {}]
+
+    def test_shared_rule(self):
+        for value in self.OFF:
+            self.assertIs(install.codex_enabled({"enabled": value}), False, repr(value))
+        for value in self.ON:
+            self.assertIs(install.codex_enabled({"enabled": value}), True, repr(value))
+        self.assertIs(install.codex_enabled({}), True)  # missing key means on
+        self.assertIs(install.codex_enabled({"available": False}), True)
+        self.assertIs(install.codex_enabled([]), True)  # not an object: no key
+
+    def write_codex(self, text):
+        (self.project / ".propel").mkdir(exist_ok=True)
+        (self.project / ".propel" / "codex.json").write_text(text)
+
+    def test_launcher_uses_shared_rule(self):
+        self.assertIsNone(self.collect()["project"]["codex_enabled"])
+        for text, expected in (
+            ('{"enabled": "false"}', False),
+            ('{"enabled": "off"}', False),
+            ('{"enabled": null}', False),
+            ('{"enabled": 0}', False),
+            ('{"enabled": ""}', False),
+            ('{"enabled": true}', True),
+            ('{"available": false}', True),
+            ("{not json", None),
+        ):
+            self.write_codex(text)
+            self.assertIs(self.collect()["project"]["codex_enabled"], expected, text)
+
+    def test_codex_status_uses_shared_rule(self):
+        from click.testing import CliRunner
+
+        for text, expected in (
+            ('{"enabled": "false"}', "no"),
+            ('{"enabled": null}', "no"),
+            ('{"enabled": "yes"}', "yes"),
+            ("{}", "yes"),
+            ("[]", "yes"),
+        ):
+            self.write_codex(text)
+            with mock.patch.object(cli_mod, "get_project_root", return_value=self.project), \
+                    mock.patch.object(launcher, "tool_path", return_value=None), \
+                    mock.patch.object(cli_mod, "_read_codex_log", return_value=[]):
+                result = CliRunner().invoke(cli_mod.cli, ["codex", "status"])
+            self.assertEqual(result.exit_code, 0, result.output)
+            line = next(l for l in result.output.splitlines() if l.strip().startswith("enabled"))
+            self.assertEqual(line.split()[1], expected, text)
+
+
 class PendingSummaryTests(unittest.TestCase):
     def test_names_files_and_hooks(self):
         from propel_cli.terminal_setup import _pending_summary as f

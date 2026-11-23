@@ -3,7 +3,7 @@ name: concise
 description: >
   [Propel] Makes responses and write-ups shorter without losing a fact or a piece of
   evidence, ordered claim first, evidence second. Use when the user says "make this
-  concise", "tighten this", "too long", "cut this down", "shorter", "trim this",
+  concise", "tighten this", "this is too long", "cut this down", "make it shorter", "trim this",
   "write this up", "clean up the README", "clean up the write-up". Also runs
   automatically before any finished written artifact is presented: the Gate 1
   investigation write-up, the Gate 2 design doc, a retrospective entry, a docs page.
@@ -29,6 +29,9 @@ This skill cuts words. Every claim and every piece of evidence stays.
 5. **Keep uncertainty that carries information**, e.g. "unverified" or "not tested
    on tmux". Drop only the hedges that say nothing.
 
+A template that fixes section order (a registry entry, the investigation README,
+the Gate 2 summary) keeps its order. Rule 1 applies within each section.
+
 ## Chat Replies
 
 Apply the rules yourself. That is all: no draft file, no script, no Codex. The
@@ -49,9 +52,17 @@ from the repo root.
    repo-relative path with every `/` replaced by `__`, and prints the draft path:
    `scratch/2026-11-18-x/README.md` becomes
    `.propel/concise/scratch__2026-11-18-x__README.md.draft.md`.
-   **If it exits 1, a draft for this artifact is already pending.** Do not
-   overwrite or delete it. Finish that rewrite first: present it and get the user
-   to accept it, then do step 8.
+   **If it exits 1, a draft for this artifact is already pending.** Check whose
+   it is:
+   - **Stale** only when you can see that its gate was answered: the answer is
+     in this conversation or recorded in the artifact (for example a "Human
+     decisions" entry for that gate). Delete that one file
+     (`rm -f -- "<draft path>"`, the exact path the refusal message names, in
+     quotes), then save again.
+   - **Otherwise it is the baseline.** That includes a draft from an earlier
+     session or from before a `/clear` whose gate you cannot see answered. It may
+     be the only copy of the original text. Do not delete or overwrite it, and do
+     not save again. Skip to step 2 and check your rewrite against this draft.
 2. **Rewrite** the artifact in place, following the 5 rules.
 3. **Run the check:**
    ```bash
@@ -86,9 +97,13 @@ from the repo root.
    - Pass both **paths**, never pasted content. Codex reads the files in the repo.
    - Verify each Codex finding against the two files before acting on it.
 7. **Present** the rewrite. **Keep the draft until the user accepts the rewrite.**
-8. **Clean up.** Once the user accepts the rewrite, delete the draft
-   (`rm <draft path>`). A draft left behind blocks the next `--save-draft` of
-   that artifact, which is how an unaccepted rewrite stays visible.
+   For a gate artifact (Gate 1, Gate 2, retrospective), the human answering the
+   gate question is the acceptance. Never add a separate yes/no "accept the
+   rewrite?" next to a gate question.
+8. **Clean up.** Once the user accepts the rewrite (for a gate artifact: right
+   after the gate answer), delete the draft (`rm -f -- "<draft path>"`). A draft left
+   behind blocks the next `--save-draft` of that artifact, which is how an
+   unaccepted rewrite stays visible.
 
 ## Example
 
@@ -119,7 +134,8 @@ the draft's claim is a meaning question, and you check it by reading (step 5).
 - **Fewer facts is a failure, not a style.** If the rewrite cannot keep a fact,
   keep the longer sentence.
 - **The draft is the evidence of what was there.** Never delete it before the user
-  accepts the rewrite.
+  accepts the rewrite (at a gate: answers the gate). Only a draft whose gate you
+  can see answered is stale; any other pending draft is the baseline (step 1).
 - **Exit 0 is a floor, not a verdict.** Token survival is checked by the script.
   Meaning survival is checked by you, and at a gate, by Codex.
 - **Don't run this on code, quoted output or logs.** Rewrite prose. Copy evidence verbatim.

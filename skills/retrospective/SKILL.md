@@ -39,8 +39,9 @@ writeup review:
 >
 > "Compare the draft and the rewrite at <the draft path the `concise` skill gives
 > (under `.propel/concise/`)> and `scratch/registry/<entry>/SKILL.md`: is any claim, caveat or evidence item lost
-> or changed, and where does a reader meet evidence before the claim it supports?
-> Name passages by heading, or say 'no additional findings'."
+> or changed, and, within a section, where does a reader meet evidence before the
+> claim it supports? The section order is fixed by the registry format; do not
+> flag it. Name passages by heading, or say 'no additional findings'."
 
 Only the second question gets paths instead of inlined content; ask Codex to
 answer it under the heading `Writeup review:`. If the entry or draft holds
@@ -54,10 +55,24 @@ the result in `codex-consult`'s card format. Announce it first:
 
 A retrospective is written by the model that ran the session, so it inherits that
 session's reading of the evidence — the conclusions most likely to be wrong are
-the ones it never thought to doubt. Fold verified findings into the entry with
-`[codex]` attribution (`[codex · unverified]` for what you could not confirm),
-then re-run the `concise` check (`claim-check.sh` on the draft vs the final entry)
-so the fold-in did not drop evidence.
+the ones it never thought to doubt. Registry entries are surfaced automatically
+by later investigations, so what goes into one is the human's decision:
+
+1. Present the Codex card first, verified and `[codex · unverified]` items alike.
+2. Ask one disjunctive question naming which verified findings to fold in, e.g.
+   "Fold all 3 verified findings, fold only the one naming the warmup schedule,
+   or fold none and keep the entry as drafted?", with what each choice changes in
+   the entry.
+3. Write only the findings the human picks, each with `[codex]` attribution.
+   Never write a `[codex · unverified]` item into the entry; it stays in the card.
+4. Re-run the `concise` check (`claim-check.sh` on the draft vs the final entry)
+   so the fold-in did not drop evidence, then delete the draft (`concise` step 8:
+   the answer to this question is the acceptance).
+
+When no fold-in question is asked (Codex disabled or unavailable, or nothing
+verified), present the entry; the human's next reply about it is the acceptance,
+and the draft is deleted then. Never ask a fold-in question with nothing to fold.
+
 If `.propel/codex.json` has `"enabled": false`, skip it (one `◇ Codex disabled`
 line at the session's first gate); if the CLI is missing, say so once and proceed
 single-model.

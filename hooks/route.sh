@@ -103,45 +103,99 @@ except Exception:
     S=$(grep -o '"selected_by"[[:space:]]*:[[:space:]]*"[^"]*"' ".propel/mode.json" 2>/dev/null | head -1 \
       | sed 's/^"selected_by"[[:space:]]*:[[:space:]]*"//; s/"$//')
   fi
+  # At most 40 characters each, so a corrupt mode.json cannot bloat the card
+  # injected on every prompt.
+  M="${M:0:40}"
+  S="${S:0:40}"
   if [ -n "$M" ]; then
     MODE="$M"
   fi
   SELECTED_BY="$S"
 fi
 
-CODEX="on (automatic at every gate)"
+# The Codex "enabled" rule, identical in every Propel script that reads
+# .propel/codex.json (see scripts/codex-consult.sh): OFF when "enabled" is JSON
+# false, null or 0, or a string that, trimmed and lowercased, is "false", "0",
+# "off", "no" or empty. A missing file or key leaves it ON.
+# codex_flat_off <flat>: the fallback, on the file with all whitespace removed;
+# returns 0 (off) if any "enabled" value is off.
+codex_flat_off() {
+  local rest="$1" v t
+  while :; do
+    case "$rest" in
+      *'"enabled":'*) rest=${rest#*'"enabled":'} ;;
+      *) return 1 ;;
+    esac
+    case "$rest" in
+      '"'*)
+        v=${rest#?}; v=${v%%'"'*}
+        # A JSON escape (\t, \u0066...) is not decoded here, so fail closed: off.
+        case "$v" in *\\*|''|0|[Ff][Aa][Ll][Ss][Ee]|[Oo][Ff][Ff]|[Nn][Oo]) return 0 ;; esac ;;
+      *)
+        v=${rest%%,*}; v=${v%%'}'*}; v=${v%%']'*}
+        case "$v" in [Ff][Aa][Ll][Ss][Ee]|[Nn][Uu][Ll][Ll]) return 0 ;; esac
+        t=${v#-}; t=${t%%[eE]*}
+        case "$t" in
+          0|0.*) t=${t#0}; t=${t#.}
+                 case "$t" in *[!0]*) ;; *) return 0 ;; esac ;;
+        esac ;;
+    esac
+  done
+}
+
+CODEX_OFF="OFF — user ran /disable-codex; do not consult Codex, do not nag"
+CODEX_NOCLI="enabled but CLI unavailable — notice already shown once; proceed single-model silently"
+CODEX_ON="on (automatic at every gate)"
+CODEX="$CODEX_ON"
 if [ -f ".propel/codex.json" ]; then
   C=""
   if [ "$HAVE_PYTHON" = true ]; then
+    # Prints nothing when the file is not a JSON object: the fallback decides.
     C=$(python3 -c "
 import json
+def off(v):
+    if v is None or v is False:
+        return True
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return v == 0
+    if isinstance(v, str):
+        return v.strip().lower() in ('false', '0', 'off', 'no', '')
+    return False
 try:
     d = json.load(open('.propel/codex.json'))
-    if d.get('enabled', True) is False:
-        print('OFF — user ran /disable-codex; do not consult Codex, do not nag')
-    elif d.get('available') is False:
-        print('enabled but CLI unavailable — notice already shown once; proceed single-model silently')
-    else:
-        print('on (automatic at every gate)')
 except Exception:
-    print('on (automatic at every gate)')
+    d = None
+if isinstance(d, dict):
+    if off(d.get('enabled', True)):
+        print('off')
+    elif d.get('available') is False:
+        print('nocli')
+    else:
+        print('on')
 " 2>/dev/null || echo "")
   fi
-  if [ -z "$C" ]; then
-    # Same patterns as session-start.sh's state part, matched with all
-    # whitespace removed so a value on its own line is still seen.
-    CODEX_FLAT=$(tr -d '[:space:]' < ".propel/codex.json" 2>/dev/null)
-    # Globs, not grep <<<: a here-string is a temp file on bash 3.2.
-    case "$CODEX_FLAT" in
-      *'"enabled":false'[!a-zA-Z0-9_]*|*'"enabled":false')
-        C="OFF — user ran /disable-codex; do not consult Codex, do not nag" ;;
-      *'"available":false'[!a-zA-Z0-9_]*|*'"available":false')
-        C="enabled but CLI unavailable — notice already shown once; proceed single-model silently" ;;
-      *)
-        C="on (automatic at every gate)" ;;
-    esac
-  fi
-  CODEX="$C"
+  case "$C" in
+    off|nocli|on) ;;
+    *)
+      # Matched with all whitespace removed, so a value on its own line is
+      # still seen. Globs, not grep <<<: a here-string is a temp file on bash 3.2.
+      CODEX_FLAT=$(head -c 8192 ".propel/codex.json" 2>/dev/null | LC_ALL=C tr -d '[:space:]' 2>/dev/null)
+      if codex_flat_off "$CODEX_FLAT"; then
+        C=off
+      else
+        case "$CODEX_FLAT" in
+          *'"available":false'[!a-zA-Z0-9_]*|*'"available":false') C=nocli ;;
+          *) C=on ;;
+        esac
+      fi ;;
+  esac
+  case "$C" in
+    off)   CODEX="$CODEX_OFF" ;;
+    nocli) CODEX="$CODEX_NOCLI" ;;
+    *)     CODEX="$CODEX_ON" ;;
+  esac
 fi
 
 # Open tasks in the task ledger, counted by scripts/task-queue.sh. The session

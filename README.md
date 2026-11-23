@@ -177,10 +177,25 @@ propel update             # pull Propel, reinstall if needed, refresh this proje
 
 `propel update` runs `git pull --ff-only` in your Propel clone (it refuses if the
 clone has uncommitted changes to tracked files; `--no-pull` skips this step),
-reinstalls the package when `pyproject.toml` or the version file changed, then
-re-runs `propel init` in the current project with the new code. `propel init
---dry-run` previews the project step on its own, and `propel --version` prints the
-version you have installed.
+reinstalls the package (`pip install -e`) when either its own pull changed
+`pyproject.toml` or `src/propel_cli/__init__.py`, or the installed package's
+version differs from the `__version__` in the clone, then re-runs `propel init`
+in the current project with the new code. It prints why it reinstalls; with
+`--dry-run` it says it would, and doesn't. The version check is what catches a
+`git pull` you ran yourself or `--no-pull`; its limit is that a dependency change
+in `pyproject.toml` without a version bump, pulled by hand, is not detected —
+run `pip install -e <propel clone>` yourself then. `propel init --dry-run`
+previews the project step on its own, and `propel --version` prints the version
+you have installed.
+
+When `propel init` or `propel update` changes the hook registrations in
+`settings.local.json`, it ends with a reminder to restart any Claude Code session
+open in the project: sessions load hooks when they start. A
+`settings.local.json` that is a symlink (say, into your dotfiles) is written
+through to its target and the link is kept; a broken link stops init before it
+writes anything. `propel status` warns when Propel paths are skipped because they
+sit under a symlink pointing outside `.claude/` (e.g. `.claude/skills ->
+~/shared`): those are left as you linked them and are not updated.
 
 What an update touches in `.claude/`:
 

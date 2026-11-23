@@ -285,7 +285,7 @@ If confirmed → update only the changed sections in profile.md and conventions.
 ## Toggle and Removal
 
 - **Disable**: Set `"enabled": false` in `.propel/config.json`. The session-start hook will skip profile injection.
-- **Remove entirely**: Delete the `.propel/` directory. `propel init` will recreate the gitignore entry but won't recreate the profile.
+- **Remove entirely**: Delete only the four profile files this skill creates: `.propel/config.json`, `.propel/profile.md`, `.propel/conventions.md` and `.propel/domain-context.md`. Never delete the `.propel/` directory: it also holds `manifest.json` (without it the next `propel init` runs in legacy mode), the task ledger (`tasks/`), `codex.json`, `mode.json` and the Codex audit log (`codex-log.jsonl`). `propel init` won't recreate the profile.
 - **Re-enable**: Say "customize Propel" or "analyze my project" to run the full analysis again.
 
 ## Integration Points

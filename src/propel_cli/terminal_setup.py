@@ -333,6 +333,12 @@ def _update_project(status: dict) -> None:
         return
     # No manifest (installed before manifests existed) means no recorded version.
     version = propel.get("installed_version") or "(version unknown)"
+    skipped = propel.get("skipped_symlinked") or 0
+    if skipped:
+        click.echo(
+            f"  {WARN} {skipped} Propel path(s) are under a symlink pointing outside "
+            ".claude/ and are not updated (`propel init --dry-run` lists them)."
+        )
     if not propel.get("update_available"):
         click.echo(f"  Propel {version} is up to date in this project.")
         return

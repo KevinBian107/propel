@@ -71,18 +71,23 @@ class ChildRecorder:
     """Stands in for subprocess.run: records the pip / child-init calls and
     returns canned exit codes; lets every other command (git) run for real.
 
-    git_rc: {git subcommand: returncode} to fake, e.g. {"diff": 128}."""
+    git_rc: {git subcommand: returncode} to fake, e.g. {"diff": 128}.
+    on_init: called (no arguments) when the child init would run, to fake its
+    side effects."""
 
-    def __init__(self, init_rc=0, pip_rc=0, git_rc=None):
+    def __init__(self, init_rc=0, pip_rc=0, git_rc=None, on_init=None):
         self.calls = []
         self.init_rc = init_rc
         self.pip_rc = pip_rc
         self.git_rc = git_rc or {}
+        self.on_init = on_init
         self._real_run = subprocess.run
 
     def __call__(self, cmd, *args, **kwargs):
         if cmd and cmd[0] == sys.executable:
             self.calls.append((list(cmd), kwargs))
+            if _kind(cmd) == "init" and self.on_init is not None:
+                self.on_init()
             rc = self.pip_rc if _kind(cmd) == "pip" else self.init_rc
             return subprocess.CompletedProcess(cmd, rc, "", "pip exploded" if rc else "")
         if cmd and cmd[0] == "git" and len(cmd) > 3 and cmd[3] in self.git_rc:
@@ -94,10 +99,14 @@ class ChildRecorder:
 
 
 class CommandTestCase(InstallTestCase):
-    def invoke(self, args, propel_root=None, recorder=None):
+    def invoke(self, args, propel_root=None, recorder=None, installed_version=None):
+        """installed_version: what the installed `propel` distribution reports.
+        None (the default) is "no metadata", which turns the version check off,
+        so tests don't depend on the interpreter running them."""
         recorder = recorder or ChildRecorder()
         with mock.patch.object(cli_mod, "get_propel_root", return_value=propel_root or self.propel.root), \
                 mock.patch.object(cli_mod, "get_project_root", return_value=self.project), \
+                mock.patch.object(cli_mod, "_installed_version", return_value=installed_version), \
                 mock.patch.object(cli_mod.subprocess, "run", side_effect=recorder):
             # CliRunner's default output carries stderr too (click < 8.2 mixes
             # it in; 8.2+ always interleaves it), so error text is in .output.
@@ -264,6 +273,94 @@ class UpdateNoPullTests(CommandTestCase):
         self.run_install()
         result, _ = self.invoke(["update", "--no-pull"], recorder=ChildRecorder(init_rc=3))
         self.assertEqual(result.exit_code, 3, result.output)
+
+    # Version check: a manual `git pull` or --no-pull still reinstalls when the
+    # installed package is behind the clone.
+    def write_source_version(self, version):
+        self.propel.write("src/propel_cli/__init__.py", f'__version__ = "{version}"\n')
+        self.propel.commit(f"version {version}")
+
+    def test_stale_installed_version_reinstalls(self):
+        self.run_install()
+        self.write_source_version("9.9.9")
+        result, rec = self.invoke(["update", "--no-pull"], installed_version="0.1.0")
+        self.assertEqual(result.exit_code, 0, result.output)
+        [(cmd, _)] = rec.of("pip")
+        self.assertEqual(cmd, [sys.executable, "-m", "pip", "install", "-e", str(self.propel.root)])
+        self.assertEqual([_kind(c[0]) for c in rec.calls], ["pip", "init"])
+        self.assertIn(
+            "installed package is version 0.1.0 but the clone is 9.9.9; reinstalling the package",
+            result.output,
+        )
+        self.assertIn("reinstalled", result.output)
+
+    def test_matching_versions_do_not_reinstall(self):
+        self.run_install()
+        self.write_source_version("9.9.9")
+        result, rec = self.invoke(["update", "--no-pull"], installed_version="9.9.9")
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(rec.of("pip"), [])
+        self.assertNotIn("reinstall", result.output)
+
+    def test_stale_version_dry_run_says_what_would_happen(self):
+        self.run_install()
+        self.write_source_version("9.9.9")
+        result, rec = self.invoke(["update", "--no-pull", "--dry-run"], installed_version="0.1.0")
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(rec.of("pip"), [])
+        self.assertIn(
+            "installed package is version 0.1.0 but the clone is 9.9.9;"
+            " would reinstall the package (not done: dry run)",
+            result.output,
+        )
+        self.assertIn("would reinstall", result.output.splitlines()[-1])
+
+    def test_no_installed_metadata_skips_version_check(self):
+        self.run_install()
+        self.write_source_version("9.9.9")
+        result, rec = self.invoke(["update", "--no-pull"], installed_version=None)
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(rec.of("pip"), [])
+
+    def test_installed_version_guards_missing_distribution(self):
+        import importlib.metadata
+        with mock.patch.object(
+            cli_mod.importlib.metadata, "version",
+            side_effect=importlib.metadata.PackageNotFoundError("propel"),
+        ):
+            self.assertIsNone(cli_mod._installed_version())
+
+    def test_source_version_is_read_from_the_clone_file(self):
+        self.assertIsNone(cli_mod._source_version(self.propel.root))
+        self.write_source_version("1.2.3")
+        self.assertEqual(cli_mod._source_version(self.propel.root), "1.2.3")
+
+    # Restart hint: printed once, after update's summary, when the child init
+    # changed the hook registrations.
+    def drop_a_registration(self):
+        settings_path = self.claude / "settings.local.json"
+        settings = json.loads(settings_path.read_text())
+        del settings["hooks"]["UserPromptSubmit"]
+        settings_path.write_text(json.dumps(settings))
+
+    def test_restart_hint_after_summary_when_child_changes_hooks(self):
+        self.run_install()
+        rec = ChildRecorder(on_init=self.drop_a_registration)
+        result, rec = self.invoke(["update", "--no-pull"], recorder=rec)
+        self.assertEqual(result.exit_code, 0, result.output)
+        lines = result.output.rstrip("\n").splitlines()
+        self.assertEqual(lines[-1], cli_mod.RESTART_HINT)
+        self.assertTrue(lines[-2].startswith("Update: "), lines[-2])
+        self.assertEqual(result.output.count(cli_mod.RESTART_HINT), 1)
+        # The child is told to leave the hint to update.
+        [(_, kwargs)] = rec.of("init")
+        self.assertEqual(kwargs["env"].get(cli_mod._RESTART_HINT_ENV), "1")
+
+    def test_no_restart_hint_when_hooks_unchanged(self):
+        self.run_install()
+        result, _ = self.invoke(["update", "--no-pull"])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertNotIn(cli_mod.RESTART_HINT, result.output)
 
     def test_not_a_git_clone_skips_pull(self):
         plain = FakePropel(Path(self._tmp.name) / "plain", repo=None)

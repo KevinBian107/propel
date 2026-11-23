@@ -100,20 +100,21 @@ run is short enough that delegation costs more than it saves.
    command, because shell variables do not survive between Bash calls. `<CMD>` is
    the exact confirmed command. When you delegate, the operator runs this itself.
 ```bash
-R=$PWD; while [ "$R" != / ] && [ ! -f "$R/.claude/scripts/task-queue.sh" ]; do R=$(dirname "$R"); done; [ -f "$R/.claude/scripts/task-queue.sh" ] && cd "$R"
+O=$PWD; R=$PWD; while [ "$R" != / ] && [ ! -f "$R/.claude/scripts/task-queue.sh" ]; do R=$(dirname "$R"); done; [ -f "$R/.claude/scripts/task-queue.sh" ] && cd "$R"
 [ ! -e .propel/runs/<NAME>.sh ] || { echo "<NAME> is taken, pick a new name"; exit 1; }
-mkdir -p .propel/runs && cat > .propel/runs/<NAME>.sh <<'PROPEL_CMD'
+mkdir -p .propel/runs && printf 'cd %q || exit 1\n' "$O" > .propel/runs/<NAME>.sh && cat >> .propel/runs/<NAME>.sh <<'PROPEL_CMD'
 <CMD>
 PROPEL_CMD
 ID=$(bash .claude/scripts/task-queue.sh start --kind train --title "<short title>" --screen <NAME> --log .propel/runs/<NAME>.log --exit-file .propel/runs/<NAME>.exit --cmd '<CMD>') || ID="not tracked in the task ledger"
-screen -dmS <NAME> bash -c 'set -o pipefail; bash -o pipefail .propel/runs/<NAME>.sh 2>&1 | tee .propel/runs/<NAME>.log; echo $? > .propel/runs/<NAME>.exit' || echo "launch failed"
+screen -dmS <NAME> bash -c 'set -o pipefail; bash .propel/runs/<NAME>.sh 2>&1 | tee .propel/runs/<NAME>.log; echo $? > .propel/runs/<NAME>.exit' || echo "launch failed"
 echo "task: $ID"
 ```
    - **The command always goes in `.propel/runs/<NAME>.sh`**, verbatim, through
      the quoted heredoc, so no quoting rule depends on what it contains. The
      closing `PROPEL_CMD` must start at column 0. The file is the record of the
-     approved command. It runs from the project root, so a `cd` inside it is
-     fine.
+     approved command. Its first line `cd`s back to the directory the Bash
+     call started in, so the command runs where it would have run by hand. The
+     ledger and the run files live at the project root.
    - **`--cmd` rule:** pass `--cmd '<CMD>'` only when the command is one line
      with no single quote. Otherwise replace it with
      `--note "command: .propel/runs/<NAME>.sh"`.
@@ -122,9 +123,15 @@ echo "task: $ID"
      `start` checks for one. `start` never gates the launch. The ledger is
      advisory: if it fails (no session, ledger busy, anything), the block prints
      "not tracked in the task ledger" and launches anyway.
-   - `pipefail` makes the exit code the command's instead of `tee`'s, and
-     `bash -o pipefail` extends that to pipelines inside the command file. The session
-     closes when the command ends. After that, the log is the post-mortem record
+   - `pipefail` applies only to the outer `| tee`, so the recorded exit code is
+     the command's own instead of `tee`'s. Pipelines inside the user's command
+     behave exactly as written, because Propel never changes the approved
+     command.
+   - Output goes through a pipe to `tee`, so Python may block-buffer it and the
+     log can lag behind the run. Do not edit the command to fix that. Tell the
+     user that `PYTHONUNBUFFERED=1` or `python -u` would make the log live, and
+     let them decide.
+   - The session closes when the command ends. After that, the log is the post-mortem record
      and `<NAME>.exit` holds the exit code. Status comes from that evidence:
      `<NAME>.exit` exists → done (exit 0) or failed. Session alive → running.
      Session gone and no exit file → lost.
@@ -161,7 +168,7 @@ echo "task: $ID"
 Use the same block, with the `screen -dmS` line replaced by:
 
 ```bash
-tmux new-session -d -s <NAME> "bash -c 'set -o pipefail; bash -o pipefail .propel/runs/<NAME>.sh 2>&1 | tee .propel/runs/<NAME>.log; echo \$? > .propel/runs/<NAME>.exit'" || echo "launch failed"
+tmux new-session -d -s <NAME> "bash -c 'set -o pipefail; bash .propel/runs/<NAME>.sh 2>&1 | tee .propel/runs/<NAME>.log; echo \$? > .propel/runs/<NAME>.exit'" || echo "launch failed"
 ```
 
 Your shell expands the outer double quotes before tmux sees them, which is why
