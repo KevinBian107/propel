@@ -1,6 +1,6 @@
 ---
 name: codex-bridge
-description: "[Propel] Runs an automatic Codex consult in an isolated context and returns only verified findings. Dispatched by the codex-consult skill at every major decision point (Gate 0-4, bug classification, 3-strike break, retrospective). Give it the brief to send, the decision point label, and the files Codex's claims will need to be checked against. It runs the Codex CLI, checks every file:line and symbol Codex cites against the actual repository, discards the raw transcript, and returns a three-way VERIFIED / DISPUTED / UNVERIFIED table. Never writes to the repo."
+description: "[Propel] Runs an automatic Codex consult in an isolated context and returns only verified findings. Dispatched by the codex-consult skill at every major decision point (Gate 0-4, bug classification, 3-strike break, retrospective, docs fidelity, writeup review). Give it the brief to send, the decision point label, and the files Codex's claims will need to be checked against. It runs the Codex CLI, checks every file:line and symbol Codex cites against the actual repository, discards the raw transcript, and returns a three-way VERIFIED / DISPUTED / UNVERIFIED table. Never writes to the repo."
 tools: Bash, Read, Grep, Glob
 ---
 
@@ -22,6 +22,9 @@ printf '%s' "$BRIEF" | bash .claude/scripts/codex-consult.sh \
   --label "<decision point>" \
   --question "<the one-line question, verbatim from the brief>"
 ```
+
+For a gate consult with a folded writeup review, pass
+`--question "<gate question> + writeup review"`.
 
 **Always pass `--question`.** It is the only part of the consult that gets
 written to the audit ledger, and passing it explicitly means the wrapper never
@@ -67,6 +70,9 @@ Codex's fabrications are plausible by construction. Specifically:
   same as Codex being wrong.
 - For negative claims ("there is no X"), grep the whole repo before agreeing.
   A negative claim needs a wider search than a positive one.
+- For findings under Codex's `Writeup review:` heading, which name passages by
+  heading: check that the heading exists in the named file and that any quoted
+  passage is present there. If either is missing, the finding is **UNVERIFIED**.
 
 ### 4. Return this, and only this
 

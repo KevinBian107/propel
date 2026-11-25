@@ -71,8 +71,13 @@ Give it, explicitly:
 - the **exact approved command**, verbatim
 - the **discretion range** — what it may adjust without asking (e.g. "batch size
   may go down to 32, nothing else"). If you give it no range, it has none.
-- the run name, output directory, and where logs should go
+- the run name and output directory (the console log always goes to
+  `.propel/runs/<NAME>.log`, see Phase 2)
 - what "healthy" looks like: expected first-loss magnitude, expected throughput
+- the **ledger session**: the value `echo "$PROPEL_SESSION"` prints, so the
+  operator can record the run with `start --session <value>` (a subagent may not
+  inherit the variable). If it prints nothing, say so: the run is then not
+  tracked in the task ledger.
 
 It will escalate anything that would change what the experiment measures. When it
 does, that comes back to the human as an Engineer-Mode question, not as a patch.
@@ -89,35 +94,88 @@ run is short enough that delegation costs more than it saves.
    - If not found and on macOS: suggest `brew install screen` or fall back to `tmux`
    - If not found and on Linux: suggest `apt install screen` or `yum install screen`
 
-2. **Create named screen session**:
-   ```bash
-   screen -dmS propel-train-{timestamp} bash -c '{EXACT_CONFIRMED_COMMAND}; exec bash'
-   ```
+2. **Record and launch, in one Bash call.** `<NAME>` is
+   `propel-train-<YYYYmmdd-HHMMSS>` (`date +%Y%m%d-%H%M%S`; letters, digits, `-`
+   and `_` only, since tmux rewrites `.` and `:`). Write it out literally in every
+   command, because shell variables do not survive between Bash calls. `<CMD>` is
+   the exact confirmed command. When you delegate, the operator runs this itself.
+```bash
+O=$PWD; R=$PWD; while [ "$R" != / ] && [ ! -f "$R/.claude/scripts/task-queue.sh" ]; do R=$(dirname "$R"); done; [ -f "$R/.claude/scripts/task-queue.sh" ] && cd "$R"
+[ ! -e .propel/runs/<NAME>.sh ] || { echo "<NAME> is taken, pick a new name"; exit 1; }
+mkdir -p .propel/runs && printf 'cd %q || exit 1\n' "$O" > .propel/runs/<NAME>.sh && cat >> .propel/runs/<NAME>.sh <<'PROPEL_CMD'
+<CMD>
+PROPEL_CMD
+ID=$(bash .claude/scripts/task-queue.sh start --kind train --title "<short title>" --screen <NAME> --log .propel/runs/<NAME>.log --exit-file .propel/runs/<NAME>.exit --cmd '<CMD>') || ID="not tracked in the task ledger"
+screen -dmS <NAME> bash -c 'set -o pipefail; bash .propel/runs/<NAME>.sh 2>&1 | tee .propel/runs/<NAME>.log; echo $? > .propel/runs/<NAME>.exit' || echo "launch failed"
+echo "task: $ID"
+```
+   - **The command always goes in `.propel/runs/<NAME>.sh`**, verbatim, through
+     the quoted heredoc, so no quoting rule depends on what it contains. The
+     closing `PROPEL_CMD` must start at column 0. The file is the record of the
+     approved command. Its first line `cd`s back to the directory the Bash
+     call started in, so the command runs where it would have run by hand. The
+     ledger and the run files live at the project root.
+   - **`--cmd` rule:** pass `--cmd '<CMD>'` only when the command is one line
+     with no single quote. Otherwise replace it with
+     `--note "command: .propel/runs/<NAME>.sh"`.
+   - **`start` runs first**, while the exit file cannot exist yet, because a run
+     that dies within milliseconds would otherwise write its `.exit` before
+     `start` checks for one. `start` never gates the launch. The ledger is
+     advisory: if it fails (no session, ledger busy, anything), the block prints
+     "not tracked in the task ledger" and launches anyway.
+   - `pipefail` applies only to the outer `| tee`, so the recorded exit code is
+     the command's own instead of `tee`'s. Pipelines inside the user's command
+     behave exactly as written, because Propel never changes the approved
+     command.
+   - Output goes through a pipe to `tee`, so Python may block-buffer it and the
+     log can lag behind the run. Do not edit the command to fix that. Tell the
+     user that `PYTHONUNBUFFERED=1` or `python -u` would make the log live, and
+     let them decide.
+   - The session closes when the command ends. After that, the log is the post-mortem record
+     and `<NAME>.exit` holds the exit code. Status comes from that evidence:
+     `<NAME>.exit` exists → done (exit 0) or failed. Session alive → running.
+     Session gone and no exit file → lost.
+   - If the block prints "launch failed", the task derives to lost. Close it:
+     `bash .claude/scripts/task-queue.sh done <ID> --status failed --note "launch failed"`.
+     Run this and every other ledger command from the project root, with the
+     same walk-up line that starts the block.
 
 3. **Critical rules**:
    - Execute the EXACT command the user confirmed — no modifications
-   - Do NOT create temporary folders
+   - Do NOT create temporary folders (`.propel/runs/` for the command file, log
+     and exit file is the only directory you create)
    - Do NOT disable wandb or any logging
-   - Do NOT add wrapper scripts
+   - Do NOT add wrapper scripts (the only exception: `.propel/runs/<NAME>.sh`,
+     which holds the confirmed command verbatim)
    - Do NOT modify environment variables unless the user explicitly requests it
 
 4. **Report to user**:
    ```
-   Training launched in screen session: propel-train-{timestamp}
+   Training launched in screen session: <NAME>
+   Task:    <task id> (the check-progress skill lists it) | not tracked in the task ledger
 
-   Attach:  screen -r propel-train-{timestamp}
+   Attach:  screen -r <NAME>
    Detach:  Ctrl+A, then D
    List:    screen -ls
-   Kill:    screen -X -S propel-train-{timestamp} quit
+   Command: .propel/runs/<NAME>.sh
+   Log:     tail -n 50 .propel/runs/<NAME>.log
+   Result:  .propel/runs/<NAME>.exit (exit code; appears when the command ends)
+   Kill:    screen -X -S <NAME> quit   (writes no exit file, so the task shows as lost)
    ```
 
 ### If using tmux (fallback)
 
+Use the same block, with the `screen -dmS` line replaced by:
+
 ```bash
-tmux new-session -d -s propel-train-{timestamp} '{EXACT_CONFIRMED_COMMAND}; exec bash'
+tmux new-session -d -s <NAME> "bash -c 'set -o pipefail; bash .propel/runs/<NAME>.sh 2>&1 | tee .propel/runs/<NAME>.log; echo \$? > .propel/runs/<NAME>.exit'" || echo "launch failed"
 ```
 
-Report equivalent tmux commands for attach/detach/list/kill.
+Your shell expands the outer double quotes before tmux sees them, which is why
+`$?` is written `\$?`. The command itself is in the `.sh` file, so nothing else
+needs escaping. Report `tmux attach -t <NAME>`, detach with Ctrl+B then D,
+`tmux ls`, and `tmux kill-session -t <NAME>` (no exit file, so the task shows as
+lost), plus the Task, Command, Log and Result lines.
 
 ## Phase 3: Runtime Bug Fixing
 
@@ -145,7 +203,9 @@ Report equivalent tmux commands for attach/detach/list/kill.
 
 ### Fixing process
 
-1. **Read the traceback** — get the full error output from the screen session
+1. **Read the traceback** from the log, `tail -n 100 .propel/runs/<NAME>.log`. The
+   screen session closes when the command ends, and `<NAME>.exit` holds the exit
+   code.
 2. **Classify**: Is this a runtime bug or a logic change?
    - Runtime → proceed to fix
    - Logic → deliver redirect message
@@ -153,7 +213,11 @@ Report equivalent tmux commands for attach/detach/list/kill.
    - Present the fix (Gate 4 lite): "The error is [X] because [Y]. I'll fix it by [Z]. This changes [file:line]. Okay?"
    - Wait for user confirmation
    - Apply the minimal fix — smallest change that resolves the error
-   - Restart training in the same screen session
+   - Relaunch as a **new** run: a fresh `<NAME>` (new timestamp) and the Phase 2
+     block, with `--ref <OLD_ID>` added to `start`. Then close the old task with
+     `bash .claude/scripts/task-queue.sh done <OLD_ID> --status failed --note "<error signature>; relaunched as <NEW_ID>"`.
+     Never reuse a name, because its old `.exit` would be read as the new run's
+     result.
 4. **If the same error recurs after 2 fixes**: Stop and reassess. "This error has come back twice. Let me take a deeper look before trying again."
 
 ## Phase 4: Thought-Promoting Prompts

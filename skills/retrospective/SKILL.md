@@ -25,6 +25,78 @@ This is a suggestion, not a gate — the user can decline. But always offer.
 2. Create a registry entry in `scratch/registry/{YYYY-MM-DD}-{experiment-short-name}/SKILL.md`.
 3. The registry entry must follow the format below exactly.
 4. Registry entries are **searchable by the investigation skill** — when a new investigation starts, matching entries are auto-surfaced. Write descriptions and tags accordingly.
+5. Apply the **`concise`** skill to the entry.
+6. Consult Codex before the entry is final — see below.
+
+## Codex Consult on the Conclusions (automatic)
+
+After the entry is written and `concise` is applied, dispatch **`codex-bridge`**
+(per the `codex-consult` skill) with the entry's conclusions inlined (or
+summarized) and these two questions — one call, which also counts as the
+writeup review:
+
+> "Which of these conclusions does the evidence not actually support?"
+>
+> "Compare the draft and the rewrite at <the draft path the `concise` skill gives
+> (under `.propel/concise/`)> and `scratch/registry/<entry>/SKILL.md`: is any claim, caveat or evidence item lost
+> or changed, and, within a section, where does a reader meet evidence before the
+> claim it supports? The section order is fixed by the registry format; do not
+> flag it. Name passages by heading, or say 'no additional findings'."
+
+Only the second question gets paths instead of inlined content; ask Codex to
+answer it under the heading `Writeup review:`. If the entry or draft holds
+secrets, credentials or unpublished data, drop the second question and say so.
+Omit `CLAUDE'S POSITION` from the brief — Claude wrote the entry — and present
+the result in `codex-consult`'s card format. Announce it first:
+
+```
+◆ Consulting Codex — Retrospective: "Which of these conclusions does the evidence not actually support? + writeup review"
+```
+
+A retrospective is written by the model that ran the session, so it inherits that
+session's reading of the evidence — the conclusions most likely to be wrong are
+the ones it never thought to doubt. Registry entries are surfaced automatically
+by later investigations, so what goes into one is the human's decision:
+
+1. Present the Codex card first, verified and `[codex · unverified]` items alike.
+2. Ask one disjunctive question naming which verified findings to fold in, e.g.
+   "Fold all 3 verified findings, fold only the one naming the warmup schedule,
+   or fold none and keep the entry as drafted?", with what each choice changes in
+   the entry.
+3. Write only the findings the human picks, each with `[codex]` attribution.
+   Never write a `[codex · unverified]` item into the entry; it stays in the card.
+4. Re-run the `concise` check (`claim-check.sh` on the draft vs the final entry)
+   so the fold-in did not drop evidence, then delete the draft (`concise` step 8:
+   the answer to this question is the acceptance).
+
+When no fold-in question is asked (Codex disabled or unavailable, or nothing
+verified), present the entry; the human's next reply about it is the acceptance,
+and the draft is deleted then. Never ask a fold-in question with nothing to fold.
+
+**Docs: ask, don't write.** If the project has a docs root (`docs/`,
+`documentation/`, or a README section) and the entry changes what a results or
+runbook page states, the user is asked whether to update those pages, in a
+disjunctive question, never a yes/no one. No docs page is written before the
+answer:
+
+- With a fold-in question, ask the docs question (`make-documentations` Step 0,
+  all four options including "Stop asking") as a second question in the same
+  AskUserQuestion call, so folding findings and updating docs are separate
+  choices. After the answers, run `make-documentations` only on the pages the
+  docs answer chose.
+- Without one, ask the docs question (`make-documentations` Step 0) with
+  AskUserQuestion when the entry is presented. Only "update all" or "update
+  only <page>" runs `make-documentations`; the pages and their Docs fidelity
+  card are then presented, and the human accepts or edits them as that skill
+  describes.
+
+If `.propel/docs.json` turns docs prompts off, leave the pages out of the
+question and ask nothing about them (one `◇ Docs prompts off` line at the
+session's first trigger).
+
+If `.propel/codex.json` has `"enabled": false`, skip it (one `◇ Codex disabled`
+line at the session's first gate); if the CLI is missing, say so once and proceed
+single-model.
 
 ## Registry Entry Format
 

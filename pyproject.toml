@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "propel"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Research workflow CLI for Claude Code — skills, agents, and session management"
 readme = "README.md"
 license = {text = "MIT"}
@@ -18,6 +18,9 @@ dependencies = [
 
 [project.scripts]
 propel = "propel_cli.cli:cli"
+
+[tool.setuptools.dynamic]
+version = {attr = "propel_cli.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

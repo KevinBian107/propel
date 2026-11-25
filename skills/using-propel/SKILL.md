@@ -44,7 +44,8 @@ the mode before anything else — but determine it yourself.
 
 ### Mode Selection — automatic
 
-If the hook injects `"mode_selection_needed": true` (no `.propel/mode.json`),
+If the hook injects `mode_selection_needed: true` (in the Mode section of the
+session-start context; no `.propel/mode.json`),
 **do not present a menu and do not block.** Infer the mode from the user's first
 substantive message, state the choice in one line with the reason, write the
 file, and get to work.
@@ -138,7 +139,9 @@ Before routing to any skill, check the current mode. If the triggered skill is n
 | codex-consult | Yes | Yes | Yes | Yes |
 | c-review | — | Yes | Yes | — |
 | monitor | — | Yes | Yes | Yes |
-| subagent-driven-research | — | Yes | — | — |
+| check-progress | Yes | Yes | Yes | Yes |
+| concise | Yes | Yes | Yes | Yes |
+| make-documentations | Yes | Yes | Yes | Yes |
 
 **Gates by mode:**
 - **Researcher**: Gate 0, Gate 1
@@ -337,11 +340,13 @@ Check these in order. Use the FIRST one that matches:
 ### 1. Process Skills (check first)
 | Trigger | Skill | What It Does |
 |---------|-------|-------------|
-| User describes new task/idea | **Gate 0 (above)** | Intake questions before anything else |
+| User describes new task/idea | **Gate 0 (see "Gate 0: Intake")** | Intake questions before anything else |
 | "start an investigation", "trace X", "what touches X" | **investigation** | Scaffolds scratch/ with living README |
 | Confirmation-seeking statement, leading question | **think-deeply** | Anti-sycophancy: steel-man the opposite |
 | "retrospective", "capture learnings", ~20 turns without one | **retrospective** | Experiment registry with failed attempts table |
 | "getting long", context feels large, >15 substantive turns | **context-hygiene** | /clear discipline + session archival |
+| "make this concise", "tighten this", "this is too long", "cut this down", "make it shorter", "write this up"; a finished write-up about to be presented (automatic) | **concise** | Claim before evidence; every evidence item survives (claim-check.sh) |
+| "document this", "write the docs", "update the docs", "write a results page", "write a runbook", "docs are stale" (writes, no whether question); after Gate 3 passes, validation passes, a retrospective, or a `[propel:docs]` hook line, when docs cover the change: ASK first (make-documentations Step 0, AskUserQuestion, in the gate's call), write only after "update"; never while `.propel/docs.json` is off | **make-documentations** | Present-tense docs pages, doc-check.sh, Codex docs-fidelity pass; never commits |
 
 ### 2. Research Skills
 | Trigger | Skill |
@@ -361,7 +366,7 @@ Check these in order. Use the FIRST one that matches:
 ### 4. Training & Debugging Skills
 | Trigger | Skill |
 |---------|-------|
-| "train", "launch training", "run training" (Trainer Mode) | **trainer-mode** |
+| "train", "launch training", "run training" (Trainer Mode; status questions → check-progress) | **trainer-mode** |
 | Training issue (NaN, plateau, collapse) | **systematic-debugging** |
 | Stuck on a failure mode | **failure-mode-researcher** (via subagent) |
 
@@ -372,6 +377,7 @@ Check these in order. Use the FIRST one that matches:
 | "new session", "archive this session" | Session management (/new-session) |
 | "create a worktree", "experiment branch" | **using-git-worktrees** |
 | Long run or command chain to supervise | **monitor** (ask first — token-costy) |
+| "check progress", "what's running", "status of my jobs", "what's left", "where was I", "is my training done", "did my run finish" | **check-progress** (read-only task table) |
 
 ### 6. Dual-Model Skills
 | Trigger | Skill |

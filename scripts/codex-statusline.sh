@@ -47,7 +47,7 @@ CODEX_ON_PATH=0
 { command -v codex >/dev/null 2>&1 || { [ -n "${HOME:-}" ] && [ -x "${HOME:-}/.local/bin/codex" ]; }; } && CODEX_ON_PATH=1
 
 ROOT="$ROOT" CODEX_ON_PATH="$CODEX_ON_PATH" python3 - <<'PY' 2>/dev/null || nothing
-import json, os, pathlib, time
+import json, os, pathlib, re, time
 
 root = pathlib.Path(os.environ["ROOT"])
 on_path = os.environ.get("CODEX_ON_PATH") == "1"
@@ -57,11 +57,46 @@ def emit(label):
     raise SystemExit(0)
 
 # ── enabled? ──
+# The Codex "enabled" rule, identical in every Propel script that reads
+# .propel/codex.json (see scripts/codex-consult.sh): OFF when "enabled" is JSON
+# false, null or 0, or a string that, trimmed and lowercased, is "false", "0",
+# "off", "no" or empty. A missing file or key leaves it ON.
+def off(v):
+    if v is None or v is False:
+        return True
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return v == 0
+    if isinstance(v, str):
+        return v.strip().lower() in ("false", "0", "off", "no", "")
+    return False
+
+def flat_off(text):
+    # Same as the shell scripts' fallback for a file that is not a JSON
+    # object: all whitespace removed, off if any "enabled" value is off.
+    flat = re.sub(r"\s", "", text)
+    for m in re.finditer(r'"enabled":("([^"]*)"?|[^,}\]]*)', flat):
+        if m.group(2) is not None:
+            if m.group(2).lower() in ("", "0", "false", "off", "no"):
+                return True
+        elif m.group(1).lower() in ("false", "null") or re.fullmatch(r"-?0(\.0*)?([eE].*)?", m.group(1)):
+            return True
+    return False
+
 enabled = True
 cfg = root / ".propel" / "codex.json"
 if cfg.exists():
     try:
-        enabled = json.loads(cfg.read_text()).get("enabled", True)
+        text = cfg.read_text()
+        try:
+            d = json.loads(text)
+        except Exception:
+            d = None
+        if isinstance(d, dict):
+            enabled = not off(d.get("enabled", True))
+        else:
+            enabled = not flat_off(text)
     except Exception:
         pass
 

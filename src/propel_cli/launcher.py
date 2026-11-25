@@ -418,6 +418,30 @@ def _project_root() -> Path:
         return Path.cwd()
 
 
+def _propel_status(root: Path) -> dict:
+    """install.status() for this project, as data. Never raises.
+
+    The console and terminal setup render whatever comes back; a corrupt
+    manifest or a non-editable install (no clone to compare against) becomes an
+    "error" entry rather than a crashed page, with "error_kind": "manifest"
+    for an unusable manifest and "other" for anything else.
+    """
+    from . import cli, install
+
+    try:
+        return install.status(cli.get_propel_root(), root)
+    except install.ManifestError as exc:
+        # Installed means Propel's files are present; an unreadable manifest
+        # alone (e.g. .claude/ deleted) doesn't count, matching install.status().
+        return {
+            "error": str(exc),
+            "error_kind": "manifest",
+            "installed": (root / ".claude" / "skills" / "using-propel").is_dir(),
+        }
+    except Exception as exc:
+        return {"error": str(exc) or exc.__class__.__name__, "error_kind": "other"}
+
+
 def collect_status() -> dict:
     node_v = _version("node", path_only=True)
     claude_v = _version("claude")
@@ -426,6 +450,11 @@ def collect_status() -> dict:
     has_brew = shutil.which("brew") is not None
 
     installed = _installed_plugin_ids()
+    propel = _propel_status(root)
+    if "installed" in propel:
+        initialized = bool(propel["installed"])
+    else:
+        initialized = (root / ".claude" / "skills" / "using-propel").is_dir()
 
     return {
         "platform": platform.system(),
@@ -448,9 +477,10 @@ def collect_status() -> dict:
         "project": {
             "root": str(root),
             "is_git": (root / ".git").exists(),
-            "initialized": (root / ".claude" / "skills" / "using-propel").exists(),
+            "initialized": initialized,
             "codex_enabled": _codex_config(root),
         },
+        "propel": propel,
         "tools": [
             {
                 "key": "git",
@@ -467,7 +497,7 @@ def collect_status() -> dict:
             {
                 "key": "claude",
                 "name": "Claude Code",
-                "blurb": "The agent Propel runs inside. Required. Installed with Anthropic's native installer — no Node needed.",
+                "blurb": "The agent Propel runs inside. Installed with Anthropic's native installer, so Node is not needed.",
                 "version": claude_v,
                 "ok": claude_v is not None,
                 "has_auth": True,
@@ -480,7 +510,7 @@ def collect_status() -> dict:
             {
                 "key": "codex",
                 "name": "OpenAI Codex",
-                "blurb": "The second model. Propel consults it automatically at every gate. Installed with OpenAI's native installer — no Node needed.",
+                "blurb": "The second model. Propel consults it automatically at every gate. Installed with OpenAI's native installer, so Node is not needed.",
                 "version": codex_v,
                 "ok": codex_v is not None,
                 "has_auth": True,
@@ -507,11 +537,15 @@ def collect_status() -> dict:
 
 
 def _codex_config(root: Path) -> bool | None:
+    """Whether .propel/codex.json turns Codex on (install.codex_enabled), or
+    None when there is no such file or it cannot be read."""
+    from . import install
+
     f = root / ".propel" / "codex.json"
     if not f.exists():
         return None
     try:
-        return bool(json.loads(f.read_text()).get("enabled", True))
+        return install.codex_enabled(json.loads(f.read_text()))
     except Exception:
         return None
 
@@ -559,6 +593,13 @@ ACTIONS: dict[str, dict] = {
     },
     "propel-init": {
         "label": "Install Propel into this project",
+        "self": ["init"],
+        "cwd_project": True,
+    },
+    # Runs init, not `propel update`: init is the project update, while
+    # `propel update` also pulls the clone, which the console must not do silently.
+    "propel-update": {
+        "label": "Update Propel in this project",
         "self": ["init"],
         "cwd_project": True,
     },

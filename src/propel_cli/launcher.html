@@ -1,201 +1,271 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Propel Setup</title>
+<meta name="color-scheme" content="light dark" />
+<title>Propel setup</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%20fill%3D%22none%22%3E%20%3Crect%20x%3D%2216%22%20y%3D%2216%22%20width%3D%22480%22%20height%3D%22480%22%20rx%3D%2296%22%20fill%3D%22%230a0a0a%22%2F%3E%20%3Crect%20x%3D%22208%22%20y%3D%2272%22%20width%3D%2296%22%20height%3D%2240%22%20rx%3D%228%22%20stroke%3D%22white%22%20stroke-width%3D%228%22%20fill%3D%22none%22%20opacity%3D%220.9%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22112%22%20x2%3D%22256%22%20y2%3D%22148%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Crect%20x%3D%22236%22%20y%3D%22148%22%20width%3D%2240%22%20height%3D%2240%22%20rx%3D%224%22%20transform%3D%22rotate%2845%20256%20168%29%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20fill%3D%22none%22%20opacity%3D%220.75%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22196%22%20x2%3D%22256%22%20y2%3D%22224%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Crect%20x%3D%22176%22%20y%3D%22224%22%20width%3D%22160%22%20height%3D%2236%22%20rx%3D%228%22%20stroke%3D%22white%22%20stroke-width%3D%228%22%20fill%3D%22none%22%20opacity%3D%220.9%22%2F%3E%20%3Cline%20x1%3D%22192%22%20y1%3D%22238%22%20x2%3D%22252%22%20y2%3D%22238%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.5%22%2F%3E%20%3Cline%20x1%3D%22192%22%20y1%3D%22250%22%20x2%3D%22236%22%20y2%3D%22250%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.5%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22260%22%20x2%3D%22256%22%20y2%3D%22292%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Crect%20x%3D%22236%22%20y%3D%22292%22%20width%3D%2240%22%20height%3D%2240%22%20rx%3D%224%22%20transform%3D%22rotate%2845%20256%20312%29%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20fill%3D%22none%22%20opacity%3D%220.75%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22340%22%20x2%3D%22256%22%20y2%3D%22368%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Crect%20x%3D%22176%22%20y%3D%22368%22%20width%3D%22160%22%20height%3D%2236%22%20rx%3D%228%22%20stroke%3D%22white%22%20stroke-width%3D%228%22%20fill%3D%22none%22%20opacity%3D%220.9%22%2F%3E%20%3Cline%20x1%3D%22192%22%20y1%3D%22382%22%20x2%3D%22260%22%20y2%3D%22382%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.5%22%2F%3E%20%3Cline%20x1%3D%22192%22%20y1%3D%22394%22%20x2%3D%22240%22%20y2%3D%22394%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20opacity%3D%220.5%22%2F%3E%20%3Cline%20x1%3D%22256%22%20y1%3D%22404%22%20x2%3D%22256%22%20y2%3D%22428%22%20stroke%3D%22white%22%20stroke-width%3D%226%22%20opacity%3D%220.5%22%2F%3E%20%3Ccircle%20cx%3D%22256%22%20cy%3D%22440%22%20r%3D%2212%22%20fill%3D%22white%22%20opacity%3D%220.9%22%2F%3E%20%3Cline%20x1%3D%22176%22%20y1%3D%22386%22%20x2%3D%22120%22%20y2%3D%22386%22%20stroke%3D%22white%22%20stroke-width%3D%225%22%20stroke-dasharray%3D%228%206%22%20opacity%3D%220.4%22%2F%3E%20%3Crect%20x%3D%2272%22%20y%3D%22372%22%20width%3D%2248%22%20height%3D%2228%22%20rx%3D%226%22%20stroke%3D%22white%22%20stroke-width%3D%224%22%20fill%3D%22none%22%20opacity%3D%220.4%22%2F%3E%20%3Cline%20x1%3D%22336%22%20y1%3D%22386%22%20x2%3D%22392%22%20y2%3D%22386%22%20stroke%3D%22white%22%20stroke-width%3D%225%22%20stroke-dasharray%3D%228%206%22%20opacity%3D%220.4%22%2F%3E%20%3Crect%20x%3D%22392%22%20y%3D%22372%22%20width%3D%2248%22%20height%3D%2228%22%20rx%3D%226%22%20stroke%3D%22white%22%20stroke-width%3D%224%22%20fill%3D%22none%22%20opacity%3D%220.4%22%2F%3E%20%3C%2Fsvg%3E" />
 <style>
+  /*
+   * Palette: warm paper and ink, one deep-teal accent. Light is the default;
+   * dark follows prefers-color-scheme unless the theme button has set an
+   * explicit choice (stored as "propel-theme").
+   *
+   * Type scale, whole pixels only: 13 / 15 / 17 / 22 / 30.
+   */
   :root {
-    --bg: #0d1117; --panel: #151b23; --panel-2: #1c232c; --line: #2a323d;
-    --fg: #e6edf3; --muted: #8b949e; --dim: #6e7781;
-    --accent: #4b8bff; --accent-dim: #1f3a66;
-    --ok: #3fb950; --warn: #d29922; --bad: #f85149;
-    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+    --bg: #f6f4ef;
+    --surface: #fffdf8;
+    --rule: #dcd7cc;
+    --rule-strong: #bdb6a7;
+    --ink: #1f1d1a;
+    --muted: #5a564e;
+    --accent: #0e5a57;
+    --accent-ink: #ffffff;
+    --accent-hover: #0a4644;
+    --ok: #2c6a3c;
+    --warn: #7f5200;
+    --warn-bg: #fbf1dc;
+    --warn-rule: #e3c98f;
+    --bad: #a3302a;
+    --bad-bg: #fbe9e6;
+    --bad-rule: #e6b2aa;
+    --focus: #0e5a57;
+    --code-bg: #efebe2;
+
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   }
-  html[data-theme="light"] {
-    --bg: #ffffff; --panel: #f6f8fa; --panel-2: #eef1f5; --line: #d8dee4;
-    --fg: #1f2328; --muted: #57606a; --dim: #8c959f;
-    --accent: #0969da; --accent-dim: #ddeaff;
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #171614;
+      --surface: #1f1e1b;
+      --rule: #34312c;
+      --rule-strong: #4c4840;
+      --ink: #ece9e2;
+      --muted: #a9a499;
+      --accent: #74c2bb;
+      --accent-ink: #0f1f1e;
+      --accent-hover: #93d3cd;
+      --ok: #8cc79a;
+      --warn: #e5b866;
+      --warn-bg: #2a2416;
+      --warn-rule: #5a4a26;
+      --bad: #f0958a;
+      --bad-bg: #2d1c1a;
+      --bad-rule: #5e322d;
+      --focus: #74c2bb;
+      --code-bg: #2a2824;
+    }
   }
+  :root[data-theme="dark"] {
+    --bg: #171614;
+    --surface: #1f1e1b;
+    --rule: #34312c;
+    --rule-strong: #4c4840;
+    --ink: #ece9e2;
+    --muted: #a9a499;
+    --accent: #74c2bb;
+    --accent-ink: #0f1f1e;
+    --accent-hover: #93d3cd;
+    --ok: #8cc79a;
+    --warn: #e5b866;
+    --warn-bg: #2a2416;
+    --warn-rule: #5a4a26;
+    --bad: #f0958a;
+    --bad-bg: #2d1c1a;
+    --bad-rule: #5e322d;
+    --focus: #74c2bb;
+    --code-bg: #2a2824;
+  }
+
   * { box-sizing: border-box; }
+  html { background: var(--bg); }
   body {
-    margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans);
-    font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); font-size: 15px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 48px 20px 96px; }
+  .page { max-width: 760px; margin: 0 auto; padding: 56px 24px 96px; }
 
-  /* ── header ── */
-  header { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 8px; }
-  .mark {
-    width: 46px; height: 46px; flex: none; border-radius: 11px; display: block;
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:hover { color: var(--accent-hover); }
+  code { font-family: var(--mono); font-size: 13px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
   }
-  /* The logo's own plate is near-black, so give it an edge on a dark background. */
-  html[data-theme="dark"] .mark {
-    box-shadow: 0 0 0 1px var(--line);
-  }
-  h1 { font-size: 26px; margin: 0 0 2px; letter-spacing: -0.02em; }
-  .sub { color: var(--muted); font-size: 14.5px; margin: 0; }
-  .theme {
-    margin-left: auto; background: none; border: 1px solid var(--line); color: var(--muted);
-    border-radius: 8px; padding: 6px 11px; font-size: 12.5px; cursor: pointer; font-family: inherit;
-  }
-  .theme:hover { color: var(--fg); border-color: var(--dim); }
 
-  .thesis {
-    margin: 26px 0 32px; padding: 14px 18px; border-left: 3px solid var(--accent);
-    background: var(--panel); border-radius: 0 10px 10px 0; color: var(--muted); font-size: 14px;
-  }
-  .thesis b { color: var(--fg); font-weight: 600; }
+  /* Masthead */
+  .masthead { display: grid; grid-template-columns: auto 1fr auto; gap: 20px; align-items: start; }
+  .mark { width: 44px; height: 44px; display: block; border-radius: 10px; outline: 1px solid var(--rule-strong); outline-offset: 0; }
+  h1 { font-family: var(--serif); font-weight: 600; font-size: 30px; line-height: 1.2; margin: 0; }
+  .lede { margin: 6px 0 0; color: var(--muted); max-width: 52ch; }
+  .masthead-actions { display: flex; gap: 8px; }
 
-  /* ── project strip ── */
-  .project {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding: 13px 16px; border: 1px solid var(--line); border-radius: 10px;
-    background: var(--panel); margin-bottom: 30px; font-size: 13.5px;
-  }
-  .project code { font-family: var(--mono); font-size: 12.5px; color: var(--fg); }
-  .project .right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-
-  /* ── steps ── */
+  /* Sections */
+  section { margin-top: 48px; }
   h2 {
-    font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em;
-    color: var(--dim); margin: 34px 0 12px; font-weight: 600;
+    font-family: var(--serif); font-weight: 600; font-size: 22px; line-height: 1.3;
+    margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--rule-strong);
   }
-  .card {
-    border: 1px solid var(--line); border-radius: 12px; background: var(--panel);
-    padding: 16px 18px; margin-bottom: 10px; display: flex; gap: 15px; align-items: flex-start;
-    transition: border-color .15s;
-  }
-  .card:hover { border-color: var(--dim); }
-  .card.blocked { opacity: .55; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-top: 8px; background: var(--dim); }
-  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent); }
-  .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 18%, transparent); }
-  .dot.bad { background: var(--bad); box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 18%, transparent); }
-  .body { flex: 1; min-width: 0; }
-  .name { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-  .tag {
-    font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600;
-    padding: 2px 7px; border-radius: 5px; border: 1px solid var(--line); color: var(--muted);
-  }
-  .tag.req { border-color: var(--accent-dim); color: var(--accent); }
-  .blurb { color: var(--muted); font-size: 13.5px; margin-top: 3px; }
-  .ver { font-family: var(--mono); font-size: 12px; color: var(--dim); margin-top: 6px; word-break: break-all; }
-  .ver.warn { color: var(--warn); }
-  .acts { display: flex; gap: 8px; align-items: center; flex: none; flex-wrap: wrap; justify-content: flex-end; max-width: 250px; }
+  .note { color: var(--muted); margin: 0 0 8px; max-width: 64ch; }
+  .project-path { margin: 0 0 16px; color: var(--muted); }
+  .project-path code { display: block; width: fit-content; max-width: 100%; margin-top: 4px; color: var(--ink); word-break: break-all; }
 
+  /* Propel panel: the one boxed element on the page. */
+  .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 20px 24px; }
+  .panel-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+  .panel-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+  .panel-title { font-size: 17px; font-weight: 600; margin: 0; }
+  .panel-sub { margin: 4px 0 0; color: var(--muted); }
+  .facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 24px; margin: 16px 0 0; }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .panel p.keep { margin: 16px 0 0; color: var(--muted); max-width: 64ch; }
+  .reason { margin: 12px 0 0; color: var(--ink); max-width: 64ch; }
+
+  .notice { border: 1px solid; border-radius: 6px; padding: 12px 16px; margin-top: 12px; }
+  .notice p { margin: 0; }
+  .notice p + p { margin-top: 4px; }
+  .notice .detail { font-family: var(--mono); font-size: 13px; word-break: break-word; }
+  .notice.warn { background: var(--warn-bg); border-color: var(--warn-rule); }
+  .notice.bad { background: var(--bad-bg); border-color: var(--bad-rule); }
+  .notice strong { font-weight: 600; }
+
+  /* Rows: a ruled list, not cards. */
+  .rows { list-style: none; margin: 0; padding: 0; }
+  .row {
+    display: grid; grid-template-columns: 136px 1fr auto; gap: 4px 20px;
+    align-items: baseline; padding: 16px 0; border-bottom: 1px solid var(--rule);
+  }
+  .state { font-weight: 600; font-size: 13px; }
+  .state.ok { color: var(--ok); }
+  .state.warn { color: var(--warn); }
+  .state.bad { color: var(--bad); }
+  .state.off { color: var(--muted); }
+  .row-name { font-size: 17px; font-weight: 600; margin: 0; }
+  .row-name .meta { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 8px; }
+  .row-text { margin: 2px 0 0; color: var(--muted); }
+  .row-detail { margin: 4px 0 0; font-family: var(--mono); font-size: 13px; color: var(--muted); word-break: break-word; }
+  .row-detail.warn { color: var(--warn); }
+  .row-acts { display: flex; gap: 12px; align-items: baseline; justify-content: flex-end; flex-wrap: wrap; }
+
+  /* Buttons */
   button.btn {
-    font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
-    padding: 7px 13px; border-radius: 8px; border: 1px solid var(--line);
-    background: var(--panel-2); color: var(--fg); white-space: nowrap;
+    font: inherit; font-size: 15px; font-weight: 500; line-height: 1.2; cursor: pointer;
+    padding: 8px 14px; border-radius: 5px; border: 1px solid var(--rule-strong);
+    background: var(--surface); color: var(--ink); white-space: nowrap;
   }
-  button.btn:hover:not(:disabled) { border-color: var(--dim); }
-  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.btn.primary:hover:not(:disabled) { filter: brightness(1.1); }
-  button.btn:disabled { opacity: .45; cursor: default; }
-  a.manual { font-size: 12.5px; color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--dim); }
-  a.manual:hover { color: var(--accent); border-color: var(--accent); }
-  .done { color: var(--ok); font-size: 13px; font-weight: 500; white-space: nowrap; }
+  button.btn:hover:not(:disabled) { border-color: var(--ink); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button.btn.quiet { font-size: 13px; padding: 6px 10px; background: transparent; color: var(--muted); }
+  button.btn.quiet:hover:not(:disabled) { color: var(--ink); }
+  button.btn:disabled { cursor: not-allowed; opacity: 0.6; }
+  .manual { font-size: 13px; }
 
-  /* ── log ── */
-  .plugin-note {
-    color: var(--muted); font-size: 13px; margin: -4px 0 12px; max-width: 62ch;
-  }
-  .plugin-note code { font-family: var(--mono); font-size: 12px; color: var(--fg); }
-  .by { font-size: 11.5px; color: var(--dim); }
-  .used { font-size: 11.5px; color: var(--accent); }
-
-  .log {
-    margin-top: 14px; border: 1px solid var(--line); border-radius: 10px;
-    background: var(--bg); overflow: hidden; display: none;
-  }
-  .log.show { display: block; }
-  .log-head {
-    padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: 11.5px;
-    color: var(--dim); text-transform: uppercase; letter-spacing: .07em;
-    display: flex; align-items: center; gap: 9px;
-  }
+  /* Output */
+  .log { margin-top: 48px; }
+  .log[hidden] { display: none; }
+  .log-head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+  .log-title { font-size: 17px; font-weight: 600; margin: 0; }
+  .log-state { font-size: 13px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
   .log pre {
-    margin: 0; padding: 13px 15px; font-family: var(--mono); font-size: 12px; line-height: 1.65;
-    color: var(--muted); max-height: 280px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+    margin: 0; padding: 16px; font-family: var(--mono); font-size: 13px; line-height: 1.6;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--rule); border-radius: 6px;
+    max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word;
   }
   .spin {
-    width: 9px; height: 9px; border: 2px solid var(--accent); border-right-color: transparent;
-    border-radius: 50%; animation: spin .7s linear infinite; display: inline-block;
+    width: 10px; height: 10px; border: 2px solid var(--accent); border-right-color: transparent;
+    border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 
-  footer { margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--dim); font-size: 13px; }
-  footer a { color: var(--muted); }
-  footer code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-  .next { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-top: 30px; }
-  .next h3 { margin: 0 0 10px; font-size: 15px; }
-  .next ol { margin: 0; padding-left: 20px; color: var(--muted); font-size: 13.8px; }
-  .next li { margin-bottom: 6px; }
-  .next code { font-family: var(--mono); font-size: 12.5px; color: var(--fg); background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
-  @media (max-width: 620px) {
-    .card { flex-wrap: wrap; }
-    .acts { max-width: none; width: 100%; justify-content: flex-start; margin-top: 6px; }
+  /* Next steps and footer */
+  ol.steps { margin: 0; padding-left: 22px; max-width: 64ch; }
+  ol.steps li { margin-bottom: 8px; }
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; }
+  footer p { margin: 0 0 4px; }
+  footer nav { display: flex; gap: 16px; }
+
+  .loading { color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
+
+  @media (max-width: 640px) {
+    .page { padding-top: 32px; }
+    .masthead { grid-template-columns: auto 1fr; }
+    .masthead-actions { grid-column: 1 / -1; }
+    .row { grid-template-columns: 1fr; }
+    .row-acts { justify-content: flex-start; margin-top: 8px; }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="page">
 
-  <header>
+  <header class="masthead">
     <svg class="mark" viewBox="0 0 512 512" fill="none" role="img" aria-label="Propel"> <rect x="16" y="16" width="480" height="480" rx="96" fill="#0a0a0a"/> <rect x="208" y="72" width="96" height="40" rx="8" stroke="white" stroke-width="8" fill="none" opacity="0.9"/> <line x1="256" y1="112" x2="256" y2="148" stroke="white" stroke-width="6" opacity="0.5"/> <rect x="236" y="148" width="40" height="40" rx="4" transform="rotate(45 256 168)" stroke="white" stroke-width="6" fill="none" opacity="0.75"/> <line x1="256" y1="196" x2="256" y2="224" stroke="white" stroke-width="6" opacity="0.5"/> <rect x="176" y="224" width="160" height="36" rx="8" stroke="white" stroke-width="8" fill="none" opacity="0.9"/> <line x1="192" y1="238" x2="252" y2="238" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/> <line x1="192" y1="250" x2="236" y2="250" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/> <line x1="256" y1="260" x2="256" y2="292" stroke="white" stroke-width="6" opacity="0.5"/> <rect x="236" y="292" width="40" height="40" rx="4" transform="rotate(45 256 312)" stroke="white" stroke-width="6" fill="none" opacity="0.75"/> <line x1="256" y1="340" x2="256" y2="368" stroke="white" stroke-width="6" opacity="0.5"/> <rect x="176" y="368" width="160" height="36" rx="8" stroke="white" stroke-width="8" fill="none" opacity="0.9"/> <line x1="192" y1="382" x2="260" y2="382" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/> <line x1="192" y1="394" x2="240" y2="394" stroke="white" stroke-width="6" stroke-linecap="round" opacity="0.5"/> <line x1="256" y1="404" x2="256" y2="428" stroke="white" stroke-width="6" opacity="0.5"/> <circle cx="256" cy="440" r="12" fill="white" opacity="0.9"/> <line x1="176" y1="386" x2="120" y2="386" stroke="white" stroke-width="5" stroke-dasharray="8 6" opacity="0.4"/> <rect x="72" y="372" width="48" height="28" rx="6" stroke="white" stroke-width="4" fill="none" opacity="0.4"/> <line x1="336" y1="386" x2="392" y2="386" stroke="white" stroke-width="5" stroke-dasharray="8 6" opacity="0.4"/> <rect x="392" y="372" width="48" height="28" rx="6" stroke="white" stroke-width="4" fill="none" opacity="0.4"/> </svg>
     <div>
       <h1>Propel setup</h1>
-      <p class="sub">Get the two models on your machine and signed in.</p>
+      <p class="lede">Install the tools Propel runs on, sign in to them, and set Propel up in this project.</p>
     </div>
-    <button class="theme" id="theme">light</button>
+    <div class="masthead-actions">
+      <button class="btn quiet" id="recheck" type="button">Re-check</button>
+      <button class="btn quiet" id="theme" type="button">Dark theme</button>
+    </div>
   </header>
 
-  <div class="thesis">
-    Propel is <b>not an autonomous agent</b>. It automates the tedious half of research
-    engineering — tracing code, checking implementations against the paper, hunting silent
-    bugs, keeping notes across sessions — and it stops at every decision that is actually
-    yours. <b>You decide; the machines execute.</b> Claude Code does the work; Codex argues
-    with it before anything reaches you.
-  </div>
+  <section aria-labelledby="h-project">
+    <h2 id="h-project">This project</h2>
+    <p class="project-path" id="project"><span class="loading"><span class="spin" aria-hidden="true"></span>Checking this machine.</span></p>
+    <div id="propel"></div>
+    <div id="codex"></div>
+  </section>
 
-  <div class="project" id="project">
-    <span class="spin"></span> checking your machine…
-  </div>
+  <section aria-labelledby="h-tools">
+    <h2 id="h-tools">Tools</h2>
+    <p class="note">Claude Code and git are required. Codex is optional; without it Propel runs with one model.</p>
+    <ul class="rows" id="tools"></ul>
+  </section>
 
-  <h2>Requirements</h2>
-  <div id="tools"></div>
+  <section aria-labelledby="h-plugins">
+    <h2 id="h-plugins">Optional plugins</h2>
+    <p class="note">
+      Propel uses these when they are present and works without them. <code>propel init</code>
+      never installs them: a plugin can ship hooks, commands and MCP servers, so it runs code
+      in your session. Whether to allow that is your decision.
+    </p>
+    <ul class="rows" id="plugins"></ul>
+  </section>
 
-  <h2>Optional plugins</h2>
-  <p class="plugin-note">
-    Propel uses these when they're present and works without them. They are never
-    installed by <code>propel init</code>: a plugin can ship hooks, commands and
-    MCP servers, so it runs code in your session &mdash; that's your call, not a
-    side effect of setting up a project.
-  </p>
-  <div id="plugins"></div>
+  <section class="log" id="log" hidden aria-labelledby="log-title">
+    <div class="log-head">
+      <h2 class="log-title" id="log-title">Output</h2>
+      <span class="log-state" id="log-state" aria-live="polite"></span>
+    </div>
+    <pre id="log-body" tabindex="0"></pre>
+  </section>
 
-  <div class="log" id="log">
-    <div class="log-head"><span id="log-title">output</span><span id="log-spin"></span></div>
-    <pre id="log-body"></pre>
-  </div>
-
-  <div class="next">
-    <h3>Once everything is green</h3>
-    <ol>
-      <li>Point this at your project and press <b>Install Propel into this project</b> (or run <code>propel init</code> there).</li>
-      <li>Start <code>claude</code> in that directory. Propel picks its own mode from your first message.</li>
-      <li>Just describe what you're working on. You never have to name a skill, an agent, or Codex — the pipeline routes itself and tells you what it's doing.</li>
-      <li>Don't want the second model? <code>/disable-codex</code>.</li>
+  <section aria-labelledby="h-next">
+    <h2 id="h-next">After setup</h2>
+    <ol class="steps">
+      <li>Install Propel in your project with the button above, or run <code>propel init</code> there.</li>
+      <li>Start <code>claude</code> in that directory. Propel picks its mode from your first message.</li>
+      <li>Describe what you are working on. You do not need to name a skill, an agent or Codex; Propel routes the work and says what it is doing.</li>
+      <li>To run with one model only, use <code>/disable-codex</code>.</li>
     </ol>
-  </div>
+  </section>
 
   <footer>
-    <span id="foot-note">Nothing here leaves your machine except the installers you click.</span>
-    &nbsp;·&nbsp; <a href="https://kbian.org/propel-website/docs/" target="_blank" rel="noopener">Documentation</a>
-    &nbsp;·&nbsp; <a href="https://github.com/KevinBian107/propel" target="_blank" rel="noopener">Source</a>
+    <p id="foot-note">Nothing on this page leaves your machine except the installers you run.</p>
+    <nav aria-label="Links">
+      <a href="https://kbian.org/propel-website/docs/" target="_blank" rel="noopener">Documentation</a>
+      <a href="https://github.com/KevinBian107/propel" target="_blank" rel="noopener">Source</a>
+    </nav>
   </footer>
 
 </div>
@@ -204,169 +274,306 @@
 const T = "__TOKEN__";
 const $ = (id) => document.getElementById(id);
 let polling = null;
+let busy = false;
 
-/* ── theme ── */
+/* Theme: follow the system unless the button has stored a choice. */
+const root = document.documentElement;
 const themeBtn = $("theme");
+const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
 const saved = localStorage.getItem("propel-theme");
-if (saved) document.documentElement.dataset.theme = saved;
-const syncTheme = () => { themeBtn.textContent = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; };
+if (saved === "light" || saved === "dark") root.dataset.theme = saved;
+const currentTheme = () => root.dataset.theme || (darkQuery.matches ? "dark" : "light");
+const syncTheme = () => {
+  themeBtn.textContent = currentTheme() === "dark" ? "Light theme" : "Dark theme";
+};
 syncTheme();
+darkQuery.addEventListener("change", syncTheme);
 themeBtn.onclick = () => {
-  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  root.dataset.theme = next;
   localStorage.setItem("propel-theme", next);
   syncTheme();
 };
 
-/* ── api ── */
+/* API: every request carries the per-process token as ?t=. */
 const api = (p, opts) => fetch(p + (p.includes("?") ? "&" : "?") + "t=" + T, opts).then(r => r.json());
 
-/* ── render ── */
-function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+/* Every string from the server is escaped before it reaches innerHTML. */
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-function renderProject(p) {
-  const initialized = p.initialized;
-  $("project").innerHTML = `
-    <span>Project</span>
-    <code>${esc(p.root)}</code>
-    ${p.is_git ? "" : '<span class="tag">not a git repo</span>'}
-    <span class="right">
-      ${initialized
-        ? '<span class="done">✓ Propel installed here</span>'
-        : `<button class="btn primary" data-act="propel-init">Install Propel into this project</button>`}
-    </span>`;
+function describeVersion(version, commit, dirty) {
+  if (version === null || version === undefined) return "version unknown";
+  let s = String(version);
+  if (commit) s += ` (${commit}${dirty ? ", uncommitted changes" : ""})`;
+  else if (dirty) s += " (uncommitted changes)";
+  return s;
 }
 
+/* Project and Propel */
+function renderProject(p) {
+  $("project").innerHTML = `Project <code>${esc(p.root)}</code>${p.is_git ? "" : " (not a git repository; Propel works best inside one)"}`;
+}
+
+function notice(kind, title, detail, extra) {
+  return `<div class="notice ${kind}" role="${kind === "bad" ? "alert" : "status"}">
+    <p><strong>${esc(title)}</strong></p>
+    ${detail ? `<p class="detail">${esc(detail)}</p>` : ""}
+    ${extra ? `<p>${esc(extra)}</p>` : ""}
+  </div>`;
+}
+
+function renderPropel(project, propel) {
+  const pr = propel || {};
+  const out = [];
+  const installed = "installed" in pr ? !!pr.installed : !!project.initialized;
+  const available = describeVersion(pr.available_version, pr.available_commit, pr.available_dirty);
+  const current = describeVersion(pr.installed_version, pr.installed_commit);
+
+  if (pr.error) {
+    let hint = "Check that Propel was installed from its clone with one of: "
+      + "pip install -e <clone> (in an activated venv or conda env), "
+      + "uv pip install -e <clone> (in an activated uv venv), "
+      + "or uv tool install --editable <clone>.";
+    if (pr.error_kind === "manifest") {
+      hint = String(pr.error).includes("Fix or delete")
+        ? "Then install Propel here again."
+        : "Fix or delete .propel/manifest.json, then install Propel here again.";
+    }
+    out.push(notice("bad", "Propel's state in this project could not be read.", pr.error, hint));
+  }
+
+  if (!installed) {
+    out.push(`<div class="panel">
+      <div class="panel-head">
+        <div>
+          <p class="panel-title">Propel is not installed in this project.</p>
+          <p class="panel-sub">${pr.available_version ? `Installs Propel ${esc(available)} into <code>.claude/</code>.` : "Installs Propel into <code>.claude/</code>."}</p>
+        </div>
+        <button class="btn primary" type="button" data-act="propel-init" data-label="Install Propel here">Install Propel here</button>
+      </div>
+    </div>`);
+  } else if (!pr.error) {
+    const blocked = !!pr.settings_error;
+    const changes = pr.changes || 0;
+    const hooks = pr.hooks_pending || 0;
+    const edited = pr.edited_bundled || 0;
+    const userFiles = pr.user_files || 0;
+
+    if (pr.update_available || blocked) {
+      const title = blocked
+        ? `Propel ${current} is installed. Updates are paused until the settings file can be read.`
+        : current === available
+          ? `Propel ${current} is installed. Some of its files differ from this version.`
+          : `Propel ${current} is installed; ${available} is available.`;
+      const facts = [];
+      facts.push(`<dt>Files to add, replace or remove</dt><dd>${esc(changes)}</dd>`);
+      facts.push(`<dt>Hook registrations to add</dt><dd>${pr.hooks_pending === null || pr.hooks_pending === undefined ? "unknown" : esc(hooks)}</dd>`);
+      facts.push(`<dt>Files you edited, backed up first</dt><dd>${esc(edited)}</dd>`);
+      facts.push(`<dt>Your own files, kept</dt><dd>${esc(userFiles)}</dd>`);
+      const reason = blocked
+        ? `<p class="reason" id="update-reason">Update is unavailable because <code>propel init</code> will not run until the settings file can be read.</p>`
+        : "";
+      out.push(`<div class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-title">${esc(title)}</p>
+            <p class="panel-sub">Updating runs <code>propel init</code> in this project.</p>
+          </div>
+          <div>
+            <button class="btn primary" type="button" data-act="propel-update" data-label="Update Propel"
+              ${blocked ? 'disabled data-blocked="1" aria-describedby="update-reason"' : ""}>Update</button>
+          </div>
+        </div>
+        ${reason}
+        <dl class="facts">${facts.join("")}</dl>
+        <p class="keep">Files you added under <code>.claude/</code> are kept as they are.
+          Bundled files you edited are copied to <code>.propel/backup/</code> before they are replaced.</p>
+      </div>`);
+    } else {
+      out.push(`<div class="panel">
+        <p class="panel-title">Propel ${esc(current)} is installed.</p>
+        <p class="panel-sub">It matches the version on this machine. There is nothing to update.</p>
+      </div>`);
+    }
+
+    if (pr.settings_error) {
+      out.push(notice("bad", "The Claude Code settings file could not be read.", pr.settings_error,
+        "Fix or remove .claude/settings.local.json, then press Re-check."));
+    }
+  }
+
+  if (pr.skipped_symlinked) {
+    out.push(notice("warn",
+      `${plural(pr.skipped_symlinked, "Propel path is", "Propel paths are")} not being updated.`,
+      null,
+      "They sit under a symlink that points outside .claude/. Run propel init --dry-run to list them."));
+  }
+
+  $("propel").innerHTML = out.join("");
+}
+
+function renderCodexToggle(p) {
+  const el = $("codex");
+  if (p.codex_enabled === null || p.codex_enabled === undefined) { el.innerHTML = ""; return; }
+  const on = !!p.codex_enabled;
+  el.innerHTML = `<ul class="rows"><li class="row">
+    <span class="state ${on ? "ok" : "off"}">${on ? "On" : "Off"}</span>
+    <div>
+      <p class="row-name">Second model (Codex)</p>
+      <p class="row-text">${on
+        ? "Codex is consulted automatically at each gate: scope, findings, design, audit and diagnosis. Claude announces every consult and checks each claim against your code."
+        : "Propel runs with one model in this project. The gates still run; only the second opinion is off."}</p>
+    </div>
+    <div class="row-acts">
+      <button class="btn" type="button" data-act="${on ? "disable-codex" : "enable-codex"}">${on ? "Turn off" : "Turn on"}</button>
+    </div>
+  </li></ul>`;
+}
+
+/* Tools */
 function renderTools(tools) {
   $("tools").innerHTML = tools.map(t => {
-    const installed = t.ok;
+    const installed = !!t.ok;
     const needsAuth = !!t.has_auth;
     const signedIn = t.auth === true;
     const authUnknown = needsAuth && installed && (t.auth === null || t.auth === undefined);
-    let state = "bad", note = "";
-    if (installed && (!needsAuth || signedIn)) state = "ok";
-    else if (installed) state = "warn";
-    else if (!t.required) state = "warn";
-    if (t.warn) { state = "warn"; note = t.warn; }
+
+    let state, cls;
+    if (!installed) { state = t.required ? "Missing" : "Not installed"; cls = t.required ? "bad" : "off"; }
+    else if (needsAuth && !signedIn) { state = authUnknown ? "Sign-in unknown" : "Not signed in"; cls = "warn"; }
+    else { state = "Ready"; cls = "ok"; }
+    if (t.warn) { cls = "warn"; }
 
     const acts = [];
     if (!installed) {
-      if (t.install) acts.push(`<button class="btn primary" data-act="${t.install}">Install</button>`);
-      if (t.manual) acts.push(`<a class="manual" href="${t.manual}" target="_blank" rel="noopener">manual</a>`);
+      if (t.install) acts.push(`<button class="btn primary" type="button" data-act="${esc(t.install)}" data-label="Install ${esc(t.name)}">Install</button>`);
+      if (t.manual) acts.push(`<a class="manual" href="${esc(t.manual)}" target="_blank" rel="noopener">Manual install</a>`);
     } else if (needsAuth && !signedIn && t.login) {
-      acts.push(`<button class="btn primary" data-act="${t.login}">Link account</button>`);
-    } else if (installed && (!needsAuth || signedIn)) {
-      acts.push(`<span class="done">✓ ready</span>`);
+      acts.push(`<button class="btn primary" type="button" data-act="${esc(t.login)}" data-label="Sign in to ${esc(t.name)}">Sign in</button>`);
     }
 
-    const ver = t.version
-      ? `<div class="ver${t.warn ? " warn" : ""}">${esc(t.version)}${note ? " — " + esc(note) : ""}${needsAuth ? (signedIn ? " · signed in" : authUnknown ? " · sign-in status unknown" : " · not signed in") : ""}</div>`
-      : `<div class="ver">not installed</div>`;
+    let detail = "";
+    if (t.version) {
+      const bits = [esc(t.version)];
+      if (t.warn) bits.push(esc(t.warn));
+      if (needsAuth) bits.push(signedIn ? "signed in" : authUnknown ? "sign-in status unknown" : "not signed in");
+      detail = `<p class="row-detail${t.warn ? " warn" : ""}">${bits.join("; ")}</p>`;
+    }
 
-    return `<div class="card${installed ? "" : " blocked"}">
-      <div class="dot ${state}"></div>
-      <div class="body">
-        <div class="name">${esc(t.name)} ${t.required ? '<span class="tag req">required</span>' : '<span class="tag">optional</span>'}</div>
-        <div class="blurb">${esc(t.blurb)}</div>
-        ${ver}
+    return `<li class="row">
+      <span class="state ${cls}">${state}</span>
+      <div>
+        <p class="row-name">${esc(t.name)}<span class="meta">${t.required ? "Required" : "Optional"}</span></p>
+        <p class="row-text">${esc(t.blurb)}</p>
+        ${detail}
       </div>
-      <div class="acts">${acts.join("")}</div>
-    </div>`;
+      <div class="row-acts">${acts.join("")}</div>
+    </li>`;
   }).join("");
 }
 
 let toolState = {};
 const haveTool = (key) => !!toolState[key];
 
+/* Plugins */
 function renderPlugins(plugins) {
-  $("plugins").innerHTML = (plugins || []).map(p => `
-    <div class="card">
-      <div class="dot ${p.installed ? "ok" : ""}"></div>
-      <div class="body">
-        <div class="name">${esc(p.name)} <span class="tag">optional</span>
-          <span class="by">by ${esc(p.publisher)}</span></div>
-        <div class="blurb">${esc(p.blurb)}</div>
-        <div class="ver">Propel uses it for: <span class="used">${esc(p.used_for)}</span></div>
+  $("plugins").innerHTML = (plugins || []).map(p => {
+    let act;
+    if (p.installed) act = "";
+    else if (p.needs && !haveTool(p.needs)) act = `<span class="manual">Needs ${esc(p.needs)} first</span>`;
+    else act = `<button class="btn" type="button" data-act="${esc(p.install)}" data-label="Install ${esc(p.name)}">Install</button>`;
+    return `<li class="row">
+      <span class="state ${p.installed ? "ok" : "off"}">${p.installed ? "Installed" : "Not installed"}</span>
+      <div>
+        <p class="row-name">${esc(p.name)}<span class="meta">by ${esc(p.publisher)}</span></p>
+        <p class="row-text">${esc(p.blurb)}</p>
+        <p class="row-detail">Propel uses it for: ${esc(p.used_for)}</p>
       </div>
-      <div class="acts">${p.installed
-        ? '<span class="done">\u2713 installed</span>'
-        : (p.needs && !haveTool(p.needs))
-          ? `<span class="ver">needs ${esc(p.needs)} first</span>`
-          : `<button class="btn" data-act="${p.install}">Install</button>`}</div>
-    </div>`).join("");
+      <div class="row-acts">${act}</div>
+    </li>`;
+  }).join("");
 }
 
-function renderCodexToggle(p) {
-  if (p.codex_enabled === null || p.codex_enabled === undefined) return;
-  const on = p.codex_enabled;
-  const el = document.createElement("div");
-  el.className = "card";
-  el.innerHTML = `
-    <div class="dot ${on ? "ok" : "warn"}"></div>
-    <div class="body">
-      <div class="name">Dual-model gates ${on ? "" : '<span class="tag">off</span>'}</div>
-      <div class="blurb">${on
-        ? "Codex is consulted automatically at every gate — scope, findings, design, audit, diagnosis. Claude announces it every time and verifies every claim against your code."
-        : "Propel runs single-model in this project. Gates still fire; only the second opinion is off."}</div>
-    </div>
-    <div class="acts">
-      <button class="btn" data-act="${on ? "disable-codex" : "enable-codex"}">${on ? "Turn off" : "Turn on"}</button>
-    </div>`;
-  $("tools").appendChild(el);
-}
-
-/* ── actions ── */
-function showLog(title, text, busy) {
-  $("log").classList.add("show");
+/* Actions: the browser only ever sends an action key from the server's allowlist. */
+function showLog(title, text, running) {
+  $("log").hidden = false;
   $("log-title").textContent = title;
   $("log-body").textContent = text;
-  $("log-spin").innerHTML = busy ? '<span class="spin"></span>' : "";
+  $("log-state").innerHTML = running ? '<span class="spin" aria-hidden="true"></span>Running' : "Finished";
   $("log-body").scrollTop = $("log-body").scrollHeight;
+}
+
+function setButtons(enabled) {
+  document.querySelectorAll("button[data-act]").forEach(b => {
+    b.disabled = !enabled || b.dataset.blocked === "1";
+  });
+  $("recheck").disabled = !enabled;
 }
 
 async function run(action, label) {
   if (polling) clearInterval(polling);
-  showLog(label, "starting…", true);
-  document.querySelectorAll("button[data-act]").forEach(b => b.disabled = true);
+  busy = true;
+  showLog(label, "Starting.", true);
+  setButtons(false);
 
-  const res = await api("/api/action", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action }),
-  });
+  let res;
+  try {
+    res = await api("/api/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+  } catch (err) {
+    showLog(label, "Could not reach the launcher. Is propel launch still running?", false);
+    busy = false; await refresh(); return;
+  }
 
-  if (res.error) { showLog(label, res.error, false); await refresh(); return; }
-  if (res.done) { showLog(label, res.output || "done.", false); await refresh(); return; }
+  if (res.error) { showLog(label, res.error, false); busy = false; await refresh(); return; }
+  if (res.done) { showLog(label, res.output || "Done.", false); busy = false; await refresh(); return; }
 
   polling = setInterval(async () => {
-    const j = await api("/api/job/" + res.job);
+    let j;
+    try { j = await api("/api/job/" + res.job); }
+    catch (err) { return; }
     showLog(label, j.output || "", !j.done);
-    if (j.done) { clearInterval(polling); polling = null; await refresh(); }
+    if (j.done) { clearInterval(polling); polling = null; busy = false; await refresh(); }
   }, 700);
 }
 
 document.addEventListener("click", (e) => {
-  const b = e.target.closest("[data-act]");
-  if (!b) return;
-  run(b.dataset.act, b.textContent.trim());
+  const b = e.target.closest("button[data-act]");
+  if (!b || b.disabled) return;
+  run(b.dataset.act, b.dataset.label || b.textContent.trim());
 });
+$("recheck").onclick = () => refresh();
 
-/* ── boot ── */
+/* Status. Re-fetched after every action so the page reflects what changed. */
 async function refresh() {
-  const s = await api("/api/status");
+  let s;
+  try {
+    s = await api("/api/status");
+  } catch (err) {
+    $("foot-note").textContent = "Could not reach the launcher. Is propel launch still running?";
+    if (!busy) setButtons(true);
+    return;
+  }
   toolState = Object.fromEntries(s.tools.map(t => [t.key, t.ok]));
   renderProject(s.project);
-  renderTools(s.tools);
+  renderPropel(s.project, s.propel);
   renderCodexToggle(s.project);
+  renderTools(s.tools);
   renderPlugins(s.plugins);
-  document.querySelectorAll("button[data-act]").forEach(b => b.disabled = false);
+  setButtons(!busy);
   const missingRequired = s.tools.some(t => t.required && !t.ok);
   const pathWarn = !s.local_bin_on_path && s.tools.some(t => (t.key === "claude" || t.key === "codex") && t.ok);
   $("foot-note").textContent = missingRequired
-    ? "Install the required tools above, then press a button again to re-check."
+    ? "Install the required tools above, then press Re-check."
     : pathWarn
-      ? "~/.local/bin isn't on your PATH yet, so new shells won't find claude/codex. Run: " + s.path_hint
-      : "Nothing here leaves your machine except the installers you click.";
+      ? "~/.local/bin is not on your PATH yet, so new shells will not find claude or codex. Run: " + s.path_hint
+      : "Nothing on this page leaves your machine except the installers you run.";
 }
 refresh();
 </script>

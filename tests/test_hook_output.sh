@@ -1,25 +1,119 @@
 #!/usr/bin/env bash
-# Test that session-start.sh produces valid JSON output.
+# Tests for Propel's hooks and Codex scripts.
 #
 # Usage: bash tests/test_hook_output.sh
 #
-# This test verifies:
-# 1. The hook script runs without error
-# 2. Output is valid JSON
-# 3. Required fields are present (plugin, version, context)
+# session-start.sh and working-memory.sh emit PLAIN TEXT: Claude Code adds
+# plain-text SessionStart stdout to context, while stdout that starts with `{`
+# is parsed as hook JSON (and a custom object is dropped). These tests verify:
+# 1. every session-start part (state, tasks, core, codex, routing1-4) runs,
+#    exits 0, is NOT a JSON object, and is under the ~10,000-character per-hook cap
+# 2. CORE.md and CODEX.md arrive untruncated; the routing parts reproduce
+#    using-propel/SKILL.md losslessly in no more chunks than are registered
+# 3. the version line comes from .propel/manifest.json, "unknown" without one
+# 4. the tasks part shows open ledger tasks (capped at 20 rows and 8,500
+#    characters), prints nothing without any, and exports a sanitized
+#    PROPEL_SESSION through CLAUDE_ENV_FILE exactly once
+# 5. working-memory prints nothing when empty, its sections when not, and caps
+#    long logs
+# 6. every hook exits 0 with no python3 on PATH; route.sh reads mode/Codex
+#    state without python3 and adds one tasks line when tasks are open, and
+#    one "docs prompts: off" line when .propel/docs.json turns docs prompts off
+#    (auditor-dispatch then adds no [propel:docs] line); both switch commands
+#    exist
+# 7. plugin.json and the package agree on the version
 
 set -euo pipefail
+
+# Hooks prefer CLAUDE_PROJECT_DIR over the cwd. Running this test from inside a
+# Claude Code session exports it, which would point every hook run below at
+# the real project instead of the throwaway dirs. Tests that need it set it.
+# CLAUDE_ENV_FILE would let the tasks part write into the real session's env
+# file; PROPEL_SESSION would leak a session into task-queue.sh runs.
+unset CLAUDE_PROJECT_DIR CLAUDE_ENV_FILE PROPEL_SESSION
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(dirname "$SCRIPT_DIR")"
 HOOK_SCRIPT="$PLUGIN_DIR/hooks/session-start.sh"
+WM_SCRIPT="$PLUGIN_DIR/hooks/working-memory.sh"
 
-# Store output in a temp file to avoid shell escaping issues with large JSON
 TMPFILE=$(mktemp)
 # "No Codex installed" needs an empty HOME as well as a trimmed PATH: the
 # scripts also look in ~/.local/bin, where the native installer puts codex.
 NOCLI_HOME=$(mktemp -d)
-trap 'rm -f "$TMPFILE"; rm -rf "$NOCLI_HOME"' EXIT
+# Throwaway project dir for hook runs that depend on project state.
+PROJ_DIR=$(mktemp -d)
+trap 'rm -f "$TMPFILE"; rm -rf "$NOCLI_HOME" "$PROJ_DIR"' EXIT
+
+assert_contains() {  # <haystack-file> <needle> <label>
+    if ! grep -qF -- "$2" "$1"; then
+        echo "FAIL: $3 (missing '$2')"
+        exit 1
+    fi
+}
+
+# A fresh bin dir holding the tools the hooks (and scripts/task-queue.sh, which
+# the tasks part and route.sh call) may use, and no python3. Prints its path.
+make_nopy_bin() {
+    local dir tool tool_path
+    dir=$(mktemp -d)
+    for tool in bash sh cat date ls find head tail sort grep sed dirname basename tr wc \
+                stat mkdir rmdir git awk cut printf env rm sleep; do
+        tool_path=$(command -v "$tool" 2>/dev/null || true)
+        case "$tool_path" in
+            /*) ln -s "$tool_path" "$dir/$tool" ;;
+        esac
+    done
+    printf '%s\n' "$dir"
+}
+
+# closed_stdin <command...>: run with stdin closed, killed after 10 s so a hook
+# that blocks fails here instead of stalling the suite. Returns the command's
+# status (137 when killed). The <&- is on the background command itself: an
+# `&` command otherwise gets /dev/null as stdin.
+closed_stdin() {
+    local pid watch rc=0
+    "$@" <&- >/dev/null 2>&1 &
+    pid=$!
+    ( sleep 10; kill -9 "$pid" ) >/dev/null 2>&1 &
+    watch=$!
+    wait "$pid" || rc=$?
+    kill "$watch" 2>/dev/null || true
+    wait "$watch" 2>/dev/null || true   # reaped quietly: no "Terminated" line
+    return "$rc"
+}
+
+# open_pipe <out-file> <payload> <command...>: run the command with stdin from a
+# FIFO that delivers <payload> and then stays open, without EOF, for 8 s.
+# stdout goes to <out-file>; OP_SECS is set to the wall seconds taken. Killed
+# after 10 s (status 137), so a hook that waits for EOF fails instead of hanging.
+open_pipe() {
+    local out="$1" payload="$2" d w pid watch start rc=0
+    shift 2
+    d=$(mktemp -d)
+    mkfifo "$d/fifo"
+    ( printf '%s' "$payload"; sleep 8 ) > "$d/fifo" 2>/dev/null &
+    w=$!
+    start=$(date +%s)
+    "$@" < "$d/fifo" > "$out" 2>/dev/null &
+    pid=$!
+    ( sleep 10; kill -9 "$pid" ) >/dev/null 2>&1 &
+    watch=$!
+    wait "$pid" || rc=$?
+    OP_SECS=$(( $(date +%s) - start ))
+    kill "$watch" "$w" 2>/dev/null || true
+    wait "$watch" 2>/dev/null || true
+    wait "$w" 2>/dev/null || true
+    rm -rf "$d"
+    return "$rc"
+}
+
+# A 200 KB prompt payload carrying session id <id>: big_payload <id>
+big_payload() {
+    printf '{"session_id":"%s","prompt":"' "$1"
+    head -c 200000 /dev/zero | tr '\0' 'x'
+    printf '"}'
+}
 
 echo "Testing: hooks/session-start.sh"
 echo "================================"
@@ -31,126 +125,728 @@ if [ ! -x "$HOOK_SCRIPT" ]; then
 fi
 echo "PASS: Script is executable"
 
-# Test 2: Script runs without error
-bash "$HOOK_SCRIPT" > "$TMPFILE" 2>&1 || {
-    echo "FAIL: Script exited with error"
-    cat "$TMPFILE"
+PARTS="state tasks core codex routing1 routing2 routing3 routing4"
+ROUTING_REGISTERED=4
+PART_DIR=$(mktemp -d)
+trap 'rm -f "$TMPFILE"; rm -rf "$NOCLI_HOME" "$PROJ_DIR" "$PART_DIR"' EXIT
+
+# Test 1b: the session-start parts registered in hooks/hooks.json are exactly
+# PARTS, in order — so dropping (or adding) a registration fails here.
+REGISTERED_PARTS=$(grep -o '"command": *"bash hooks/session-start.sh [^"]*"' "$PLUGIN_DIR/hooks/hooks.json" \
+    | sed 's/.*session-start\.sh \([^"]*\)"$/\1/' | tr '\n' ' ' | sed 's/ $//')
+if [ "$REGISTERED_PARTS" != "$PARTS" ]; then
+    echo "FAIL: hooks/hooks.json registers session-start.sh parts '$REGISTERED_PARTS' but this test expects '$PARTS'"
     exit 1
-}
-echo "PASS: Script runs without error"
-
-# Test 3: Output is valid JSON
-python3 -m json.tool < "$TMPFILE" > /dev/null 2>&1 || {
-    echo "FAIL: Output is not valid JSON"
-    cat "$TMPFILE"
+fi
+REGISTERED_ROUTING=$(echo "$REGISTERED_PARTS" | tr ' ' '\n' | grep -c '^routing[0-9][0-9]*$' || true)
+if [ "$REGISTERED_ROUTING" != "$ROUTING_REGISTERED" ]; then
+    echo "FAIL: hooks/hooks.json registers $REGISTERED_ROUTING routing parts, ROUTING_REGISTERED is $ROUTING_REGISTERED"
     exit 1
+fi
+echo "PASS: hooks/hooks.json registers exactly the session-start parts: $PARTS"
+
+# Test 2: every part, run from the repo root, exits 0, is plain text, and stays
+# under Claude Code's per-hook cap (~10,000 characters; above it the output is
+# replaced by a short preview). wc -c counts bytes, which is >= characters.
+# The tasks part reads stdin, so stdin is /dev/null here (an inherited pipe
+# that never closes would stall it); with no ledger it prints nothing.
+for part in $PARTS; do
+    ( cd "$PLUGIN_DIR" && bash "$HOOK_SCRIPT" "$part" < /dev/null > "$PART_DIR/$part" 2>/dev/null ) || {
+        echo "FAIL: part '$part' exited non-zero"
+        exit 1
+    }
+    if [ "$part" = "routing1" ]; then
+        # Checked before the size cap so an outgrown SKILL.md names the fix.
+        M1=$(sed -n 's/^## using-propel skill (part 1 of \([0-9][0-9]*\))$/\1/p' "$PART_DIR/routing1")
+        if [ -n "$M1" ] && [ "$M1" -gt "$ROUTING_REGISTERED" ]; then
+            echo "FAIL: using-propel/SKILL.md now needs $M1 chunks but only $ROUTING_REGISTERED are registered — add 'bash hooks/session-start.sh routing$((ROUTING_REGISTERED + 1))' (and up) to hooks/hooks.json and to PARTS / ROUTING_REGISTERED in this test"
+            exit 1
+        fi
+    fi
+    if [ "$(head -c 1 "$PART_DIR/$part")" = "{" ]; then
+        echo "FAIL: part '$part' starts with '{' — Claude Code would parse it as hook JSON and drop it"
+        exit 1
+    fi
+    SIZE=$(wc -c < "$PART_DIR/$part" | tr -d '[:space:]')
+    if [ "$SIZE" -ge 10000 ]; then
+        echo "FAIL: part '$part' is $SIZE bytes — over the ~10,000-character per-hook cap"
+        exit 1
+    fi
+    if [ "$SIZE" -gt 0 ]; then
+        assert_contains "$PART_DIR/$part" "[propel:session-start $part] Propel " "part '$part' header line"
+    fi
+done
+echo "PASS: every part exits 0, is plain text, and is under 10,000 characters"
+
+# Test 3: no argument is a legacy registration (a session open across an
+# upgrade): the state part, then a notice to restart and, until then, to read
+# the three files the session did not receive. Explicit `state` has no notice.
+( cd "$PLUGIN_DIR" && bash "$HOOK_SCRIPT" < /dev/null > "$TMPFILE" 2>/dev/null ) || { echo "FAIL: no-arg run exited non-zero"; exit 1; }
+STATE_LINES=$(wc -l < "$PART_DIR/state" | tr -d '[:space:]')
+if ! head -n "$STATE_LINES" "$TMPFILE" | diff -q - "$PART_DIR/state" >/dev/null; then
+    echo "FAIL: running with no argument should start with the 'state' part"
+    exit 1
+fi
+for needle in "Propel was updated while this session was open" "Restart Claude Code" \
+              ".claude/core/CORE.md" ".claude/core/CODEX.md" ".claude/skills/using-propel/SKILL.md"; do
+    assert_contains "$TMPFILE" "$needle" "no-arg legacy notice"
+done
+if grep -qF "Propel was updated while this session was open" "$PART_DIR/state"; then
+    echo "FAIL: the explicit 'state' part must not carry the legacy notice"
+    exit 1
+fi
+echo "PASS: no argument == state part + legacy restart notice; explicit state unchanged"
+
+# Test 4: required content per part
+assert_contains "$PART_DIR/state" "## Codex state" "Codex state section"
+assert_contains "$PART_DIR/state" "## Mode" "mode section"
+assert_contains "$PART_DIR/state" "AUTO" "automatic mode-selection policy"
+assert_contains "$PART_DIR/state" "mode_selection_needed: " "mode_selection_needed line"
+assert_contains "$PART_DIR/state" "## Active investigations" "investigations section"
+assert_contains "$PART_DIR/state" "## Empty repo" "empty-repo section"
+assert_contains "$PART_DIR/state" "## Registry entries" "registry section"
+assert_contains "$PART_DIR/core" "## Core principles" "core section"
+assert_contains "$PART_DIR/codex" "## Dual-model (Codex) policy" "Codex policy section"
+assert_contains "$PART_DIR/codex" "Codex is consulted automatically" "Codex policy content"
+# CORE.md and CODEX.md must arrive whole: the part minus its 4 header lines is
+# the file, byte for byte. A truncated policy fails here on purpose.
+for pair in "core:core/CORE.md" "codex:core/CODEX.md"; do
+    part="${pair%%:*}"; file="${pair#*:}"
+    if ! tail -n +5 "$PART_DIR/$part" | diff -q - "$PLUGIN_DIR/$file" >/dev/null; then
+        echo "FAIL: part '$part' does not reproduce $file intact (truncated? — shorten $file below 9,500 characters)"
+        exit 1
+    fi
+done
+echo "PASS: state, core and codex parts carry their content; CORE.md and CODEX.md are not truncated"
+
+# Test 5: the routing parts reproduce using-propel/SKILL.md losslessly, in at
+# most as many chunks as hooks.json registers.
+M=$(sed -n 's/^## using-propel skill (part 1 of \([0-9][0-9]*\))$/\1/p' "$PART_DIR/routing1")
+if [ -z "$M" ]; then
+    echo "FAIL: routing1 has no '## using-propel skill (part 1 of M)' line"
+    exit 1
+fi
+: > "$TMPFILE"
+for n in $(seq 1 "$ROUTING_REGISTERED"); do
+    if [ "$n" -le "$M" ]; then
+        assert_contains "$PART_DIR/routing$n" "## using-propel skill (part $n of $M)" "routing$n chunk heading"
+        tail -n +5 "$PART_DIR/routing$n" >> "$TMPFILE"
+    elif [ -s "$PART_DIR/routing$n" ]; then
+        echo "FAIL: routing$n should print nothing when SKILL.md has only $M chunks"
+        exit 1
+    fi
+done
+if ! diff -q "$TMPFILE" "$PLUGIN_DIR/skills/using-propel/SKILL.md" >/dev/null; then
+    echo "FAIL: routing parts concatenated do not reproduce using-propel/SKILL.md"
+    exit 1
+fi
+echo "PASS: routing parts reproduce using-propel/SKILL.md losslessly in $M of $ROUTING_REGISTERED chunks"
+
+# Test 6: Version line — "unknown" without a manifest, the manifest's otherwise
+(
+    cd "$PROJ_DIR"
+    OUT=$(bash "$HOOK_SCRIPT" state 2>/dev/null) || { echo "FAIL: exit non-zero in empty project"; exit 1; }
+    case "$(printf '%s\n' "$OUT" | head -1)" in
+        *"[propel:session-start state] Propel unknown "*) ;;
+        *) echo "FAIL: version should be 'unknown' with no manifest"; exit 1 ;;
+    esac
+    case "$OUT" in
+        *"enabled (default"*) ;;
+        *) echo "FAIL: Codex state should default to enabled with no codex.json"; exit 1 ;;
+    esac
+    case "$OUT" in
+        *"not selected yet"*) ;;
+        *) echo "FAIL: mode should be 'not selected yet' with no mode.json"; exit 1 ;;
+    esac
+    case "$OUT" in
+        *"mode_selection_needed: true"*) ;;
+        *) echo "FAIL: mode_selection_needed should be true with no mode.json"; exit 1 ;;
+    esac
+    mkdir -p .propel
+    printf '{\n  "schema": 1,\n  "propel_version": "9.8.7",\n  "files": {}\n}\n' > .propel/manifest.json
+    for part in $PARTS; do
+        OUT=$(bash "$HOOK_SCRIPT" "$part" < /dev/null 2>/dev/null) || { echo "FAIL: exit non-zero with manifest"; exit 1; }
+        [ -n "$OUT" ] || continue
+        case "$(printf '%s\n' "$OUT" | head -1)" in
+            *"[propel:session-start $part] Propel 9.8.7 "*) ;;
+            *) echo "FAIL: part '$part' version line should show the manifest's propel_version"; exit 1 ;;
+        esac
+    done
+    rm -rf .propel
+) || exit 1
+echo "PASS: version comes from .propel/manifest.json, 'unknown' without one"
+
+# Test 7: state edge cases — a huge profile is truncated under the cap (also
+# with the no-argument legacy notice), a mode.json without a non-empty "mode"
+# still needs selection, the string "false" disables Codex (fail-closed), and
+# CLAUDE_PROJECT_DIR wins over the cwd.
+(
+    cd "$PROJ_DIR"
+    mkdir -p .propel sub
+    for i in $(seq 1 600); do echo "- profile line $i: the training loop uses a cosine schedule"; done > .propel/profile.md
+    echo '{"mode": "", "selected_by": "auto"}' > .propel/mode.json
+    echo '{"enabled": "false", "available": "yes"}' > .propel/codex.json
+    OUT=$(cd sub && CLAUDE_PROJECT_DIR="$PROJ_DIR" bash "$HOOK_SCRIPT" state 2>/dev/null) || { echo "FAIL: state exited non-zero with a huge profile"; exit 1; }
+    SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
+    [ "$SIZE" -le 9000 ] || { echo "FAIL: state part is $SIZE bytes with a huge profile (max 9,000)"; exit 1; }
+    for needle in "## Project profile" "profile line 1:" "(profile truncated — full text at .propel/profile.md)" \
+                  "## Registry entries" "mode_selection_needed: true" "enabled: false, available: null"; do
+        case "$OUT" in *"$needle"*) ;; *) echo "FAIL: state edge case missing '$needle'"; exit 1 ;; esac
+    done
+    # Worst case for the no-argument call: the huge profile plus the notice.
+    OUT=$(cd sub && CLAUDE_PROJECT_DIR="$PROJ_DIR" bash "$HOOK_SCRIPT" < /dev/null 2>/dev/null) || { echo "FAIL: no-arg run exited non-zero with a huge profile"; exit 1; }
+    SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
+    [ "$SIZE" -le 9000 ] || { echo "FAIL: no-arg output is $SIZE bytes with a huge profile (max 9,000)"; exit 1; }
+    for needle in "(profile truncated — full text at .propel/profile.md)" "## Registry entries" \
+                  "Propel was updated while this session was open"; do
+        case "$OUT" in *"$needle"*) ;; *) echo "FAIL: no-arg run with a huge profile missing '$needle'"; exit 1 ;; esac
+    done
+    # "mode" on the line after its key still counts as selected, with and
+    # without python3 (as route.sh reads it).
+    printf '{\n  "mode":\n    "engineer",\n  "selected_by":\n "auto"\n}\n' > .propel/mode.json
+    OUT=$(bash "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero with a multi-line mode.json"; exit 1; }
+    case "$OUT" in *"mode_selection_needed: false"*) ;; *) echo "FAIL: state missed a multi-line \"mode\" value"; exit 1 ;; esac
+    MM_NOPY=$(make_nopy_bin)
+    OUT=$(env -i PATH="$MM_NOPY" "$MM_NOPY/bash" "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { rm -rf "$MM_NOPY"; echo "FAIL: state exited non-zero without python3"; exit 1; }
+    rm -rf "$MM_NOPY"
+    case "$OUT" in *"mode_selection_needed: false"*) ;; *) echo "FAIL: state missed a multi-line \"mode\" value without python3"; exit 1 ;; esac
+    rm -rf .propel sub
+) || exit 1
+echo "PASS: state truncates a huge profile (with or without the legacy notice), reads mode/codex fail-closed, honours CLAUDE_PROJECT_DIR"
+
+# Test 8: state stays under the cap with a huge mode.json and 10 registry
+# entries with 200-character names (plus 5 long-named investigations).
+(
+    cd "$PROJ_DIR"
+    mkdir -p .propel
+    { printf '{"mode": "engineer", "notes": "'; head -c 50000 /dev/zero | tr '\0' 'x'; printf '"}\n'; } > .propel/mode.json
+    LONG=$(head -c 200 /dev/zero | tr '\0' 'r')
+    for i in 0 1 2 3 4 5 6 7 8 9; do mkdir -p "scratch/registry/$i$LONG"; done
+    for i in 0 1 2 3 4; do mkdir -p "scratch/$i$LONG"; echo x > "scratch/$i$LONG/README.md"; done
+    OUT=$(bash "$HOOK_SCRIPT" state 2>/dev/null) || { echo "FAIL: state exited non-zero with a huge mode.json"; exit 1; }
+    SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
+    [ "$SIZE" -lt 9000 ] || { echo "FAIL: state part is $SIZE bytes with a huge mode.json (max 9,000)"; exit 1; }
+    for needle in '{"mode": "engineer"' "(truncated — full file at .propel/mode.json)" "mode_selection_needed: false" \
+                  "(more in scratch/registry/)" "## Empty repo"; do
+        case "$OUT" in *"$needle"*) ;; *) echo "FAIL: state with huge inputs missing '$needle'"; exit 1 ;; esac
+    done
+    REG=$(printf '%s\n' "$OUT" | sed -n '/^## Registry entries$/,$p' | tail -n +3 | wc -c | tr -d '[:space:]')
+    [ "$REG" -le 1500 ] || { echo "FAIL: state registry listing is $REG bytes (max 1,500)"; exit 1; }
+    WM=$(bash "$WM_SCRIPT" 2>/dev/null) || { echo "FAIL: working-memory exited non-zero with long registry names"; exit 1; }
+    SIZE=$(printf '%s\n' "$WM" | wc -c | tr -d '[:space:]')
+    [ "$SIZE" -lt 10000 ] || { echo "FAIL: working-memory output is $SIZE bytes with long registry names"; exit 1; }
+    case "$WM" in *"(more in scratch/registry/)"*) ;; *) echo "FAIL: working-memory did not mark the omitted registry entries"; exit 1 ;; esac
+    REG=$(printf '%s\n' "$WM" | sed -n '/^## Recent registry entries$/,$p' | tail -n +3 | wc -c | tr -d '[:space:]')
+    [ "$REG" -le 1500 ] || { echo "FAIL: working-memory registry listing is $REG bytes (max 1,500)"; exit 1; }
+    rm -rf .propel scratch
+) || exit 1
+echo "PASS: state and working-memory stay under the cap with a huge mode.json and long registry names"
+
+# Test 9: an unknown part (e.g. a user's own `session-start.sh --mine`
+# registration) prints nothing and exits 0.
+for part in --mine bogus routing; do
+    OUT=$(cd "$PLUGIN_DIR" && bash "$HOOK_SCRIPT" "$part" 2>&1) || { echo "FAIL: unknown part '$part' exited non-zero"; exit 1; }
+    [ -z "$OUT" ] || { echo "FAIL: unknown part '$part' printed output: $OUT"; exit 1; }
+done
+echo "PASS: unknown session-start parts print nothing and exit 0"
+
+echo ""
+echo "Testing: session-start tasks part"
+echo "================================"
+TQ_SCRIPT="$PLUGIN_DIR/scripts/task-queue.sh"
+tq() { bash "$TQ_SCRIPT" "$@" < /dev/null 2>/dev/null; }
+TASKS_DIR=$(mktemp -d)
+TASKS_NOPY=$(make_nopy_bin)
+# hook_tasks <env-file or "">: run the tasks part in the cwd with the caller's
+# stdin, with python3 on PATH (TQ_RUN=py) or under env -i with none (nopy).
+hook_tasks() {
+    if [ "$TQ_RUN" = nopy ]; then
+        env -i PATH="$TASKS_NOPY" ${1:+CLAUDE_ENV_FILE="$1"} "$TASKS_NOPY/bash" "$HOOK_SCRIPT" tasks 2>/dev/null
+    else
+        env ${1:+CLAUDE_ENV_FILE="$1"} bash "$HOOK_SCRIPT" tasks 2>/dev/null
+    fi
 }
-echo "PASS: Output is valid JSON"
+(
+    cd "$TASKS_DIR"
+    if [ -e "$TASKS_NOPY/python3" ]; then echo "FAIL: test setup — python3 leaked into the no-python3 PATH"; exit 1; fi
+    S2_JSON='{"session_id":"S2","transcript_path":"/tmp/t.jsonl","cwd":"/tmp","hook_event_name":"SessionStart","source":"startup"}'
 
-# Test 4: Required fields are present
-python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-required_fields = ['plugin', 'version', 'context']
-missing = [f for f in required_fields if f not in data]
-if missing:
-    print(f'FAIL: Missing required fields: {missing}')
-    sys.exit(1)
-if data['plugin'] != 'propel':
-    print(f'FAIL: plugin should be \"propel\", got \"{data[\"plugin\"]}\"')
-    sys.exit(1)
-if data['version'] != '0.1.0':
-    print(f'FAIL: version should be \"0.1.0\", got \"{data[\"version\"]}\"')
-    sys.exit(1)
-print('PASS: All required fields present and correct')
-" "$TMPFILE" || exit 1
+    # Ledgers, built once and read by both runs below.
+    mkdir -p main/.propel noledger/.propel closed/.propel many/.propel long/.propel
+    ID1=$(cd main && tq start --session S1 --kind impl --title "implement the vq loss")
+    [ -n "$ID1" ] || { echo "FAIL: test setup — task-queue.sh start printed no id"; exit 1; }
+    ID_CLOSED=$(cd closed && tq start --session S1 --kind impl --title "closed task")
+    (cd closed && tq abandon "$ID_CLOSED") || { echo "FAIL: test setup — task-queue.sh abandon failed"; exit 1; }
+    for i in $(seq 1 25); do (cd many && tq start --session S1 --kind other --title "task number $i" >/dev/null); done
+    mkdir -p many21/.propel
+    for i in $(seq 1 21); do (cd many21 && tq start --session S1 --kind other --title "task number $i" >/dev/null); done
+    # Titles and progress made of '|' are escaped to '\|' in the table, so 20
+    # rows of them would pass the 8,500-character budget.
+    PIPES=$(head -c 200 /dev/zero | tr '\0' '|')
+    for i in $(seq 1 25); do
+        (cd long && tq start --session S1 --kind other --title "$i$PIPES" --progress "$PIPES" >/dev/null)
+    done
 
-# Test 5: Context contains skill content
-python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-context = data['context']
-if 'using-propel' not in context.lower() and 'Using Propel' not in context:
-    print('FAIL: Context does not contain using-propel skill content')
-    sys.exit(1)
-if 'Gate 0' not in context:
-    print('FAIL: Context does not mention Gate 0')
-    sys.exit(1)
-print('PASS: Context contains expected skill content')
-" "$TMPFILE" || exit 1
+    for TQ_RUN in py nopy; do
+        E="$TASKS_DIR/env-$TQ_RUN"
 
-# Test 6: active_investigations is a list
-python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-if not isinstance(data.get('active_investigations', None), list):
-    print('FAIL: active_investigations should be a list')
-    sys.exit(1)
-print('PASS: active_investigations is a list')
-" "$TMPFILE" || exit 1
+        # (a) another session sees S1's task, not as its own; the part opens
+        # with its header; PROPEL_SESSION=S2 is exported once over two runs.
+        for run in 1 2; do
+            RC=0
+            OUT=$(cd main && printf '%s' "$S2_JSON" | hook_tasks "$E-a") || RC=$?
+            [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC (run $run)"; exit 1; }
+        done
+        case "$OUT" in
+            "[propel:session-start tasks] Propel "*) ;;
+            *) echo "FAIL [$TQ_RUN]: tasks part does not open with its header line"; exit 1 ;;
+        esac
+        for needle in "## Open tasks" ".propel/tasks/" "bash .claude/scripts/task-queue.sh" \
+                      "task-queue.sh carry ID" "task-queue.sh abandon ID" "check-progress" \
+                      "| ID | Task | Kind | Status | Progress | Started | Session |" \
+                      "| $ID1 | implement the vq loss | impl | running |" \
+                      "Statuses lost, unknown and blocked need a decision."; do
+            case "$OUT" in *"$needle"*) ;; *) echo "FAIL [$TQ_RUN]: tasks part missing '$needle'"; exit 1 ;; esac
+        done
+        case "$OUT" in *"S1 (this)"*) echo "FAIL [$TQ_RUN]: S1's task is marked '(this)' in session S2"; exit 1 ;; esac
+        [ "$(cat "$E-a" 2>/dev/null)" = "export PROPEL_SESSION=S2" ] \
+            || { echo "FAIL [$TQ_RUN]: env file should hold exactly one 'export PROPEL_SESSION=S2'"; exit 1; }
+        # An env file whose last line has no newline gets a line of its own.
+        printf 'export OTHER=1' > "$E-a2"
+        (cd main && printf '%s' "$S2_JSON" | hook_tasks "$E-a2" >/dev/null) || { echo "FAIL [$TQ_RUN]: tasks part exited non-zero"; exit 1; }
+        [ "$(cat "$E-a2")" = "export OTHER=1
+export PROPEL_SESSION=S2" ] || { echo "FAIL [$TQ_RUN]: export glued onto an unterminated env-file line"; exit 1; }
 
-# Test 7: registry_entries is a list
-python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-if not isinstance(data.get('registry_entries', None), list):
-    print('FAIL: registry_entries should be a list')
-    sys.exit(1)
-print('PASS: registry_entries is a list')
-" "$TMPFILE" || exit 1
+        # (b) the owning session sees its row marked "(this)".
+        OUT=$(cd main && printf '{"session_id":"S1","source":"resume"}' | hook_tasks "") \
+            || { echo "FAIL [$TQ_RUN]: tasks part exited non-zero as S1"; exit 1; }
+        ROW=$(printf '%s\n' "$OUT" | grep -F "| $ID1 |" || true)
+        case "$ROW" in *"| S1 (this) |"*) ;; *) echo "FAIL [$TQ_RUN]: the owning session's row is not marked '(this)': $ROW"; exit 1 ;; esac
+
+        # (c) no stdin (empty or closed): exit 0, table still shown, nothing exported.
+        RC=0
+        OUT=$(cd main && hook_tasks "$E-c" < /dev/null) || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC with stdin from /dev/null"; exit 1; }
+        [ ! -e "$E-c" ] || { echo "FAIL [$TQ_RUN]: tasks part exported a session with no stdin"; exit 1; }
+        case "$OUT" in *"| $ID1 |"*) ;; *) echo "FAIL [$TQ_RUN]: tasks part lost the table with no stdin"; exit 1 ;; esac
+        case "$OUT" in *" (this) |"*) echo "FAIL [$TQ_RUN]: a row is marked '(this)' with no session"; exit 1 ;; esac
+        RC=0
+        (cd main && closed_stdin hook_tasks "$E-c") || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC with stdin closed (137 = hung)"; exit 1; }
+        [ ! -e "$E-c" ] || { echo "FAIL [$TQ_RUN]: tasks part exported a session with stdin closed"; exit 1; }
+
+        # (d) no ledger, or no open task: no output at all — the session id is
+        # still exported.
+        for dir in noledger closed; do
+            RC=0
+            OUT=$(cd "$dir" && printf '%s' "$S2_JSON" | hook_tasks "$E-d-$dir") || RC=$?
+            [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC ($dir)"; exit 1; }
+            [ -z "$OUT" ] || { echo "FAIL [$TQ_RUN]: tasks part printed output with no open task ($dir)"; exit 1; }
+            [ "$(cat "$E-d-$dir" 2>/dev/null)" = "export PROPEL_SESSION=S2" ] \
+                || { echo "FAIL [$TQ_RUN]: PROPEL_SESSION not exported when there are no open tasks ($dir)"; exit 1; }
+        done
+
+        # (e) 25 open tasks: 20 rows and a "5 more" line; with rows too long
+        # for the budget, fewer rows, the "more" line counting the rest, and
+        # the whole part within 8,500 characters either way.
+        OUT=$(cd many && printf '{"session_id":"S1"}' | hook_tasks "") || { echo "FAIL [$TQ_RUN]: exit non-zero with 25 tasks"; exit 1; }
+        ROWS=$(printf '%s\n' "$OUT" | grep -c '^| t[0-9]' || true)
+        [ "$ROWS" -eq 20 ] || { echo "FAIL [$TQ_RUN]: 25 open tasks should show 20 rows, showed $ROWS"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | tail -n 1)" = "(5 more open tasks — run check-progress)" ] \
+            || { echo "FAIL [$TQ_RUN]: 25 open tasks should end with '(5 more open tasks — run check-progress)'"; exit 1; }
+        OUT=$(cd long && printf '{"session_id":"S1"}' | hook_tasks "") || { echo "FAIL [$TQ_RUN]: exit non-zero with long rows"; exit 1; }
+        SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
+        [ "$SIZE" -le 8500 ] || { echo "FAIL [$TQ_RUN]: tasks part is $SIZE bytes with long rows (max 8,500)"; exit 1; }
+        ROWS=$(printf '%s\n' "$OUT" | grep -c '^| t[0-9]' || true)
+        [ "$ROWS" -lt 20 ] || { echo "FAIL [$TQ_RUN]: long rows should have been dropped to fit 8,500 characters"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | tail -n 1)" = "($((25 - ROWS)) more open tasks — run check-progress)" ] \
+            || { echo "FAIL [$TQ_RUN]: long rows should end with '($((25 - ROWS)) more open tasks — run check-progress)'"; exit 1; }
+        for needle in "| ID | Task | Kind | Status | Progress | Started | Session |" "|---|---|---|---|---|---|---|"; do
+            case "$OUT" in *"$needle"*) ;; *) echo "FAIL [$TQ_RUN]: capped table lost its header line '$needle'"; exit 1 ;; esac
+        done
+
+        # 21 open tasks: one omitted, in the singular.
+        OUT=$(cd many21 && printf '{"session_id":"S1"}' | hook_tasks "") || { echo "FAIL [$TQ_RUN]: exit non-zero with 21 tasks"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | tail -n 1)" = "(1 more open task — run check-progress)" ] \
+            || { echo "FAIL [$TQ_RUN]: 21 open tasks should end with '(1 more open task — run check-progress)'"; exit 1; }
+
+        # (h) a stdin pipe that stays open without EOF: the part finishes in
+        # under 3 s and still uses the session id that arrived.
+        RC=0
+        (cd main && open_pipe "$E-h.out" '{"session_id":"OP1","source":"startup"}' hook_tasks "$E-h"
+         echo "$OP_SECS" > "$E-h.secs") || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC on an open stdin pipe (137 = hung)"; exit 1; }
+        [ "$(cat "$E-h.secs")" -lt 3 ] || { echo "FAIL [$TQ_RUN]: tasks part took $(cat "$E-h.secs") s on an open stdin pipe"; exit 1; }
+        [ "$(cat "$E-h" 2>/dev/null)" = "export PROPEL_SESSION=OP1" ] \
+            || { echo "FAIL [$TQ_RUN]: session id lost on an open stdin pipe"; exit 1; }
+        grep -qF "| $ID1 |" "$E-h.out" || { echo "FAIL [$TQ_RUN]: table lost on an open stdin pipe"; exit 1; }
+
+        # (i) a 200 KB payload: the writer is drained (no EPIPE / SIGPIPE),
+        # and the session id from the first 4,096 bytes is used.
+        RC=0
+        (cd main && big_payload BIG1 | hook_tasks "$E-i" > /dev/null; echo "${PIPESTATUS[*]}" > "$E-i.ps") || RC=$?
+        [ "$(cat "$E-i.ps")" = "0 0" ] || { echo "FAIL [$TQ_RUN]: 200 KB payload: writer/hook statuses $(cat "$E-i.ps") (writer must not get EPIPE)"; exit 1; }
+        [ "$(cat "$E-i" 2>/dev/null)" = "export PROPEL_SESSION=BIG1" ] \
+            || { echo "FAIL [$TQ_RUN]: session id lost with a 200 KB payload"; exit 1; }
+
+        # (j) sessions A, B, A against one env file: A is what sourcing yields.
+        for sid in SA SB SA; do
+            (cd noledger && printf '{"session_id":"%s"}' "$sid" | hook_tasks "$E-j" >/dev/null) \
+                || { echo "FAIL [$TQ_RUN]: tasks part exited non-zero ($sid)"; exit 1; }
+        done
+        [ "$(unset PROPEL_SESSION; . "$E-j"; printf '%s' "${PROPEL_SESSION:-}")" = "SA" ] \
+            || { echo "FAIL [$TQ_RUN]: after sessions A, B, A the env file does not leave PROPEL_SESSION=A"; exit 1; }
+
+        # (f) hostile session ids: nothing executes, and what is exported is a
+        # bare [A-Za-z0-9._-] token without leading dots — or nothing at all.
+        for raw in '../evil' 'a$(touch PWNED)b' 'x\"y' '..' '`touch PWNED`'; do
+            rm -f "$E-f"
+            RC=0
+            (cd main && printf '{"session_id":"%s","source":"startup"}' "$raw" | hook_tasks "$E-f" >/dev/null) || RC=$?
+            [ "$RC" -eq 0 ] || { echo "FAIL [$TQ_RUN]: tasks part exited $RC for session id $raw"; exit 1; }
+            if [ "$raw" = ".." ]; then
+                [ ! -e "$E-f" ] || { echo "FAIL [$TQ_RUN]: session id '..' should export nothing"; exit 1; }
+                continue
+            fi
+            [ "$(grep -c '' "$E-f" 2>/dev/null || true)" = 1 ] || { echo "FAIL [$TQ_RUN]: session id $raw should export one line"; exit 1; }
+            VAL=$(sed -n 's/^export PROPEL_SESSION=//p' "$E-f")
+            case "$VAL" in
+                ''|.*|*[!A-Za-z0-9._-]*) echo "FAIL [$TQ_RUN]: session id $raw exported as '$VAL'"; exit 1 ;;
+            esac
+        done
+        if [ -n "$(find "$TASKS_DIR" -name PWNED 2>/dev/null)" ]; then
+            echo "FAIL [$TQ_RUN]: a hostile session id was executed"; exit 1
+        fi
+    done
+
+    # The exported id is the ledger's file stem: task-queue.sh, given the same
+    # raw id, names its file exactly what the hook exports.
+    LONGID=$(head -c 70 /dev/zero | tr '\0' 'L')
+    n=0
+    for raw in '../evil' 'a$(touch PWNED)b' '...lead' "$LONGID" '550e8400-e29b-41d4-a716-446655440000'; do
+        n=$((n + 1))
+        mkdir -p "stem$n/.propel"
+        (cd "stem$n" && tq start --session "$raw" --kind other --title t >/dev/null)
+        STEM=$(ls "stem$n/.propel/tasks" | sed -n 's/\.jsonl$//p')
+        (cd "stem$n" && printf '{"session_id":"%s"}' "$raw" | TQ_RUN=py hook_tasks "$TASKS_DIR/env-stem$n" >/dev/null)
+        [ -n "$STEM" ] && [ "$(cat "$TASKS_DIR/env-stem$n")" = "export PROPEL_SESSION=$STEM" ] \
+            || { echo "FAIL: session id $raw exported as '$(cat "$TASKS_DIR/env-stem$n" 2>/dev/null)', ledger file stem is '$STEM'"; exit 1; }
+    done
+    if [ -n "$(find "$TASKS_DIR" -name PWNED 2>/dev/null)" ]; then
+        echo "FAIL: a hostile session id was executed"; exit 1
+    fi
+) || { rm -rf "$TASKS_DIR" "$TASKS_NOPY"; exit 1; }
+rm -rf "$TASKS_DIR" "$TASKS_NOPY"
+echo "PASS: tasks part lists open tasks (20 rows, 8,500 characters max), is silent without any, and exports a sanitized PROPEL_SESSION once — with and without python3"
+
+echo ""
+echo "Testing: hooks/working-memory.sh"
+echo "================================"
+(
+    cd "$PROJ_DIR"
+    OUT=$(bash "$WM_SCRIPT" 2>/dev/null) || { echo "FAIL: working-memory exited non-zero"; exit 1; }
+    if [ -n "$OUT" ]; then
+        echo "FAIL: working-memory should print nothing when every source is empty"
+        exit 1
+    fi
+    mkdir -p scratch/working-memory
+    printf '# Experiments\n- 2026-11-01 lr sweep: diverged above 3e-4\n' > scratch/working-memory/experiments.md
+    OUT=$(bash "$WM_SCRIPT" 2>/dev/null) || { echo "FAIL: working-memory exited non-zero"; exit 1; }
+    for needle in "[propel:working-memory]" "## Experiments log" "lr sweep" \
+                  "## Architectures log" "## Recent registry entries"; do
+        case "$OUT" in
+            *"$needle"*) ;;
+            *) echo "FAIL: working-memory output missing '$needle'"; exit 1 ;;
+        esac
+    done
+    if [ "${OUT:0:1}" = "{" ]; then
+        echo "FAIL: working-memory output starts with '{'"
+        exit 1
+    fi
+    # A 20 KB log is cut to its tail so the hook stays under the per-hook cap.
+    for i in $(seq 1 400); do echo "- 2026-11-01 experiment $i: lr sweep diverged above 3e-4"; done \
+        | head -c 20000 > scratch/working-memory/experiments.md
+    OUT=$(bash "$WM_SCRIPT" 2>/dev/null) || { echo "FAIL: working-memory exited non-zero on a 20 KB log"; exit 1; }
+    SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
+    [ "$SIZE" -lt 10000 ] || { echo "FAIL: working-memory output is $SIZE bytes on a 20 KB log"; exit 1; }
+    case "$OUT" in
+        *"(earlier entries omitted — full log at scratch/working-memory/experiments.md)"*) ;;
+        *) echo "FAIL: working-memory did not mark the omitted entries"; exit 1 ;;
+    esac
+    rm -rf scratch
+) || exit 1
+echo "PASS: working-memory is silent when empty, prints its sections otherwise, and caps long logs"
+
+echo ""
+echo "Testing: every hook with no python3 on PATH"
+echo "================================"
+NOPY_BIN=$(make_nopy_bin)
+if [ -e "$NOPY_BIN/python3" ]; then
+    echo "FAIL: test setup — python3 leaked into the no-python3 PATH"
+    rm -rf "$NOPY_BIN"; exit 1
+fi
+(
+    cd "$PROJ_DIR"
+    mkdir -p .propel scratch/working-memory
+    echo '{"enabled": false, "available": null}' > .propel/codex.json
+    echo '{"mode": "engineer", "selected_by": "auto"}' > .propel/mode.json
+    # Docs prompts off, and a docs page that mentions the edited file.
+    echo '{"enabled": false}' > .propel/docs.json
+    mkdir -p docs
+    printf 'See src/models/vq_loss.py.\n' > docs/vq.md
+    printf -- '- an experiment\n' > scratch/working-memory/experiments.md
+    BASH_BIN="$NOPY_BIN/bash"
+
+    for part in "" $PARTS; do
+        RC=0
+        OUT=$(env -i PATH="$NOPY_BIN" "$BASH_BIN" "$HOOK_SCRIPT" $part < /dev/null 2>/dev/null) || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL: session-start '${part:-<no arg>}' exited $RC without python3"; exit 1; }
+        [ "${OUT:0:1}" != "{" ] || { echo "FAIL: session-start '${part:-<no arg>}' output starts with '{' without python3"; exit 1; }
+        case "${part:-state}" in
+            state)
+                case "$OUT" in *"enabled: false"*) ;; *) echo "FAIL: session-start grep fallback misread codex.json"; exit 1 ;; esac
+                case "$OUT" in *"mode_selection_needed: false"*) ;; *) echo "FAIL: session-start misread mode.json without python3"; exit 1 ;; esac ;;
+            core)
+                case "$OUT" in *"## Core principles"*) ;; *) echo "FAIL: session-start lost core principles without python3"; exit 1 ;; esac ;;
+            routing1)
+                case "$OUT" in *"## using-propel skill (part 1 of"*) ;; *) echo "FAIL: session-start lost the using-propel skill without python3"; exit 1 ;; esac ;;
+        esac
+    done
+
+    RC=0
+    OUT=$(env -i PATH="$NOPY_BIN" "$BASH_BIN" "$WM_SCRIPT" < /dev/null 2>/dev/null) || RC=$?
+    [ "$RC" -eq 0 ] || { echo "FAIL: working-memory exited $RC without python3"; exit 1; }
+    case "$OUT" in *"## Experiments log"*) ;; *) echo "FAIL: working-memory lost its log without python3"; exit 1 ;; esac
+
+    RC=0
+    OUT=$(env -i PATH="$NOPY_BIN" "$BASH_BIN" "$PLUGIN_DIR/hooks/route.sh" < /dev/null 2>/dev/null) || RC=$?
+    [ "$RC" -eq 0 ] || { echo "FAIL: route.sh exited $RC without python3"; exit 1; }
+    case "$OUT" in *"[propel:routing]"*) ;; *) echo "FAIL: route.sh lost the routing card without python3"; exit 1 ;; esac
+    case "$OUT" in *"docs prompts: off (/disable-make-documentations)"*) ;; *) echo "FAIL: route.sh missed docs prompts off without python3"; exit 1 ;; esac
+
+    RC=0
+    OUT=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"src/models/vq_loss.py"}}' \
+      | env -i PATH="$NOPY_BIN" "$BASH_BIN" "$PLUGIN_DIR/hooks/auditor-dispatch.sh" 2>/dev/null) || RC=$?
+    [ "$RC" -eq 0 ] || { echo "FAIL: auditor-dispatch.sh exited $RC without python3"; exit 1; }
+    # Without python3 the payload cannot be parsed; the documented degradation
+    # is silence. Any output it does produce must still be a hook JSON object,
+    # with no docs line while docs prompts are off.
+    if [ -n "$OUT" ]; then
+        case "$OUT" in *hookSpecificOutput*) ;; *) echo "FAIL: auditor-dispatch emitted malformed output without python3"; exit 1 ;; esac
+        case "$OUT" in *"[propel:docs]"*) echo "FAIL: auditor-dispatch added a docs line with docs prompts off, without python3"; exit 1 ;; esac
+    fi
+    rm -f docs/vq.md && rmdir docs
+    rm -rf .propel scratch
+) || { rm -rf "$NOPY_BIN"; exit 1; }
+rm -rf "$NOPY_BIN"
+echo "PASS: all 4 hooks exit 0 and keep their output shape without python3"
+
+echo ""
+echo "Testing: version agreement"
+echo "================================"
+PLUGIN_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$PLUGIN_DIR/.claude-plugin/plugin.json" \
+    | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+PKG_VERSION=$(grep -E '^__version__[[:space:]]*=' "$PLUGIN_DIR/src/propel_cli/__init__.py" \
+    | head -1 | sed -E "s/^__version__[[:space:]]*=[[:space:]]*['\"]([^'\"]*)['\"].*/\1/")
+if [ -z "$PLUGIN_VERSION" ] || [ "$PLUGIN_VERSION" != "$PKG_VERSION" ]; then
+    echo "FAIL: .claude-plugin/plugin.json version '$PLUGIN_VERSION' != __version__ '$PKG_VERSION'"
+    exit 1
+fi
+echo "PASS: plugin.json and propel_cli.__version__ agree ($PKG_VERSION)"
 
 echo ""
 echo "================================"
 echo "All tests passed!"
 
-# ── Codex + routing + auditor-dispatch hooks ─────────────────────────────
-
-echo ""
-echo "Testing: dual-model policy injection"
-echo "================================"
-
-python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-policy = data.get('codex_policy')
-if not policy:
-    print('FAIL: codex_policy is missing or empty')
-    sys.exit(1)
-if 'Codex is consulted automatically' not in policy:
-    print('FAIL: codex_policy does not carry the automatic-consult rule')
-    sys.exit(1)
-state = data.get('codex_state')
-if not isinstance(state, dict) or 'enabled' not in state:
-    print('FAIL: codex_state should be an object with an enabled field')
-    sys.exit(1)
-print('PASS: codex_policy and codex_state present')
-" "$TMPFILE" || exit 1
-
-python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-policy = data.get('mode_selection_policy', '')
-if 'AUTO' not in policy:
-    print('FAIL: mode_selection_policy should instruct automatic selection')
-    sys.exit(1)
-print('PASS: mode selection is automatic')
-" "$TMPFILE" || exit 1
-
 echo ""
 echo "Testing: hooks/route.sh"
 echo "================================"
 
-ROUTE_OUT=$(bash "$PLUGIN_DIR/hooks/route.sh") || {
+# route.sh drains stdin (the prompt payload), so it gets /dev/null here.
+ROUTE_OUT=$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null) || {
     echo "FAIL: route.sh exited with error"
     exit 1
 }
-for needle in "[propel:routing]" "mode:" "codex:" "Gate 0"; do
+for needle in "[propel:routing]" "mode:" "codex:" "Gate 0" "  7. Claim first, then its evidence"; do
     case "$ROUTE_OUT" in
         *"$needle"*) ;;
         *) echo "FAIL: route.sh output missing '$needle'"; exit 1 ;;
     esac
 done
 echo "PASS: route.sh emits the routing card"
+
+# Without python3, route.sh reads mode and Codex state with grep — the same
+# answers as the python path — and honours CLAUDE_PROJECT_DIR.
+ROUTE_DIR=$(mktemp -d)
+ROUTE_NOPY=$(make_nopy_bin)
+route_nopy() { env -i PATH="$ROUTE_NOPY" "$@" "$ROUTE_NOPY/bash" "$PLUGIN_DIR/hooks/route.sh" 2>/dev/null; }
+route_py() { bash "$PLUGIN_DIR/hooks/route.sh" 2>/dev/null; }
+(
+    cd "$ROUTE_DIR"
+    if [ -e "$ROUTE_NOPY/python3" ]; then echo "FAIL: test setup — python3 leaked into the no-python3 PATH"; exit 1; fi
+    mkdir -p .propel sub
+    echo '{"mode": "debugger", "selected_by": "auto", "previous_mode": "engineer"}' > .propel/mode.json
+    echo '{"enabled": false}' > .propel/codex.json
+    RC=0
+    OUT=$(route_nopy < /dev/null) || RC=$?
+    [ "$RC" -eq 0 ] || { echo "FAIL: route.sh exited $RC without python3"; exit 1; }
+    case "$OUT" in *"mode: debugger (selected_by: auto) — "*) ;; *) echo "FAIL: route.sh misread mode.json without python3"; exit 1 ;; esac
+    case "$OUT" in *"codex: OFF — "*) ;; *) echo "FAIL: route.sh missed a disabled Codex without python3"; exit 1 ;; esac
+    if command -v python3 >/dev/null 2>&1; then
+        [ "$OUT" = "$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null)" ] \
+            || { echo "FAIL: route.sh's python and grep paths disagree (Codex disabled)"; exit 1; }
+    fi
+    OUT=$(cd sub && route_nopy CLAUDE_PROJECT_DIR="$ROUTE_DIR" < /dev/null) || { echo "FAIL: route.sh exited non-zero from a subdirectory"; exit 1; }
+    case "$OUT" in *"mode: debugger (selected_by: auto) — "*) ;; *) echo "FAIL: route.sh ignored CLAUDE_PROJECT_DIR"; exit 1 ;; esac
+    echo '{"enabled": true, "available": false}' > .propel/codex.json
+    OUT=$(route_nopy < /dev/null) || { echo "FAIL: route.sh exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"codex: enabled but CLI unavailable — "*) ;; *) echo "FAIL: route.sh missed an unavailable Codex CLI without python3"; exit 1 ;; esac
+    if command -v python3 >/dev/null 2>&1; then
+        [ "$OUT" = "$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null)" ] \
+            || { echo "FAIL: route.sh's python and grep paths disagree (CLI unavailable)"; exit 1; }
+    fi
+    # A value on its own line is still seen by both grep fallbacks.
+    printf '{"enabled":\n  false}\n' > .propel/codex.json
+    OUT=$(route_nopy < /dev/null) || { echo "FAIL: route.sh exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"codex: OFF — "*) ;; *) echo "FAIL: route.sh missed a split-line \"enabled\": false without python3"; exit 1 ;; esac
+    OUT=$(env -i PATH="$ROUTE_NOPY" "$ROUTE_NOPY/bash" "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"enabled: false, available: null"*) ;; *) echo "FAIL: state missed a split-line \"enabled\": false without python3"; exit 1 ;; esac
+    printf '{"enabled": true,\n "available":\n false}\n' > .propel/codex.json
+    OUT=$(route_nopy < /dev/null) || { echo "FAIL: route.sh exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"codex: enabled but CLI unavailable — "*) ;; *) echo "FAIL: route.sh missed a split-line \"available\": false without python3"; exit 1 ;; esac
+    OUT=$(env -i PATH="$ROUTE_NOPY" "$ROUTE_NOPY/bash" "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero without python3"; exit 1; }
+    case "$OUT" in *"enabled: true, available: false"*) ;; *) echo "FAIL: state missed a split-line \"available\": false without python3"; exit 1 ;; esac
+    # Fail-closed: "false", "False", 0, null (and the other off strings) turn
+    # Codex off, with and without python3; true, "yes" and a missing key leave
+    # it on. session-start's state part agrees.
+    for cfg in '{"enabled": "false"}' '{"enabled": "False"}' '{"enabled": 0}' '{"enabled": null}' \
+               '{"enabled": " off "}' '{"enabled": "no"}' '{"enabled": "0"}' '{"enabled": ""}' $'{"enabled":\n "false"}'; do
+        printf '%s\n' "$cfg" > .propel/codex.json
+        for runner in py nopy; do
+            OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero"; exit 1; }
+            case "$OUT" in *"codex: OFF — "*) ;; *) echo "FAIL [$runner]: route.sh does not treat $cfg as off"; exit 1 ;; esac
+        done
+        OUT=$(env -i PATH="$ROUTE_NOPY" "$ROUTE_NOPY/bash" "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero without python3"; exit 1; }
+        case "$OUT" in *"enabled: false, "*) ;; *) echo "FAIL: state does not treat $cfg as off without python3"; exit 1 ;; esac
+        OUT=$(bash "$HOOK_SCRIPT" state < /dev/null 2>/dev/null) || { echo "FAIL: state exited non-zero"; exit 1; }
+        case "$OUT" in *"enabled: false, "*) ;; *) echo "FAIL: state does not treat $cfg as off"; exit 1 ;; esac
+    done
+    for cfg in '{"enabled": true}' '{"enabled": "yes"}' '{"enabled": 1}' '{"available": true}'; do
+        printf '%s\n' "$cfg" > .propel/codex.json
+        for runner in py nopy; do
+            OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero"; exit 1; }
+            case "$OUT" in *"codex: on (automatic at every gate)"*) ;; *) echo "FAIL [$runner]: route.sh does not treat $cfg as on"; exit 1 ;; esac
+        done
+    done
+    # A corrupt mode.json cannot bloat the per-turn card: mode and selected_by
+    # are cut to 40 characters each.
+    LONG=$(head -c 5000 /dev/zero | tr '\0' 'm')
+    printf '{"mode": "%s", "selected_by": "%s"}\n' "$LONG" "$LONG" > .propel/mode.json
+    CAP40=$(head -c 40 /dev/zero | tr '\0' 'm')
+    for runner in py nopy; do
+        OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero with a huge mode"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | sed -n 2p)" = "mode: $CAP40 (selected_by: $CAP40) — if this request belongs to a different mode, switch automatically, say so in one line, and continue." ] \
+            || { echo "FAIL [$runner]: route.sh did not cut mode/selected_by to 40 characters"; exit 1; }
+        SIZE=$(printf '%s\n' "$OUT" | wc -c | tr -d '[:space:]')
+        [ "$SIZE" -lt 2000 ] || { echo "FAIL [$runner]: routing card is $SIZE bytes with a huge mode.json"; exit 1; }
+    done
+    rm -f .propel/codex.json
+    echo '{"mode": "debugger", "selected_by": "auto", "previous_mode": "engineer"}' > .propel/mode.json
+    # Docs prompts (.propel/docs.json, /disable-make-documentations): every off
+    # value of the codex.json rule adds exactly one line, with and without
+    # python3; on, a missing key or no file adds nothing. From a subdirectory
+    # the file is read from CLAUDE_PROJECT_DIR.
+    DOCS_OFF_LINE="docs prompts: off (/disable-make-documentations) — never ask about or auto-update docs; an explicit request still works"
+    rm -f .propel/docs.json
+    NO_DOCS=$(route_py < /dev/null) || { echo "FAIL: route.sh exited non-zero"; exit 1; }
+    case "$NO_DOCS" in *"docs prompts"*) echo "FAIL: route.sh printed a docs line with no docs.json"; exit 1 ;; esac
+    [ "$(route_nopy < /dev/null)" = "$NO_DOCS" ] || { echo "FAIL: route.sh's python and grep paths disagree (no docs.json)"; exit 1; }
+    for cfg in '{"enabled": false}' '{"enabled": "false"}' '{"enabled": " Off "}' '{"enabled": null}' '{"enabled": 0}' \
+               '{"enabled": "no"}' '{"enabled": "0"}' '{"enabled": ""}' $'{"enabled":\n  false}' \
+               '{"enabled": false, "disabled_at": "2026-01-01T00:00:00Z", "reason": "user request"}'; do
+        printf '%s\n' "$cfg" > .propel/docs.json
+        for runner in py nopy; do
+            OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero with docs.json $cfg"; exit 1; }
+            [ "$(printf '%s\n' "$OUT" | grep -c '^docs prompts: ')" -eq 1 ] \
+                || { echo "FAIL [$runner]: route.sh should print one docs line for docs.json $cfg"; exit 1; }
+            [ "$(printf '%s\n' "$OUT" | grep '^docs prompts: ')" = "$DOCS_OFF_LINE" ] \
+                || { echo "FAIL [$runner]: route.sh docs line should be '$DOCS_OFF_LINE'"; exit 1; }
+            [ "$(printf '%s\n' "$OUT" | grep -v '^docs prompts: ')" = "$NO_DOCS" ] \
+                || { echo "FAIL [$runner]: route.sh changed lines other than adding the docs line"; exit 1; }
+        done
+    done
+    for cfg in '{"enabled": true}' '{"enabled": "yes"}' '{"enabled": 1}' '{"enabled_at": "2026-01-01T00:00:00Z"}' 'not json'; do
+        printf '%s\n' "$cfg" > .propel/docs.json
+        for runner in py nopy; do
+            OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero with docs.json $cfg"; exit 1; }
+            [ "$OUT" = "$NO_DOCS" ] || { echo "FAIL [$runner]: route.sh should print no docs line for docs.json $cfg"; exit 1; }
+        done
+    done
+    printf '{"enabled": false}\n' > .propel/docs.json
+    OUT=$(cd sub && route_nopy CLAUDE_PROJECT_DIR="$ROUTE_DIR" < /dev/null) || { echo "FAIL: route.sh exited non-zero from a subdirectory"; exit 1; }
+    case "$OUT" in *"$DOCS_OFF_LINE"*) ;; *) echo "FAIL: route.sh did not read docs.json from CLAUDE_PROJECT_DIR"; exit 1 ;; esac
+    rm -f .propel/docs.json
+) || { rm -rf "$ROUTE_DIR" "$ROUTE_NOPY"; exit 1; }
+echo "PASS: route.sh reads mode and Codex state without python3 (fail-closed enabled rule, 40-char mode/selected_by), and honours CLAUDE_PROJECT_DIR"
+echo "PASS: route.sh adds one 'docs prompts: off' line for every off value of .propel/docs.json, with and without python3, and none when on or missing"
+
+# The tasks line: one line after `codex:`, only when tasks are open; nothing
+# else in the card changes.
+(
+    cd "$ROUTE_DIR"
+    rm -f .propel/codex.json
+    NO_LEDGER=$(bash "$PLUGIN_DIR/hooks/route.sh" < /dev/null) || { echo "FAIL: route.sh exited non-zero"; exit 1; }
+    case "$NO_LEDGER" in *"tasks:"*) echo "FAIL: route.sh printed a tasks line with no ledger"; exit 1 ;; esac
+    T1=$(tq start --session S1 --kind impl --title "this session")
+    T2=$(tq start --session S0 --kind impl --title "earlier one")
+    T3=$(tq start --session S0 --kind impl --title "earlier two")
+    [ -n "$T1" ] && [ -n "$T2" ] && [ -n "$T3" ] || { echo "FAIL: test setup — task-queue.sh start printed no id"; exit 1; }
+    LINE_S1="tasks: 1 open in this session, 2 from earlier sessions — run check-progress"
+    for runner in py nopy; do
+        R="route_$runner"
+        OUT=$(printf '{"session_id":"S1","prompt":"go on"}' | $R) || { echo "FAIL [$runner]: route.sh exited non-zero with a session"; exit 1; }
+        [ "$(printf '%s\n' "$OUT" | sed -n 4p)" = "$LINE_S1" ] \
+            || { echo "FAIL [$runner]: route.sh line 4 should be '$LINE_S1'"; exit 1; }
+        case "$(printf '%s\n' "$OUT" | sed -n 3p)" in "codex: "*) ;; *) echo "FAIL [$runner]: the tasks line is not right after codex:"; exit 1 ;; esac
+        [ "$(printf '%s\n' "$OUT" | grep -v '^tasks: ')" = "$NO_LEDGER" ] \
+            || { echo "FAIL [$runner]: route.sh changed lines other than adding the tasks line"; exit 1; }
+        # A session_id inside the (escaped) prompt text is not the session.
+        OUT=$(printf '{"prompt":"say \\"session_id\\": \\"S1\\"","session_id":"S0"}' | $R) || { echo "FAIL [$runner]: route.sh exited non-zero"; exit 1; }
+        case "$OUT" in *"tasks: 2 open in this session, 1 from earlier sessions — run check-progress"*) ;;
+            *) echo "FAIL [$runner]: route.sh took the session id from inside the prompt"; exit 1 ;; esac
+        RC=0
+        OUT=$($R < /dev/null) || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$runner]: route.sh exited $RC with no stdin"; exit 1; }
+        case "$OUT" in *"tasks: 3 open — run check-progress"*) ;; *) echo "FAIL [$runner]: route.sh with no session should count 3 open"; exit 1 ;; esac
+        # A stdin pipe that stays open without EOF: done in under 3 s, and the
+        # session id that arrived is used.
+        RC=0
+        open_pipe "$ROUTE_DIR/op.out" '{"session_id":"S1","prompt":"go on"}' "$R" || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$runner]: route.sh exited $RC on an open stdin pipe (137 = hung)"; exit 1; }
+        [ "$OP_SECS" -lt 3 ] || { echo "FAIL [$runner]: route.sh took $OP_SECS s on an open stdin pipe"; exit 1; }
+        [ "$(sed -n 4p "$ROUTE_DIR/op.out")" = "$LINE_S1" ] || { echo "FAIL [$runner]: route.sh lost the session id on an open stdin pipe"; exit 1; }
+        # A 200 KB payload is drained: the writer never gets EPIPE.
+        big_payload S1 | "$R" > "$ROUTE_DIR/big.out"; PS="${PIPESTATUS[*]}"
+        [ "$PS" = "0 0" ] || { echo "FAIL [$runner]: 200 KB payload: writer/hook statuses $PS (writer must not get EPIPE)"; exit 1; }
+        [ "$(sed -n 4p "$ROUTE_DIR/big.out")" = "$LINE_S1" ] || { echo "FAIL [$runner]: route.sh lost the session id in a 200 KB payload"; exit 1; }
+        RC=0
+        closed_stdin "$R" || RC=$?
+        [ "$RC" -eq 0 ] || { echo "FAIL [$runner]: route.sh exited $RC with stdin closed (137 = hung)"; exit 1; }
+        RC=0
+        printf '{"session_id":"a$(touch PWNED)b`touch PWNED`"}' | $R >/dev/null || RC=$?
+        [ "$RC" -eq 0 ] && [ ! -e PWNED ] || { echo "FAIL [$runner]: route.sh mishandled a hostile session id"; exit 1; }
+    done
+    tq abandon "$T1" && tq abandon "$T2" && tq abandon "$T3" || { echo "FAIL: test setup — task-queue.sh abandon failed"; exit 1; }
+    for runner in py nopy; do
+        R="route_$runner"
+        for stdin in '{"session_id":"S1"}' ''; do
+            OUT=$(printf '%s' "$stdin" | $R) || { echo "FAIL [$runner]: route.sh exited non-zero with no open task"; exit 1; }
+            case "$OUT" in *"tasks:"*) echo "FAIL [$runner]: route.sh printed a tasks line with no open task"; exit 1 ;; esac
+        done
+    done
+) || { rm -rf "$ROUTE_DIR" "$ROUTE_NOPY"; exit 1; }
+rm -rf "$ROUTE_DIR" "$ROUTE_NOPY"
+echo "PASS: route.sh adds one tasks line after codex: when tasks are open, and none otherwise"
 
 echo ""
 echo "Testing: hooks/auditor-dispatch.sh"
@@ -183,6 +879,102 @@ for path in "scratch/2026-01-01-foo/README.md" "docs/guide.md" ".claude/settings
     fi
 done
 echo "PASS: working surfaces and non-source files are ignored"
+
+# Docs staleness: a source edit whose path a docs page mentions adds one
+# [propel:docs] line naming at most 3 pages and asking first (make-documentations
+# Step 0); nothing when no page mentions it, nothing for a .md edit, nothing
+# while .propel/docs.json turns docs prompts off, a quoted page name stays
+# valid JSON, and 300 pages stay fast. Runs in a throwaway project.
+STALE_DIR=$(mktemp -d)
+(
+    cd "$STALE_DIR" || exit 1
+    mkdir -p docs/methods documentation src/models
+    printf 'Code: `src/models/vq_loss.py`\n' > docs/methods/vq.md
+    printf 'See src/models/vq_loss.py.\n' > docs/a.md
+    printf 'See src/models/vq_loss.py.\n' > 'docs/b "quoted".md'
+    printf 'See src/models/vq_loss.py.\n' > documentation/c.md
+    printf 'Unrelated.\n' > docs/unrelated.md
+    ctx() {  # <file_path> [project dir]: print additionalContext (empty if no output)
+        echo "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$1\"}}" \
+          | CLAUDE_PROJECT_DIR="${2:-}" bash "$PLUGIN_DIR/hooks/auditor-dispatch.sh" > "$TMPFILE" || { echo "FAIL: auditor-dispatch exited non-zero"; exit 1; }
+        [ -s "$TMPFILE" ] || return 0
+        python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['hookSpecificOutput']['additionalContext'])" "$TMPFILE" \
+          || { echo "FAIL: auditor-dispatch output is not valid JSON with the docs line"; cat "$TMPFILE"; exit 1; }
+    }
+    OUT=$(ctx src/models/vq_loss.py) || exit 1
+    [ "$(printf '%s\n' "$OUT" | grep -c '^\[propel:docs\]')" -eq 1 ] || { echo "FAIL: expected exactly one [propel:docs] line"; printf '%s\n' "$OUT"; exit 1; }
+    DOCS=$(printf '%s\n' "$OUT" | grep '^\[propel:docs\]')
+    case "$DOCS" in *"and 1 more"*make-documentations*) ;; *) echo "FAIL: docs line lacks make-documentations or the overflow count: $DOCS"; exit 1 ;; esac
+    case "$DOCS" in *'docs/b "quoted".md'*) ;; *) echo "FAIL: docs line lost the quoted page name: $DOCS"; exit 1 ;; esac
+    case "$DOCS" in *unrelated.md*) echo "FAIL: docs line names a page that does not mention the file"; exit 1 ;; esac
+    [ "$(printf '%s\n' "$DOCS" | grep -o '\.md' | wc -l | tr -d ' ')" -eq 3 ] || { echo "FAIL: docs line should name exactly 3 pages: $DOCS"; exit 1; }
+    # It asks first (make-documentations Step 0); it never says to run the skill.
+    case "$DOCS" in *"ask the user one question (make-documentations Step 0"*"whether to update them and what each update would cover, and do not edit them without an answer."*) ;;
+        *) echo "FAIL: docs line lacks the ask-first wording: $DOCS"; exit 1 ;; esac
+    case "$DOCS" in *"run the make-documentations skill"*) echo "FAIL: docs line still tells Claude to run the skill without asking: $DOCS"; exit 1 ;; esac
+    # An absolute path under CLAUDE_PROJECT_DIR is made project-relative.
+    OUT=$(ctx "$STALE_DIR/src/models/vq_loss.py" "$STALE_DIR") || exit 1
+    case "$OUT" in *"[propel:docs] Docs pages mention src/models/vq_loss.py:"*) ;; *) echo "FAIL: absolute path not made project-relative"; exit 1 ;; esac
+    # No page mentions it: the auditor context, and no docs line.
+    OUT=$(ctx src/models/other.py) || exit 1
+    case "$OUT" in *"[propel:auto-dispatch]"*) ;; *) echo "FAIL: auditor context missing for an undocumented file"; exit 1 ;; esac
+    case "$OUT" in *"[propel:docs]"*) echo "FAIL: docs line for a file no page mentions"; exit 1 ;; esac
+    # A docs page itself, and a scratch file named in docs: no output at all.
+    for p in docs/a.md scratch/x/run.py; do
+        OUT=$(ctx "$p") || exit 1
+        [ -z "$OUT" ] || { echo "FAIL: auditor-dispatch should stay silent for $p"; exit 1; }
+    done
+    # No docs root: no docs line.
+    mkdir -p "$STALE_DIR/nodocs/src" && cd "$STALE_DIR/nodocs" || exit 1
+    OUT=$(ctx src/models/vq_loss.py) || exit 1
+    case "$OUT" in *"[propel:docs]"*) echo "FAIL: docs line without a docs root"; exit 1 ;; esac
+    cd "$STALE_DIR" || exit 1
+    # Docs prompts off (.propel/docs.json, /disable-make-documentations): no
+    # docs line for any off value of the codex.json rule, and the auditor
+    # context is otherwise unchanged; on, a missing key or no file keeps it.
+    # docs.json is read from CLAUDE_PROJECT_DIR when the cwd is elsewhere.
+    mkdir -p .propel sub
+    ON_OUT=$(ctx src/models/vq_loss.py) || exit 1
+    case "$ON_OUT" in *"[propel:docs]"*) ;; *) echo "FAIL: no docs line with no docs.json"; exit 1 ;; esac
+    AUDIT_ONLY=$(printf '%s\n' "$ON_OUT" | grep -v '^\[propel:docs\]')
+    for cfg in '{"enabled": false}' '{"enabled": "false"}' '{"enabled": " Off "}' '{"enabled": null}' '{"enabled": 0}' \
+               '{"enabled": "no"}' '{"enabled": "0"}' '{"enabled": ""}' $'{"enabled":\n  false}' \
+               '{"enabled": false, "disabled_at": "2026-01-01T00:00:00Z", "reason": "user request"}'; do
+        printf '%s\n' "$cfg" > .propel/docs.json
+        OUT=$(ctx src/models/vq_loss.py) || exit 1
+        [ "$OUT" = "$AUDIT_ONLY" ] || { echo "FAIL: with docs.json $cfg the context should be the auditor line alone"; printf '%s\n' "$OUT"; exit 1; }
+        OUT=$(cd sub && ctx "$STALE_DIR/src/models/vq_loss.py" "$STALE_DIR") || exit 1
+        case "$OUT" in *"[propel:auto-dispatch]"*) ;; *) echo "FAIL: auditor context lost with docs.json $cfg"; exit 1 ;; esac
+        case "$OUT" in *"[propel:docs]"*) echo "FAIL: docs line with docs.json $cfg read through CLAUDE_PROJECT_DIR"; exit 1 ;; esac
+    done
+    for cfg in '{"enabled": true}' '{"enabled": "yes"}' '{"enabled": 1}' '{"enabled_at": "2026-01-01T00:00:00Z"}' 'not json'; do
+        printf '%s\n' "$cfg" > .propel/docs.json
+        OUT=$(ctx src/models/vq_loss.py) || exit 1
+        [ "$OUT" = "$ON_OUT" ] || { echo "FAIL: docs.json $cfg should keep the docs line"; printf '%s\n' "$OUT"; exit 1; }
+    done
+    rm -f .propel/docs.json
+    # 300 pages: bounded (200 scanned) and fast.
+    i=0
+    while [ "$i" -lt 300 ]; do printf 'page %s\n' "$i" > "docs/methods/p$i.md"; i=$((i + 1)); done
+    START=$(date +%s)
+    OUT=$(ctx src/models/vq_loss.py) || exit 1
+    [ $(( $(date +%s) - START )) -lt 3 ] || { echo "FAIL: auditor-dispatch took 3 s or more with 300 docs pages"; exit 1; }
+) || { rm -rf "$STALE_DIR"; exit 1; }
+rm -rf "$STALE_DIR"
+echo "PASS: a source edit that docs pages mention adds one ask-first make-documentations line (up to 3 pages, valid JSON), none while docs.json is off; silent for .md, scratch/ and undocumented files; fast with 300 pages"
+
+echo ""
+echo "Testing: the docs-prompt switch commands"
+echo "================================"
+for pair in "disable-make-documentations:false" "enable-make-documentations:true"; do
+    cmd="${pair%%:*}"; val="${pair#*:}"
+    f="$PLUGIN_DIR/commands/$cmd.md"
+    [ -f "$f" ] || { echo "FAIL: commands/$cmd.md is missing"; exit 1; }
+    case "$(head -n 1 "$f")" in "[Propel]"*) ;; *) echo "FAIL: commands/$cmd.md must start with '[Propel]'"; exit 1 ;; esac
+    grep -qF '.propel/docs.json' "$f" || { echo "FAIL: commands/$cmd.md does not name .propel/docs.json"; exit 1; }
+    grep -qF "\"enabled\": $val" "$f" || { echo "FAIL: commands/$cmd.md does not write \"enabled\": $val"; exit 1; }
+done
+echo "PASS: /disable-make-documentations and /enable-make-documentations exist, start with [Propel], and write .propel/docs.json"
 
 echo ""
 echo "Testing: scripts/codex-consult.sh"
@@ -370,6 +1162,11 @@ if 'label' in d:
 
   echo '{"enabled": false}' > .propel/codex.json
   bash "$SEG" | grep -q 'off' || { echo "FAIL: disabled state not shown"; exit 1; }
+  # The same fail-closed "enabled" rule as codex-consult.sh and the hooks.
+  for cfg in '{"enabled": "false"}' '{"enabled": "False"}' '{"enabled": 0}' '{"enabled": null}' '{"enabled": "false",}'; do
+    printf '%s\n' "$cfg" > .propel/codex.json
+    bash "$SEG" | grep -q 'off' || { echo "FAIL: status line does not show $cfg as off"; exit 1; }
+  done
 
   echo '{"enabled": true}' > .propel/codex.json
   env HOME="$NOCLI_HOME" PATH=/usr/bin:/bin bash "$SEG" | grep -q 'no cli' \
@@ -483,6 +1280,27 @@ echo "================================"
   rm -rf "$D"
   echo "PASS: Codex scripts degrade with HOME unset"
 ) || exit 1
+
+echo ""
+echo "Testing: scripts/codex-consult.sh without python3 (tests/test_codex_consult.sh)"
+echo "================================"
+"${BASH:-bash}" "$PLUGIN_DIR/tests/test_codex_consult.sh" < /dev/null > /dev/null 2>&1 || {
+    echo "FAIL: tests/test_codex_consult.sh — run it directly for details"; exit 1; }
+echo "PASS: codex-consult.sh works without python3 and never stalls on a large brief"
+
+echo ""
+echo "Testing: scripts/claim-check.sh without python3 (tests/test_claim_check.sh)"
+echo "================================"
+"${BASH:-bash}" "$PLUGIN_DIR/tests/test_claim_check.sh" < /dev/null > /dev/null 2>&1 || {
+    echo "FAIL: tests/test_claim_check.sh — run it directly for details"; exit 1; }
+echo "PASS: claim-check.sh extracts and compares evidence tokens without python3, 1 MB in under 2 s"
+
+echo ""
+echo "Testing: scripts/doc-check.sh without python3 (tests/test_doc_check.sh)"
+echo "================================"
+"${BASH:-bash}" "$PLUGIN_DIR/tests/test_doc_check.sh" < /dev/null > /dev/null 2>&1 || {
+    echo "FAIL: tests/test_doc_check.sh — run it directly for details"; exit 1; }
+echo "PASS: doc-check.sh reports broken links and anchors, missing paths, scratch/ paths, markers, emoji and undated leaf pages without python3"
 
 echo ""
 echo "================================"
