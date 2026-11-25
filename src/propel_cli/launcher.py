@@ -497,7 +497,7 @@ def collect_status() -> dict:
             {
                 "key": "claude",
                 "name": "Claude Code",
-                "blurb": "The agent Propel runs inside. Required. Installed with Anthropic's native installer — no Node needed.",
+                "blurb": "The agent Propel runs inside. Installed with Anthropic's native installer, so Node is not needed.",
                 "version": claude_v,
                 "ok": claude_v is not None,
                 "has_auth": True,
@@ -510,7 +510,7 @@ def collect_status() -> dict:
             {
                 "key": "codex",
                 "name": "OpenAI Codex",
-                "blurb": "The second model. Propel consults it automatically at every gate. Installed with OpenAI's native installer — no Node needed.",
+                "blurb": "The second model. Propel consults it automatically at every gate. Installed with OpenAI's native installer, so Node is not needed.",
                 "version": codex_v,
                 "ok": codex_v is not None,
                 "has_auth": True,

@@ -17,7 +17,10 @@
 # 5. working-memory prints nothing when empty, its sections when not, and caps
 #    long logs
 # 6. every hook exits 0 with no python3 on PATH; route.sh reads mode/Codex
-#    state without python3 and adds one tasks line when tasks are open
+#    state without python3 and adds one tasks line when tasks are open, and
+#    one "docs prompts: off" line when .propel/docs.json turns docs prompts off
+#    (auditor-dispatch then adds no [propel:docs] line); both switch commands
+#    exist
 # 7. plugin.json and the package agree on the version
 
 set -euo pipefail
@@ -587,6 +590,10 @@ fi
     mkdir -p .propel scratch/working-memory
     echo '{"enabled": false, "available": null}' > .propel/codex.json
     echo '{"mode": "engineer", "selected_by": "auto"}' > .propel/mode.json
+    # Docs prompts off, and a docs page that mentions the edited file.
+    echo '{"enabled": false}' > .propel/docs.json
+    mkdir -p docs
+    printf 'See src/models/vq_loss.py.\n' > docs/vq.md
     printf -- '- an experiment\n' > scratch/working-memory/experiments.md
     BASH_BIN="$NOPY_BIN/bash"
 
@@ -615,16 +622,20 @@ fi
     OUT=$(env -i PATH="$NOPY_BIN" "$BASH_BIN" "$PLUGIN_DIR/hooks/route.sh" < /dev/null 2>/dev/null) || RC=$?
     [ "$RC" -eq 0 ] || { echo "FAIL: route.sh exited $RC without python3"; exit 1; }
     case "$OUT" in *"[propel:routing]"*) ;; *) echo "FAIL: route.sh lost the routing card without python3"; exit 1 ;; esac
+    case "$OUT" in *"docs prompts: off (/disable-make-documentations)"*) ;; *) echo "FAIL: route.sh missed docs prompts off without python3"; exit 1 ;; esac
 
     RC=0
     OUT=$(echo '{"tool_name":"Edit","tool_input":{"file_path":"src/models/vq_loss.py"}}' \
       | env -i PATH="$NOPY_BIN" "$BASH_BIN" "$PLUGIN_DIR/hooks/auditor-dispatch.sh" 2>/dev/null) || RC=$?
     [ "$RC" -eq 0 ] || { echo "FAIL: auditor-dispatch.sh exited $RC without python3"; exit 1; }
     # Without python3 the payload cannot be parsed; the documented degradation
-    # is silence. Any output it does produce must still be a hook JSON object.
+    # is silence. Any output it does produce must still be a hook JSON object,
+    # with no docs line while docs prompts are off.
     if [ -n "$OUT" ]; then
         case "$OUT" in *hookSpecificOutput*) ;; *) echo "FAIL: auditor-dispatch emitted malformed output without python3"; exit 1 ;; esac
+        case "$OUT" in *"[propel:docs]"*) echo "FAIL: auditor-dispatch added a docs line with docs prompts off, without python3"; exit 1 ;; esac
     fi
+    rm -f docs/vq.md && rmdir docs
     rm -rf .propel scratch
 ) || { rm -rf "$NOPY_BIN"; exit 1; }
 rm -rf "$NOPY_BIN"
@@ -741,8 +752,43 @@ route_py() { bash "$PLUGIN_DIR/hooks/route.sh" 2>/dev/null; }
     done
     rm -f .propel/codex.json
     echo '{"mode": "debugger", "selected_by": "auto", "previous_mode": "engineer"}' > .propel/mode.json
+    # Docs prompts (.propel/docs.json, /disable-make-documentations): every off
+    # value of the codex.json rule adds exactly one line, with and without
+    # python3; on, a missing key or no file adds nothing. From a subdirectory
+    # the file is read from CLAUDE_PROJECT_DIR.
+    DOCS_OFF_LINE="docs prompts: off (/disable-make-documentations) — never ask about or auto-update docs; an explicit request still works"
+    rm -f .propel/docs.json
+    NO_DOCS=$(route_py < /dev/null) || { echo "FAIL: route.sh exited non-zero"; exit 1; }
+    case "$NO_DOCS" in *"docs prompts"*) echo "FAIL: route.sh printed a docs line with no docs.json"; exit 1 ;; esac
+    [ "$(route_nopy < /dev/null)" = "$NO_DOCS" ] || { echo "FAIL: route.sh's python and grep paths disagree (no docs.json)"; exit 1; }
+    for cfg in '{"enabled": false}' '{"enabled": "false"}' '{"enabled": " Off "}' '{"enabled": null}' '{"enabled": 0}' \
+               '{"enabled": "no"}' '{"enabled": "0"}' '{"enabled": ""}' $'{"enabled":\n  false}' \
+               '{"enabled": false, "disabled_at": "2026-01-01T00:00:00Z", "reason": "user request"}'; do
+        printf '%s\n' "$cfg" > .propel/docs.json
+        for runner in py nopy; do
+            OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero with docs.json $cfg"; exit 1; }
+            [ "$(printf '%s\n' "$OUT" | grep -c '^docs prompts: ')" -eq 1 ] \
+                || { echo "FAIL [$runner]: route.sh should print one docs line for docs.json $cfg"; exit 1; }
+            [ "$(printf '%s\n' "$OUT" | grep '^docs prompts: ')" = "$DOCS_OFF_LINE" ] \
+                || { echo "FAIL [$runner]: route.sh docs line should be '$DOCS_OFF_LINE'"; exit 1; }
+            [ "$(printf '%s\n' "$OUT" | grep -v '^docs prompts: ')" = "$NO_DOCS" ] \
+                || { echo "FAIL [$runner]: route.sh changed lines other than adding the docs line"; exit 1; }
+        done
+    done
+    for cfg in '{"enabled": true}' '{"enabled": "yes"}' '{"enabled": 1}' '{"enabled_at": "2026-01-01T00:00:00Z"}' 'not json'; do
+        printf '%s\n' "$cfg" > .propel/docs.json
+        for runner in py nopy; do
+            OUT=$(route_$runner < /dev/null) || { echo "FAIL [$runner]: route.sh exited non-zero with docs.json $cfg"; exit 1; }
+            [ "$OUT" = "$NO_DOCS" ] || { echo "FAIL [$runner]: route.sh should print no docs line for docs.json $cfg"; exit 1; }
+        done
+    done
+    printf '{"enabled": false}\n' > .propel/docs.json
+    OUT=$(cd sub && route_nopy CLAUDE_PROJECT_DIR="$ROUTE_DIR" < /dev/null) || { echo "FAIL: route.sh exited non-zero from a subdirectory"; exit 1; }
+    case "$OUT" in *"$DOCS_OFF_LINE"*) ;; *) echo "FAIL: route.sh did not read docs.json from CLAUDE_PROJECT_DIR"; exit 1 ;; esac
+    rm -f .propel/docs.json
 ) || { rm -rf "$ROUTE_DIR" "$ROUTE_NOPY"; exit 1; }
 echo "PASS: route.sh reads mode and Codex state without python3 (fail-closed enabled rule, 40-char mode/selected_by), and honours CLAUDE_PROJECT_DIR"
+echo "PASS: route.sh adds one 'docs prompts: off' line for every off value of .propel/docs.json, with and without python3, and none when on or missing"
 
 # The tasks line: one line after `codex:`, only when tasks are open; nothing
 # else in the card changes.
@@ -833,6 +879,102 @@ for path in "scratch/2026-01-01-foo/README.md" "docs/guide.md" ".claude/settings
     fi
 done
 echo "PASS: working surfaces and non-source files are ignored"
+
+# Docs staleness: a source edit whose path a docs page mentions adds one
+# [propel:docs] line naming at most 3 pages and asking first (make-documentations
+# Step 0); nothing when no page mentions it, nothing for a .md edit, nothing
+# while .propel/docs.json turns docs prompts off, a quoted page name stays
+# valid JSON, and 300 pages stay fast. Runs in a throwaway project.
+STALE_DIR=$(mktemp -d)
+(
+    cd "$STALE_DIR" || exit 1
+    mkdir -p docs/methods documentation src/models
+    printf 'Code: `src/models/vq_loss.py`\n' > docs/methods/vq.md
+    printf 'See src/models/vq_loss.py.\n' > docs/a.md
+    printf 'See src/models/vq_loss.py.\n' > 'docs/b "quoted".md'
+    printf 'See src/models/vq_loss.py.\n' > documentation/c.md
+    printf 'Unrelated.\n' > docs/unrelated.md
+    ctx() {  # <file_path> [project dir]: print additionalContext (empty if no output)
+        echo "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"$1\"}}" \
+          | CLAUDE_PROJECT_DIR="${2:-}" bash "$PLUGIN_DIR/hooks/auditor-dispatch.sh" > "$TMPFILE" || { echo "FAIL: auditor-dispatch exited non-zero"; exit 1; }
+        [ -s "$TMPFILE" ] || return 0
+        python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['hookSpecificOutput']['additionalContext'])" "$TMPFILE" \
+          || { echo "FAIL: auditor-dispatch output is not valid JSON with the docs line"; cat "$TMPFILE"; exit 1; }
+    }
+    OUT=$(ctx src/models/vq_loss.py) || exit 1
+    [ "$(printf '%s\n' "$OUT" | grep -c '^\[propel:docs\]')" -eq 1 ] || { echo "FAIL: expected exactly one [propel:docs] line"; printf '%s\n' "$OUT"; exit 1; }
+    DOCS=$(printf '%s\n' "$OUT" | grep '^\[propel:docs\]')
+    case "$DOCS" in *"and 1 more"*make-documentations*) ;; *) echo "FAIL: docs line lacks make-documentations or the overflow count: $DOCS"; exit 1 ;; esac
+    case "$DOCS" in *'docs/b "quoted".md'*) ;; *) echo "FAIL: docs line lost the quoted page name: $DOCS"; exit 1 ;; esac
+    case "$DOCS" in *unrelated.md*) echo "FAIL: docs line names a page that does not mention the file"; exit 1 ;; esac
+    [ "$(printf '%s\n' "$DOCS" | grep -o '\.md' | wc -l | tr -d ' ')" -eq 3 ] || { echo "FAIL: docs line should name exactly 3 pages: $DOCS"; exit 1; }
+    # It asks first (make-documentations Step 0); it never says to run the skill.
+    case "$DOCS" in *"ask the user one question (make-documentations Step 0"*"whether to update them and what each update would cover, and do not edit them without an answer."*) ;;
+        *) echo "FAIL: docs line lacks the ask-first wording: $DOCS"; exit 1 ;; esac
+    case "$DOCS" in *"run the make-documentations skill"*) echo "FAIL: docs line still tells Claude to run the skill without asking: $DOCS"; exit 1 ;; esac
+    # An absolute path under CLAUDE_PROJECT_DIR is made project-relative.
+    OUT=$(ctx "$STALE_DIR/src/models/vq_loss.py" "$STALE_DIR") || exit 1
+    case "$OUT" in *"[propel:docs] Docs pages mention src/models/vq_loss.py:"*) ;; *) echo "FAIL: absolute path not made project-relative"; exit 1 ;; esac
+    # No page mentions it: the auditor context, and no docs line.
+    OUT=$(ctx src/models/other.py) || exit 1
+    case "$OUT" in *"[propel:auto-dispatch]"*) ;; *) echo "FAIL: auditor context missing for an undocumented file"; exit 1 ;; esac
+    case "$OUT" in *"[propel:docs]"*) echo "FAIL: docs line for a file no page mentions"; exit 1 ;; esac
+    # A docs page itself, and a scratch file named in docs: no output at all.
+    for p in docs/a.md scratch/x/run.py; do
+        OUT=$(ctx "$p") || exit 1
+        [ -z "$OUT" ] || { echo "FAIL: auditor-dispatch should stay silent for $p"; exit 1; }
+    done
+    # No docs root: no docs line.
+    mkdir -p "$STALE_DIR/nodocs/src" && cd "$STALE_DIR/nodocs" || exit 1
+    OUT=$(ctx src/models/vq_loss.py) || exit 1
+    case "$OUT" in *"[propel:docs]"*) echo "FAIL: docs line without a docs root"; exit 1 ;; esac
+    cd "$STALE_DIR" || exit 1
+    # Docs prompts off (.propel/docs.json, /disable-make-documentations): no
+    # docs line for any off value of the codex.json rule, and the auditor
+    # context is otherwise unchanged; on, a missing key or no file keeps it.
+    # docs.json is read from CLAUDE_PROJECT_DIR when the cwd is elsewhere.
+    mkdir -p .propel sub
+    ON_OUT=$(ctx src/models/vq_loss.py) || exit 1
+    case "$ON_OUT" in *"[propel:docs]"*) ;; *) echo "FAIL: no docs line with no docs.json"; exit 1 ;; esac
+    AUDIT_ONLY=$(printf '%s\n' "$ON_OUT" | grep -v '^\[propel:docs\]')
+    for cfg in '{"enabled": false}' '{"enabled": "false"}' '{"enabled": " Off "}' '{"enabled": null}' '{"enabled": 0}' \
+               '{"enabled": "no"}' '{"enabled": "0"}' '{"enabled": ""}' $'{"enabled":\n  false}' \
+               '{"enabled": false, "disabled_at": "2026-01-01T00:00:00Z", "reason": "user request"}'; do
+        printf '%s\n' "$cfg" > .propel/docs.json
+        OUT=$(ctx src/models/vq_loss.py) || exit 1
+        [ "$OUT" = "$AUDIT_ONLY" ] || { echo "FAIL: with docs.json $cfg the context should be the auditor line alone"; printf '%s\n' "$OUT"; exit 1; }
+        OUT=$(cd sub && ctx "$STALE_DIR/src/models/vq_loss.py" "$STALE_DIR") || exit 1
+        case "$OUT" in *"[propel:auto-dispatch]"*) ;; *) echo "FAIL: auditor context lost with docs.json $cfg"; exit 1 ;; esac
+        case "$OUT" in *"[propel:docs]"*) echo "FAIL: docs line with docs.json $cfg read through CLAUDE_PROJECT_DIR"; exit 1 ;; esac
+    done
+    for cfg in '{"enabled": true}' '{"enabled": "yes"}' '{"enabled": 1}' '{"enabled_at": "2026-01-01T00:00:00Z"}' 'not json'; do
+        printf '%s\n' "$cfg" > .propel/docs.json
+        OUT=$(ctx src/models/vq_loss.py) || exit 1
+        [ "$OUT" = "$ON_OUT" ] || { echo "FAIL: docs.json $cfg should keep the docs line"; printf '%s\n' "$OUT"; exit 1; }
+    done
+    rm -f .propel/docs.json
+    # 300 pages: bounded (200 scanned) and fast.
+    i=0
+    while [ "$i" -lt 300 ]; do printf 'page %s\n' "$i" > "docs/methods/p$i.md"; i=$((i + 1)); done
+    START=$(date +%s)
+    OUT=$(ctx src/models/vq_loss.py) || exit 1
+    [ $(( $(date +%s) - START )) -lt 3 ] || { echo "FAIL: auditor-dispatch took 3 s or more with 300 docs pages"; exit 1; }
+) || { rm -rf "$STALE_DIR"; exit 1; }
+rm -rf "$STALE_DIR"
+echo "PASS: a source edit that docs pages mention adds one ask-first make-documentations line (up to 3 pages, valid JSON), none while docs.json is off; silent for .md, scratch/ and undocumented files; fast with 300 pages"
+
+echo ""
+echo "Testing: the docs-prompt switch commands"
+echo "================================"
+for pair in "disable-make-documentations:false" "enable-make-documentations:true"; do
+    cmd="${pair%%:*}"; val="${pair#*:}"
+    f="$PLUGIN_DIR/commands/$cmd.md"
+    [ -f "$f" ] || { echo "FAIL: commands/$cmd.md is missing"; exit 1; }
+    case "$(head -n 1 "$f")" in "[Propel]"*) ;; *) echo "FAIL: commands/$cmd.md must start with '[Propel]'"; exit 1 ;; esac
+    grep -qF '.propel/docs.json' "$f" || { echo "FAIL: commands/$cmd.md does not name .propel/docs.json"; exit 1; }
+    grep -qF "\"enabled\": $val" "$f" || { echo "FAIL: commands/$cmd.md does not write \"enabled\": $val"; exit 1; }
+done
+echo "PASS: /disable-make-documentations and /enable-make-documentations exist, start with [Propel], and write .propel/docs.json"
 
 echo ""
 echo "Testing: scripts/codex-consult.sh"
@@ -1152,6 +1294,13 @@ echo "================================"
 "${BASH:-bash}" "$PLUGIN_DIR/tests/test_claim_check.sh" < /dev/null > /dev/null 2>&1 || {
     echo "FAIL: tests/test_claim_check.sh — run it directly for details"; exit 1; }
 echo "PASS: claim-check.sh extracts and compares evidence tokens without python3, 1 MB in under 2 s"
+
+echo ""
+echo "Testing: scripts/doc-check.sh without python3 (tests/test_doc_check.sh)"
+echo "================================"
+"${BASH:-bash}" "$PLUGIN_DIR/tests/test_doc_check.sh" < /dev/null > /dev/null 2>&1 || {
+    echo "FAIL: tests/test_doc_check.sh — run it directly for details"; exit 1; }
+echo "PASS: doc-check.sh reports broken links and anchors, missing paths, scratch/ paths, markers, emoji and undated leaf pages without python3"
 
 echo ""
 echo "================================"

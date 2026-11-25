@@ -5,7 +5,8 @@
 # injection is buried under investigation output, and the routing decisions it
 # describes quietly stop happening. This hook re-states the short version every
 # turn: what mode is active, whether the dual-model layer is on, how many tasks
-# are open in the task ledger, and the handful of rules that must not decay.
+# are open in the task ledger, whether docs prompts are off, and the handful of
+# rules that must not decay.
 #
 # Deliberately small. A per-turn injection that grows becomes a per-turn tax.
 #
@@ -232,6 +233,19 @@ EOF
   fi
 fi
 
+# Docs prompts (the make-documentations question), switched by
+# /disable-make-documentations and /enable-make-documentations in
+# .propel/docs.json. Same fail-closed "enabled" rule as codex.json, read by the
+# grep fallback only (no python3 path), so every runner gives the same answer.
+# One line when off; nothing when on or when the file is missing.
+DOCS_LINE=""
+if [ -f ".propel/docs.json" ]; then
+  DOCS_FLAT=$(head -c 8192 ".propel/docs.json" 2>/dev/null | LC_ALL=C tr -d '[:space:]' 2>/dev/null)
+  if codex_flat_off "$DOCS_FLAT"; then
+    DOCS_LINE="docs prompts: off (/disable-make-documentations) — never ask about or auto-update docs; an explicit request still works"
+  fi
+fi
+
 if [ "$MODE" = "unset" ]; then
   MODE_LINE="none yet — infer it from this message (researcher / engineer / debugger / trainer), announce the choice in one line with the reason, write .propel/mode.json with \"selected_by\":\"auto\", and continue. Do not stop to ask."
 else
@@ -245,6 +259,9 @@ codex: ${CODEX}
 EOF
 if [ -n "$TASKS_LINE" ]; then
   printf '%s\n' "$TASKS_LINE"
+fi
+if [ -n "$DOCS_LINE" ]; then
+  printf '%s\n' "$DOCS_LINE"
 fi
 cat <<EOF
 rules that must not decay:

@@ -81,8 +81,9 @@ from the repo root.
    ("exit 2", "Gate 1"), counts in table cells without a unit, or units it doesn't
    know. Compare draft and rewrite claim by claim for these.
 6. **Codex** (if enabled — see `.propel/codex.json`):
-   - **If the artifact belongs to a gate** (Gate 1, Gate 2, retrospective), add
-     this question to **that gate's existing consult**. It is one call, and it
+   - **If the artifact belongs to a gate** (Gate 1, Gate 2, retrospective), or
+     is a docs page written by `make-documentations` (its Docs fidelity consult),
+     add this question to **that existing consult**. It is one call, and it
      counts as the writeup review:
      > "Compare the draft and the rewrite at <draft path> and <artifact path>: is
      > any claim, caveat or evidence item lost or changed, and where does a reader

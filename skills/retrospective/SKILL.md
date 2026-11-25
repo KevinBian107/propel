@@ -73,6 +73,27 @@ When no fold-in question is asked (Codex disabled or unavailable, or nothing
 verified), present the entry; the human's next reply about it is the acceptance,
 and the draft is deleted then. Never ask a fold-in question with nothing to fold.
 
+**Docs: ask, don't write.** If the project has a docs root (`docs/`,
+`documentation/`, or a README section) and the entry changes what a results or
+runbook page states, the user is asked whether to update those pages, in a
+disjunctive question, never a yes/no one. No docs page is written before the
+answer:
+
+- With a fold-in question, ask the docs question (`make-documentations` Step 0,
+  all four options including "Stop asking") as a second question in the same
+  AskUserQuestion call, so folding findings and updating docs are separate
+  choices. After the answers, run `make-documentations` only on the pages the
+  docs answer chose.
+- Without one, ask the docs question (`make-documentations` Step 0) with
+  AskUserQuestion when the entry is presented. Only "update all" or "update
+  only <page>" runs `make-documentations`; the pages and their Docs fidelity
+  card are then presented, and the human accepts or edits them as that skill
+  describes.
+
+If `.propel/docs.json` turns docs prompts off, leave the pages out of the
+question and ask nothing about them (one `◇ Docs prompts off` line at the
+session's first trigger).
+
 If `.propel/codex.json` has `"enabled": false`, skip it (one `◇ Codex disabled`
 line at the session's first gate); if the CLI is missing, say so once and proceed
 single-model.

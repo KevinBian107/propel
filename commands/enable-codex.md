@@ -27,7 +27,8 @@ command -v codex && codex --version
   > Codex is back on. From here, every major decision point gets a second model
   > before it reaches you: scope (Gate 0), findings (Gate 1), design (Gate 2),
   > component audits (Gate 3), diagnosis (Gate 4), bug classification, the
-  > 3-strike break, retrospective conclusions, and the writeup review. I'll
+  > 3-strike break, retrospective conclusions, docs fidelity (docs pages against
+  > the code), and the writeup review. I'll
   > announce each consult with a `◆ Consulting Codex` line and label every
   > finding with which model raised it.
 

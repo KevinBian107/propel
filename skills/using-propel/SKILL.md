@@ -141,6 +141,7 @@ Before routing to any skill, check the current mode. If the triggered skill is n
 | monitor | — | Yes | Yes | Yes |
 | check-progress | Yes | Yes | Yes | Yes |
 | concise | Yes | Yes | Yes | Yes |
+| make-documentations | Yes | Yes | Yes | Yes |
 
 **Gates by mode:**
 - **Researcher**: Gate 0, Gate 1
@@ -345,6 +346,7 @@ Check these in order. Use the FIRST one that matches:
 | "retrospective", "capture learnings", ~20 turns without one | **retrospective** | Experiment registry with failed attempts table |
 | "getting long", context feels large, >15 substantive turns | **context-hygiene** | /clear discipline + session archival |
 | "make this concise", "tighten this", "this is too long", "cut this down", "make it shorter", "write this up"; a finished write-up about to be presented (automatic) | **concise** | Claim before evidence; every evidence item survives (claim-check.sh) |
+| "document this", "write the docs", "update the docs", "write a results page", "write a runbook", "docs are stale" (writes, no whether question); after Gate 3 passes, validation passes, a retrospective, or a `[propel:docs]` hook line, when docs cover the change: ASK first (make-documentations Step 0, AskUserQuestion, in the gate's call), write only after "update"; never while `.propel/docs.json` is off | **make-documentations** | Present-tense docs pages, doc-check.sh, Codex docs-fidelity pass; never commits |
 
 ### 2. Research Skills
 | Trigger | Skill |

@@ -4,7 +4,8 @@ description: >
   [Propel] The automatic dual-model layer. Fires on its own at every major Propel
   decision point — Gate 0 scope, Gate 1 findings, Gate 2 design, Gate 3 audit,
   Gate 4 diagnosis, bug classification, 3-strike breaks, retrospective
-  conclusions, writeup review of a finished write-up — with no user action
+  conclusions, docs fidelity (docs pages vs. the code), writeup review of a
+  finished write-up — with no user action
   required. Sends a short brief to OpenAI Codex via the codex-bridge subagent,
   verifies every claim Codex makes against the actual repository, and presents an
   attributed comparison card. There is no command to invoke — if the user asks for
@@ -39,11 +40,13 @@ Fire automatically at these points and nowhere else:
 | **Classification** | A bug is about to be classified as code / design / config |
 | **3-strike** | The third attempt at the same approach has failed |
 | **Retrospective** | Conclusions are written, before they enter the registry |
-| **Writeup review** | A finished written artifact outside `scratch/` with no consult of its own (docs page, long write-up outside a gate) has had a substantive `concise` rewrite (≥ ~30 changed lines of prose). At Gate 1 / Gate 2 / Retrospective the question is folded into that gate's consult instead — one call, both questions, which counts as the writeup review |
+| **Docs fidelity** | `make-documentations` changed a docs page by more than a trivial edit, before the pages are presented. Never for `scratch/`. The writeup-review question is folded in: one call, which counts as the writeup review for those pages |
+| **Writeup review** | A finished written artifact outside `scratch/` with no consult of its own (docs page, long write-up outside a gate) has had a substantive `concise` rewrite (≥ ~30 changed lines of prose). At Gate 1 / Gate 2 / Retrospective / Docs fidelity the question is folded into that consult instead — one call, both questions, which counts as the writeup review |
 
 The writeup-review question (from `core/CODEX.md`) is in the template table below.
-It is the one question that gets *paths* instead of inlined material: the draft
-path the `concise` skill gives (under `.propel/concise/`) and the rewrite. Never on
+It and the Docs fidelity question are the ones that get *paths* instead of inlined
+material (Docs fidelity: the pages and the code they describe). Writeup review gets the
+draft path the `concise` skill gives (under `.propel/concise/`) and the rewrite. Never on
 chat replies; never on a trivial or formatting-only change.
 
 **Do not fire** for: Q0 / Q1 (those are questions for the human), mode selection,
@@ -84,7 +87,7 @@ CONTEXT
   Project: <one line — what this codebase is>
   Decision: <what is being decided right now>
   Material: <the design / diff / diagnosis, inlined or summarized>
-  Paths:    <writeup review only: draft path + rewrite path, for Codex to read>
+  Paths:    <writeup review: draft + rewrite; docs fidelity: pages + code>
 
 CLAUDE'S POSITION
   <2-4 lines: what Claude currently thinks and why>
@@ -117,7 +120,8 @@ CONSTRAINTS
   always. Codex does not share Claude's context, working memory, registry, or
   CLAUDE.md. A brief that references "the design we discussed" produces a
   hallucinated review of a design Codex has never seen. Only the writeup-review
-  question passes paths instead — the comparison needs both full files, verbatim.
+  and Docs fidelity questions pass paths instead — each comparison needs the full
+  files, verbatim.
 
 ### Question templates by decision point
 
@@ -131,10 +135,12 @@ CONSTRAINTS
 | Classification | "This was classified as a `<code bug / design issue / config issue>`. Argue against that classification." |
 | 3-strike | "Three attempts have failed: `<list>`. What assumption do all three share?" |
 | Retrospective | "Which of these conclusions does the evidence presented not actually support?" |
+| Docs fidelity | "Here are the doc pages at <paths> and the code they describe. Name every claim the code contradicts or does not support, by page and heading, or say 'no additional findings'." |
 | Writeup review | "Compare the draft and the rewrite at <paths>: is any claim, caveat or evidence item lost or changed, and where does a reader meet evidence before the claim it supports? Name passages by heading, or say 'no additional findings'." |
 
-Gate 1, Gate 2 and Retrospective consults with a folded writeup review send both
-questions in one brief, and pass `--question "<gate question> + writeup review"`.
+Gate 1, Gate 2, Retrospective and Docs fidelity consults with a folded writeup
+review send both questions in one brief, and pass
+`--question "<gate question> + writeup review"`.
 
 ---
 

@@ -31,7 +31,7 @@ from . import __version__, install
 def get_propel_root() -> Path:
     """Locate the propel data root (skills/, agents/, commands/, hooks/).
 
-    Works for both editable installs (pip install -e .) and running from source.
+    Works for editable installs (pip or uv) and running from source.
     Walks up from this file's directory until we find skills/ alongside src/.
     """
     current = Path(__file__).resolve().parent  # src/propel_cli/
@@ -41,7 +41,10 @@ def get_propel_root() -> Path:
             return current
     raise FileNotFoundError(
         "Could not locate Propel data directories (skills/, agents/). "
-        "Install from the propel directory with `pip install -e .` inside an activated env."
+        "From the propel directory, install editable with one of: "
+        "`pip install -e .` (inside an activated conda env or venv), "
+        "`uv pip install -e .` (inside an activated `uv venv`), or "
+        "`uv tool install --editable .` (isolated, puts `propel` on PATH)."
     )
 
 
@@ -951,6 +954,47 @@ def _source_version(propel_root: Path) -> str | None:
     return match.group(1) if match else None
 
 
+def _has_pip() -> bool:
+    """True if this interpreter can run `-m pip`. uv-made envs usually can't."""
+    try:
+        probe = subprocess.run(
+            [sys.executable, "-m", "pip", "--version"],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return False
+    return probe.returncode == 0
+
+
+def _in_uv_tool_env() -> bool:
+    """True if this interpreter's env was made by `uv tool install`.
+
+    uv writes a uv-receipt.toml at the root of every tool env
+    (<uv tool dir>/<name>/uv-receipt.toml) and nowhere else.
+    """
+    return (Path(sys.prefix) / "uv-receipt.toml").is_file()
+
+
+def _reinstall_command(propel_root: Path) -> tuple[str, list[str]] | None:
+    """(installer label, argv) that reinstalls the editable package into the env
+    running this process, or None if neither pip nor uv is available.
+
+    pip when this interpreter has it; else uv: `uv tool install --reinstall`
+    for a uv tool env (plain `uv tool install` and `--force` reuse the cached
+    build and leave the old metadata), `uv pip install --python` otherwise.
+    """
+    root = str(propel_root)
+    if _has_pip():
+        return "pip", [sys.executable, "-m", "pip", "install", "-e", root]
+    uv = shutil.which("uv")
+    if uv is None:
+        return None
+    if _in_uv_tool_env():
+        return "uv tool", [uv, "tool", "install", "--reinstall", "--editable", root]
+    return "uv pip", [uv, "pip", "install", "--python", sys.executable, "-e", root]
+
+
 def _run_git(root: Path, *args: str) -> subprocess.CompletedProcess:
     """git -C root <args>, never raising; a missing git binary reads as returncode 127."""
     try:
@@ -1067,31 +1111,39 @@ def update_cmd(dry_run: bool, no_pull: bool, yes: bool):
         for why, _ in reasons:
             click.echo(f"{why}; would reinstall the package (not done: dry run)")
         if reasons:
+            chosen = _reinstall_command(propel_root)
+            if chosen is None:
+                click.echo("  would fail: neither pip nor uv is available to this interpreter")
+            else:
+                click.echo(f"  would use {chosen[0]}: {' '.join(chosen[1])}")
             summary.append("would reinstall")
     else:
         for why, action in reasons:
             click.echo(f"{why}; {action}")
         if reasons:
-            try:
-                pip = subprocess.run(
-                    [sys.executable, "-m", "pip", "install", "-e", str(propel_root)],
-                    capture_output=True,
-                    text=True,
-                )
-                pip_failed = pip.returncode != 0
-                pip_error = (pip.stderr or pip.stdout).strip()
-            except OSError as exc:
-                pip_failed = True
-                pip_error = str(exc)
-            if pip_failed:
+            chosen = _reinstall_command(propel_root)
+            if chosen is None:
+                installer = None
+                reinstall_error = f"neither pip (for {sys.executable}) nor uv (on PATH) was found"
+            else:
+                installer, reinstall_cmd = chosen
+                click.echo(f"  using {installer}: {' '.join(reinstall_cmd)}")
+                try:
+                    proc = subprocess.run(reinstall_cmd, capture_output=True, text=True)
+                    reinstall_error = None if proc.returncode == 0 else (proc.stderr or proc.stdout).strip() or "unknown error"
+                except OSError as exc:
+                    reinstall_error = str(exc) or "unknown error"
+            if reinstall_error is not None:
                 reinstall_failed = True
-                click.echo(f"  Reinstall failed: {pip_error.splitlines()[-1] if pip_error else 'unknown error'}", err=True)
+                click.echo(f"  Reinstall failed: {reinstall_error.splitlines()[-1]}", err=True)
                 click.echo("  Reinstall by hand, then re-run `propel update --no-pull`:", err=True)
-                click.echo(f"    pip install -e {propel_root}     (inside the env you installed Propel into)", err=True)
-                click.echo("    pipx reinstall propel             (if you installed it with pipx)", err=True)
+                click.echo(f"    pip install -e {propel_root}                  (pip, inside the env you installed Propel into)", err=True)
+                click.echo(f"    uv pip install --python {sys.executable} -e {propel_root}   (uv venv)", err=True)
+                click.echo(f"    uv tool install --reinstall --editable {propel_root}   (uv tool)", err=True)
+                click.echo("    pipx reinstall propel                          (pipx)", err=True)
                 summary.append("reinstall failed — see above")
             else:
-                click.echo("  reinstalled")
+                click.echo(f"  reinstalled with {installer}")
                 summary.append("reinstalled")
 
     # c. Re-run init in a fresh interpreter, so the freshly pulled code runs.

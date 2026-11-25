@@ -89,6 +89,7 @@ asks at every one of those, and does not proceed until you answer.
 | `/switch [mode]` | Override the automatically selected mode |
 | `/trace-shapes [entry point]` | Quick shape annotation through a code path |
 | `/disable-codex` · `/enable-codex` | Turn the automatic second model off / on |
+| `/disable-make-documentations` · `/enable-make-documentations` | Stop / resume the question Propel asks before updating docs pages |
 | `/codex-log` | Audit trail: what Codex was actually asked, and when |
 | `/c-review` | Merge the Anthropic review plugin, Propel's auditors, and Codex into one card |
 
@@ -116,6 +117,7 @@ asks at every one of those, and does not proceed until you answer.
 | Supervision | monitor | "watch this run", "make sure it finishes" |
 | Progress | check-progress | "check progress", "what's running", "where was I" |
 | Writing | concise | "make this concise", "tighten this", "write this up"; auto before a finished write-up |
+| Docs | make-documentations | "document this", "update the docs", "write a results page"; after Gate 3, validation or a retrospective, when docs cover the change, it asks first which pages to update and what each would cover |
 
 ### Auditor agents (auto-dispatched after code changes)
 

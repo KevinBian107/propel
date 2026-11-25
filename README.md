@@ -1,15 +1,9 @@
-<p align="center">
-  <img src="assets/logo.svg" alt="Propel Logo" width="140"/>
-</p>
-
 # Propel
 
-**Propel is not an autonomous agent.** It automates the tedious, mechanical half of
-research engineering — tracing code, checking implementations against the paper,
-hunting silent bugs, remembering what already failed — and it stops at every
-decision that is actually yours.
-
-You decide. The machines execute.
+**Propel is not an autonomous agent.** It automates the mechanical half of research
+engineering (tracing code, checking implementations against the paper, hunting
+silent bugs, remembering what already failed) and stops at every decision that is
+yours.
 
 **[Website](https://kbian.org/propel-website/)** | **[Documentation](https://kbian.org/propel-website/docs/)** | **[Vibe Coding Articles](https://kbian.org/Kaiwen-Wiki/articles/vibe_coding/)**
 
@@ -17,237 +11,110 @@ You decide. The machines execute.
   <img src="assets/decision_split.svg" alt="Two columns: the mechanical work Propel automates, and the research decisions it always hands back to you" width="100%"/>
 </p>
 
-## Why Propel?
+## Why
 
-An unconstrained LLM writes the **mean of its training data**. Ask it to "add a
-diffusion policy head" and you get a blend of every diffusion codebase it has
-seen: a cosine noise schedule from one repo, ε-prediction from another, an EMA
-decay from a third. The code runs. It may even train. But it is not the variant
-your paper describes, and the choices that decide whether your experiment means
-anything were made without asking you.
+An unconstrained LLM writes the mean of its training data: ask for "a diffusion
+policy head" and you get a blend of every diffusion codebase it has seen, not the
+variant your paper describes. In research code that mistake is quiet: a
+broadcasting bug in a loss doesn't crash, it gives you wrong numbers and a plot you
+believe.
 
-The fix is not a cleverer prompt. It is structure. Propel makes the agent
-investigate before it writes code, stop at five gates to ask you design questions,
-send every change past auditors that compare it against the paper, and consult a
-second model — OpenAI Codex — before any of it reaches you. Each retrospective
-feeds a working memory of past experiments that is loaded into the next session,
-so the agent checks what was already tried before proposing it again.
+Propel adds structure instead of a cleverer prompt. The agent investigates before
+it writes code, stops at five gates to ask you design questions, sends every change
+past auditors that compare it against the paper, and consults a second model
+(OpenAI Codex) before anything reaches you. Retrospectives feed a working memory
+that the next session loads, so failed ideas are not proposed twice.
 
-This matters most in research code, where mistakes are quiet. A broadcasting bug
-in a loss function doesn't crash. It gives you a training run whose numbers are
-wrong, and a plot you believe.
+You never pick a mode, name a skill or ask for a second opinion: Propel infers the
+mode from your first message, dispatches skills and auditors itself, and says what
+it picked.
 
-## What You Don't Have to Do
-
-| | |
-|---|---|
-| **Pick a mode** | Propel reads your first message, picks one, and says which and why |
-| **Name a skill or an agent** | Describe the problem; the right investigation, auditors and reviewers get dispatched and announced |
-| **Ask for a second opinion** | Codex is consulted at every major decision point, automatically, and every claim it makes is checked against your code |
-| **Remember to run the auditors** | A hook names the required ones after every edit |
-
-What's left for you is the part machines are worst at: deciding what to build,
-what the result means, and which trade-off is right. Propel stops at every one of
-those and does not proceed until you answer.
-
-## Two Models at Every Decision
+## Two models at every decision
 
 <p align="center">
   <img src="assets/codex_loop.svg" alt="The five-step dual-model consult that runs at every gate" width="100%"/>
 </p>
 
-A model reviewing its own plan is a model grading its own homework. Propel sends
-the design, the diff, or the diagnosis to a second model with different training
-biases, verifies every `file:line` it cites against your actual repository, and
-presents an attributed card — `[claude]`, `[codex]`, `[both]`,
-`[codex · unverified]` — so you can always tell who said what.
+Codex reviews the design, the diff or the diagnosis at every gate. Claude checks
+every `file:line` Codex cites against your repository and labels each finding
+`[claude]`, `[codex]`, `[both]` or `[codex · unverified]`. Codex never decides and
+never writes to your repo; `/disable-codex` turns it off.
 
-Codex advises. It never decides, never writes to your repo, and never speaks to
-you unfiltered. Two models agreeing is reported as weak evidence, because it is.
-Don't want it? `/disable-codex`.
-
-**And you can check.** The announcement in the transcript is written by a model;
-the ledger isn't. Every consult is appended to `.propel/codex-log.jsonl` by the
-wrapper script itself, so a claimed consult with no entry didn't happen:
+Two records are written by scripts, not by the model, so you can check them:
 
 ```bash
-propel codex log                   # what was asked, when, and what came back
-propel codex statusline --install  # live segment: codex * 3 . 7s
+propel codex log    # every Codex consult: what was asked, when, what came back
+propel tasks        # training runs, monitored runs and plan tasks still open (--all for finished ones)
 ```
 
-The same goes for work in flight. Training launches, monitored runs and plan tasks
-are recorded per session in `.propel/tasks/` by a script, not by the model, and a
-training task's status comes from evidence (its exit file, a live `screen`/`tmux`
-session), never from a claim:
-
-```bash
-propel tasks         # open tasks: running, blocked, lost or unknown
-propel tasks --all   # plus finished tasks from the last 10 session files (--sessions N), within 14 days
-```
-
-## The Pipeline
+## Pipeline and modes
 
 <p align="center">
   <img src="assets/propel_pipeline.svg" alt="Propel pipeline: seven stages from intake to retrospective, with human gates G0–G4, questioners Q0 and Q1, an automatic Codex consult at each gate, a per-component review loop, a working-memory loop into the next session, and the stages each mode runs" width="100%"/>
 </p>
 
-## Core Principles
+| Mode | Gates | Picked when |
+|------|-------|-------------|
+| **Researcher** | 0, 1 | The question is about the problem space, not the code |
+| **Engineer** | 0–4 | There is something to build (also the fallback) |
+| **Debugger** | 0, 1, 4 | There is a specific wrong behavior to explain |
+| **Trainer** | 4 (runtime) | The code is settled; the problem is execution |
 
-| Principle | Rule |
-|-----------|------|
-| **Assistant, not agent** | Investigate and present — don't guess and act. Every claim traceable to evidence. |
-| **Evidence over agreement** | Be correct, not agreeable. Steel-man the counterargument before agreeing. |
-| **Context discipline** | Hallucination risk grows with context. Preserve state in living READMEs, clear proactively. |
-| **Critical self-reflection** | Question your own reasoning as hard as the user's. |
-| **Break logic loops** | Name circular reasoning, reframe, or bring new data. 3-strike limit. |
-| **Two models, one human** | Codex argues with Claude automatically. Neither of them decides. |
+Propel announces the mode it picked and switches on its own when the work changes.
+Override with `/switch <mode>`.
 
-## Four Modes — selected automatically
-
-<p align="center">
-  <img src="assets/mode_selection.svg" alt="How Propel maps a first message to a mode and to the gates that fire" width="100%"/>
-</p>
-
-| Mode | Active Gates | Picked when |
-|------|-------------|-------------|
-| **Researcher** | Gate 0, 1 | The question is about the problem space, not the code |
-| **Engineer** | All (0–4) | There is something to build (also the fallback) |
-| **Debugger** | Gate 0, 1, 4 | There is a specific wrong behavior to explain |
-| **Trainer** | Gate 4 (runtime) | The code is settled; the problem is execution |
-
-Propel picks the mode from your first message, announces the choice in one line
-with the reason, and switches again on its own when the work crosses a boundary.
-Override any time: `/switch researcher`, `/switch engineer`, `/switch debugger`,
-`/switch trainer`.
-
-## Installation
+## Install
 
 ```bash
-git clone https://github.com/KevinBian107/propel.git
-cd propel
+git clone https://github.com/KevinBian107/propel.git && cd propel
 
-pip install -e .      # inside an activated conda env or virtualenv
-propel                # setup: browser page locally, terminal prompts on a cluster
+# one of:
+pip install -e .                                              # inside an activated conda env or virtualenv
+uv venv && source .venv/bin/activate && uv pip install -e .   # a uv venv in the clone
+uv tool install --editable .                                  # uv, isolated, `propel` on PATH everywhere
+
+propel   # installs Claude Code and Codex if missing, signs you in, sets up your project
 ```
 
-This is an editable install, so edits to the repo take effect immediately. Run it
-**inside an activated conda env or virtualenv**, for example your cluster's `(base)`.
-Against a Homebrew or system Python, pip fails with `externally-managed-environment`,
-or installs somewhere not on your PATH, and you end up with no `propel` command.
+`propel` opens a setup page in your browser on a laptop, and asks in the terminal
+on a cluster (sign-in there uses a device code you approve on any device). Never
+run plain `pip install` outside an activated env: on a Homebrew or system Python it
+fails with `externally-managed-environment`. Then start `claude` and describe what
+you're working on.
 
-Then run `propel`. It checks for git, Claude Code and Codex, installs whatever is
-missing with the vendors' own native installers (no Node, no npm, no sudo), signs
-you in, and installs Propel into your project. There are two versions of this
-step, and `propel` picks one by itself and tells you which:
-
-| | **Local** (laptop / desktop) | **Cluster** (headless: HPC node, container, Jupyter terminal, SSH) |
-|---|---|---|
-| Run | `propel` &nbsp;(or `propel launch`) | `propel` &nbsp;(or `propel setup`) |
-| You get | a setup page in your browser, one button per step | the same steps as prompts in the terminal |
-| Sign-in | a terminal window opens for each login | inline: `claude auth login` and `codex login --device-auth` print a URL and code you approve on any device, e.g. your laptop |
-| Port forwarding | none | none |
-
-On a cluster the terminal setup is the way to go. The browser page still works
-over an SSH tunnel (`propel launch --no-browser`, then `ssh -L <port>:localhost:<port>`),
-but it adds a token and a port to manage for no gain.
-
-Prefer to do it by hand? This is everything the setup does:
+## Update
 
 ```bash
-curl -fsSL https://claude.ai/install.sh | bash          # Claude Code  -> ~/.local/bin
-curl -fsSL https://chatgpt.com/codex/install.sh | sh    # Codex        -> ~/.local/bin
-claude auth login
-codex login --device-auth
-cd /path/to/your/project && propel init
+propel status             # installed vs available version, and what would change
+propel update --dry-run   # preview
+propel update             # pull Propel, reinstall if needed (pip or uv), refresh this project
 ```
 
-Then start `claude` and just describe what you're working on. See the
-[Getting Started guide](https://kbian.org/propel-website/docs/getting-started.html)
-for a full walkthrough.
-
-## Updating
-
-From inside your project:
-
-```bash
-propel status             # installed vs. available version, what would change, hook registrations pending
-propel update --dry-run   # preview; writes no working files (it may fetch from the remote)
-propel update             # pull Propel, reinstall if needed, refresh this project
-```
-
-`propel update` runs `git pull --ff-only` in your Propel clone (it refuses if the
-clone has uncommitted changes to tracked files; `--no-pull` skips this step),
-reinstalls the package (`pip install -e`) when either its own pull changed
-`pyproject.toml` or `src/propel_cli/__init__.py`, or the installed package's
-version differs from the `__version__` in the clone, then re-runs `propel init`
-in the current project with the new code. It prints why it reinstalls; with
-`--dry-run` it says it would, and doesn't. The version check is what catches a
-`git pull` you ran yourself or `--no-pull`; its limit is that a dependency change
-in `pyproject.toml` without a version bump, pulled by hand, is not detected —
-run `pip install -e <propel clone>` yourself then. `propel init --dry-run`
-previews the project step on its own, and `propel --version` prints the version
-you have installed.
-
-When `propel init` or `propel update` changes the hook registrations in
-`settings.local.json`, it ends with a reminder to restart any Claude Code session
-open in the project: sessions load hooks when they start. A
-`settings.local.json` that is a symlink (say, into your dotfiles) is written
-through to its target and the link is kept; a broken link stops init before it
-writes anything. `propel status` warns when Propel paths are skipped because they
-sit under a symlink pointing outside `.claude/` (e.g. `.claude/skills ->
-~/shared`): those are left as you linked them and are not updated.
-
-What an update touches in `.claude/`:
-
-| | |
-|---|---|
-| **Kept** | Skills, agents, commands and hooks you added yourself; your `CLAUDE.md`; everything in `.propel/` (except that `.propel/backup/` keeps only the newest 10 folders); your permissions and your own hooks in `settings.local.json` |
-| **Replaced** | Propel's own bundled files, even ones you edited. The edited copy is backed up first and named in the output |
-| **Removed** | Files Propel no longer ships, and Propel's own outdated hook registrations, both backed up |
-
-Backups go to `.propel/backup/<timestamp>/`, and the newest 10 are kept. If you
-have a file of your own at a path that a new Propel release starts shipping: once
-a manifest exists (after your first update with this version), your file stays and
-Propel's copy is skipped with a warning; on the first update from an older install,
-a differing file at one of Propel's paths is backed up and replaced. `propel status`
-also counts Propel hook registrations missing from `settings.local.json`; a
-pending one counts as an available update. A `settings.local.json`
-that isn't valid JSON stops init before anything is written. To customize Propel,
-add your own files next to Propel's instead of editing Propel's.
+Your own skills, agents, commands, hooks, `CLAUDE.md` and permissions are kept.
+Propel's bundled files are replaced, and any you edited are backed up to
+`.propel/backup/` first. Restart open Claude Code sessions when it tells you to.
+Details: [Getting Started](https://kbian.org/propel-website/docs/getting-started.html#updating).
 
 ## Documentation
 
-Full documentation is on the [Propel website](https://kbian.org/propel-website/docs/):
+[Getting Started](https://kbian.org/propel-website/docs/getting-started.html) ·
+[Core Principles](https://kbian.org/propel-website/docs/core-principles.html) ·
+[Automation](https://kbian.org/propel-website/docs/automation.html) ·
+[Codex](https://kbian.org/propel-website/docs/codex.html) ·
+[Pipeline](https://kbian.org/propel-website/docs/pipeline/) ·
+[Modes](https://kbian.org/propel-website/docs/modes/) ·
+[Skills](https://kbian.org/propel-website/docs/skills/) ·
+[Agents](https://kbian.org/propel-website/docs/agents/) ·
+[Customization](https://kbian.org/propel-website/docs/customization.html) ·
+[Common Pitfalls](https://kbian.org/propel-website/docs/pitfalls.html)
 
-- [Getting Started](https://kbian.org/propel-website/docs/getting-started.html) — Installation, local and cluster setup, and your first workflow
-- [Core Principles](https://kbian.org/propel-website/docs/core-principles.html) — The non-negotiable principles injected into every session
-- [Automation](https://kbian.org/propel-website/docs/automation.html) — What dispatches itself, and what never will
-- [Codex](https://kbian.org/propel-website/docs/codex.html) — The automatic dual-model layer
-- [Pipeline](https://kbian.org/propel-website/docs/pipeline/) — Gates, questioners, and phase transitions
-- [Modes](https://kbian.org/propel-website/docs/modes/) — Researcher, Engineer, Debugger, Trainer
-- [Skills](https://kbian.org/propel-website/docs/skills/) — Specialized skills by workflow phase
-- [Agents](https://kbian.org/propel-website/docs/agents/) — Auditors and worker subagents
-- [Customization](https://kbian.org/propel-website/docs/customization.html) — Project-specific agents, skills, commands
-- [Common Pitfalls](https://kbian.org/propel-website/docs/pitfalls.html) — Known failure modes and anti-patterns
-
-## Figures
-
-Every figure in this repository is generated by a script in [`figures/`](figures/),
-one folder per figure, following the structure of
-[ChenLiu-1996/figures4papers](https://github.com/ChenLiu-1996/figures4papers).
-Regenerate them all with `python figures/make_all.py`. The SVGs in `assets/` are
-build output — edit the script, not the SVG.
+Figures are generated by the scripts in [`figures/`](figures/)
+(`python figures/make_all.py`); the SVGs in `assets/` are build output.
 
 ## Acknowledgments
 
-Propel combines ideas from: [obra/superpowers](https://github.com/obra/superpowers), [scott-yj-yang/new-prompt](https://github.com/scott-yj-yang/new-prompt), [Talmo's sleap-io](https://github.com/talmolab/sleap-io), [Sionic AI](https://huggingface.co/blog/sionic-ai/claude-code-skills-training), [brunoasm's claude skills](https://github.com/brunoasm/my_claude_skills), [Weizhena's Deep-Research](https://github.com/Weizhena/Deep-Research-skills), and [Context Engineering Template](https://github.com/coleam00/context-engineering-intro).
-
-Figure structure and publication-style conventions follow [ChenLiu-1996/figures4papers](https://github.com/ChenLiu-1996/figures4papers).
-
-The dual-model layer drives the [OpenAI Codex CLI](https://developers.openai.com/codex/cli) directly. The [anthropics/claude-code code-review plugin](https://github.com/anthropics/claude-code/tree/main/plugins/code-review) is bridged by `/c-review`.
-
-Skills vendored directly: [anthropics/skills — frontend-design](https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md) (see source repo for LICENSE).
+Propel combines ideas from [obra/superpowers](https://github.com/obra/superpowers), [scott-yj-yang/new-prompt](https://github.com/scott-yj-yang/new-prompt), [Talmo's sleap-io](https://github.com/talmolab/sleap-io), [Sionic AI](https://huggingface.co/blog/sionic-ai/claude-code-skills-training), [brunoasm's claude skills](https://github.com/brunoasm/my_claude_skills), [Weizhena's Deep-Research](https://github.com/Weizhena/Deep-Research-skills) and [Context Engineering Template](https://github.com/coleam00/context-engineering-intro). Figure conventions follow [ChenLiu-1996/figures4papers](https://github.com/ChenLiu-1996/figures4papers). The dual-model layer drives the [OpenAI Codex CLI](https://developers.openai.com/codex/cli); `/c-review` bridges the [Claude Code code-review plugin](https://github.com/anthropics/claude-code/tree/main/plugins/code-review). Vendored skill: [anthropics/skills frontend-design](https://github.com/anthropics/skills/blob/main/skills/frontend-design/SKILL.md) (see its repo for the license).
 
 ## License
 
-MIT — Built by [Kaiwen Bian](https://kbian.org) and [Yuer Tang](https://yuertang.dev/).
+MIT. Built by [Kaiwen Bian](https://kbian.org) and [Yuer Tang](https://yuertang.dev/).

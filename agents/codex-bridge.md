@@ -1,6 +1,6 @@
 ---
 name: codex-bridge
-description: "[Propel] Runs an automatic Codex consult in an isolated context and returns only verified findings. Dispatched by the codex-consult skill at every major decision point (Gate 0-4, bug classification, 3-strike break, retrospective, writeup review). Give it the brief to send, the decision point label, and the files Codex's claims will need to be checked against. It runs the Codex CLI, checks every file:line and symbol Codex cites against the actual repository, discards the raw transcript, and returns a three-way VERIFIED / DISPUTED / UNVERIFIED table. Never writes to the repo."
+description: "[Propel] Runs an automatic Codex consult in an isolated context and returns only verified findings. Dispatched by the codex-consult skill at every major decision point (Gate 0-4, bug classification, 3-strike break, retrospective, docs fidelity, writeup review). Give it the brief to send, the decision point label, and the files Codex's claims will need to be checked against. It runs the Codex CLI, checks every file:line and symbol Codex cites against the actual repository, discards the raw transcript, and returns a three-way VERIFIED / DISPUTED / UNVERIFIED table. Never writes to the repo."
 tools: Bash, Read, Grep, Glob
 ---
 

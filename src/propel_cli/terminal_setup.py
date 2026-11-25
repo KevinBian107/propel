@@ -157,7 +157,10 @@ def _print_manual_steps(status: dict) -> None:
             else:
                 steps.append(f"Fix or delete .propel/manifest.json, then: {init_cmd}")
         else:
-            steps.append("Check that Propel was installed with `pip install -e <clone>`")
+            steps.append(
+                "Check that Propel was installed with `pip install -e <clone>`"
+                " (or `uv pip install -e <clone>`, or `uv tool install --editable <clone>`)"
+            )
     elif not status["project"]["initialized"]:
         steps.append(init_cmd)
     elif propel.get("installed") and propel.get("update_available"):

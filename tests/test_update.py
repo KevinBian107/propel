@@ -4,9 +4,9 @@
 Usage: python -m unittest tests/test_update.py -v
 
 Every git operation runs against a fake propel clone in a temp dir (see
-test_install.FakePropel). Child processes that update would start -- pip and
-the re-run of `propel init` -- are intercepted, so nothing is installed and
-this repo is never pulled.
+test_install.FakePropel). Child processes that update would start -- the pip
+probe, the pip or uv reinstall, and the re-run of `propel init` -- are
+intercepted, so nothing is installed and this repo is never pulled.
 """
 
 import json
@@ -62,33 +62,48 @@ INIT_CMD = [
 ]
 
 
+FAKE_UV = "/fake/bin/uv"
+
+
 def _kind(cmd) -> str:
-    """'pip' for the reinstall, 'init' for the child `propel init`."""
+    """'probe' for `-m pip --version`, 'pip' / 'uv' for the reinstall, 'init'
+    for the child `propel init`."""
+    if cmd[0] == FAKE_UV:
+        return "uv"
+    if cmd[1:4] == ["-m", "pip", "--version"]:
+        return "probe"
     return "pip" if cmd[1:3] == ["-m", "pip"] else "init"
 
 
 class ChildRecorder:
-    """Stands in for subprocess.run: records the pip / child-init calls and
-    returns canned exit codes; lets every other command (git) run for real.
+    """Stands in for subprocess.run: records the reinstall / child-init calls
+    and returns canned exit codes; lets every other command (git) run for real.
 
+    has_pip: whether `sys.executable -m pip --version` succeeds. Probes are
+    kept in .probes, not .calls.
     git_rc: {git subcommand: returncode} to fake, e.g. {"diff": 128}.
     on_init: called (no arguments) when the child init would run, to fake its
     side effects."""
 
-    def __init__(self, init_rc=0, pip_rc=0, git_rc=None, on_init=None):
+    def __init__(self, init_rc=0, pip_rc=0, git_rc=None, on_init=None, has_pip=True):
         self.calls = []
+        self.probes = []
         self.init_rc = init_rc
         self.pip_rc = pip_rc
         self.git_rc = git_rc or {}
         self.on_init = on_init
+        self.has_pip = has_pip
         self._real_run = subprocess.run
 
     def __call__(self, cmd, *args, **kwargs):
-        if cmd and cmd[0] == sys.executable:
+        if cmd and cmd[0] in (sys.executable, FAKE_UV):
+            if _kind(cmd) == "probe":
+                self.probes.append(list(cmd))
+                return subprocess.CompletedProcess(cmd, 0 if self.has_pip else 1, "", "")
             self.calls.append((list(cmd), kwargs))
             if _kind(cmd) == "init" and self.on_init is not None:
                 self.on_init()
-            rc = self.pip_rc if _kind(cmd) == "pip" else self.init_rc
+            rc = self.pip_rc if _kind(cmd) in ("pip", "uv") else self.init_rc
             return subprocess.CompletedProcess(cmd, rc, "", "pip exploded" if rc else "")
         if cmd and cmd[0] == "git" and len(cmd) > 3 and cmd[3] in self.git_rc:
             return subprocess.CompletedProcess(cmd, self.git_rc[cmd[3]], "", "fatal: faked")
@@ -99,14 +114,30 @@ class ChildRecorder:
 
 
 class CommandTestCase(InstallTestCase):
-    def invoke(self, args, propel_root=None, recorder=None, installed_version=None):
+    def invoke(self, args, propel_root=None, recorder=None, installed_version=None,
+               uv_on_path=False, uv_tool_env=False):
         """installed_version: what the installed `propel` distribution reports.
         None (the default) is "no metadata", which turns the version check off,
-        so tests don't depend on the interpreter running them."""
+        so tests don't depend on the interpreter running them.
+        uv_on_path: shutil.which("uv") finds FAKE_UV. uv_tool_env: sys.prefix
+        holds a uv-receipt.toml, as in a `uv tool install` env."""
         recorder = recorder or ChildRecorder()
+        prefix = Path(self._tmp.name) / "env"
+        prefix.mkdir(exist_ok=True)
+        if uv_tool_env:
+            (prefix / "uv-receipt.toml").write_text("[tool]\n")
+        real_which = cli_mod.shutil.which
+
+        def which(name, *a, **kw):
+            if name == "uv":
+                return FAKE_UV if uv_on_path else None
+            return real_which(name, *a, **kw)
+
         with mock.patch.object(cli_mod, "get_propel_root", return_value=propel_root or self.propel.root), \
                 mock.patch.object(cli_mod, "get_project_root", return_value=self.project), \
                 mock.patch.object(cli_mod, "_installed_version", return_value=installed_version), \
+                mock.patch.object(cli_mod.shutil, "which", side_effect=which), \
+                mock.patch.object(cli_mod.sys, "prefix", str(prefix)), \
                 mock.patch.object(cli_mod.subprocess, "run", side_effect=recorder):
             # CliRunner's default output carries stderr too (click < 8.2 mixes
             # it in; 8.2+ always interleaves it), so error text is in .output.
@@ -292,7 +323,86 @@ class UpdateNoPullTests(CommandTestCase):
             "installed package is version 0.1.0 but the clone is 9.9.9; reinstalling the package",
             result.output,
         )
-        self.assertIn("reinstalled", result.output)
+        self.assertIn("reinstalled with pip", result.output)
+
+    # Installer selection: pip if this interpreter has it, else uv.
+    def test_pip_available_uses_pip_even_with_uv(self):
+        self.run_install()
+        self.write_source_version("9.9.9")
+        result, rec = self.invoke(
+            ["update", "--no-pull"], installed_version="0.1.0", uv_on_path=True, uv_tool_env=True
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(rec.of("uv"), [])
+        [(cmd, _)] = rec.of("pip")
+        self.assertEqual(cmd, [sys.executable, "-m", "pip", "install", "-e", str(self.propel.root)])
+        self.assertIn("using pip:", result.output)
+
+    def test_no_pip_uv_venv_uses_uv_pip(self):
+        self.run_install()
+        self.write_source_version("9.9.9")
+        result, rec = self.invoke(
+            ["update", "--no-pull"], installed_version="0.1.0",
+            recorder=ChildRecorder(has_pip=False), uv_on_path=True,
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(rec.of("pip"), [])
+        [(cmd, _)] = rec.of("uv")
+        self.assertEqual(
+            cmd, [FAKE_UV, "pip", "install", "--python", sys.executable, "-e", str(self.propel.root)]
+        )
+        self.assertEqual([_kind(c[0]) for c in rec.calls], ["uv", "init"])
+        self.assertIn("using uv pip:", result.output)
+        self.assertIn("reinstalled with uv pip", result.output)
+
+    def test_no_pip_uv_tool_env_uses_uv_tool_install(self):
+        self.run_install()
+        self.write_source_version("9.9.9")
+        result, rec = self.invoke(
+            ["update", "--no-pull"], installed_version="0.1.0",
+            recorder=ChildRecorder(has_pip=False), uv_on_path=True, uv_tool_env=True,
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        [(cmd, _)] = rec.of("uv")
+        self.assertEqual(cmd, [FAKE_UV, "tool", "install", "--reinstall", "--editable", str(self.propel.root)])
+        self.assertEqual([_kind(c[0]) for c in rec.calls], ["uv", "init"])
+        self.assertIn("reinstalled with uv tool", result.output)
+
+    def test_neither_pip_nor_uv_fails_with_both_commands(self):
+        self.run_install()
+        self.write_source_version("9.9.9")
+        result, rec = self.invoke(
+            ["update", "--no-pull"], installed_version="0.1.0", recorder=ChildRecorder(has_pip=False),
+        )
+        self.assertEqual(result.exit_code, 1, result.output)
+        self.assertEqual(rec.of("pip") + rec.of("uv"), [])
+        out = result.output
+        self.assertIn("Reinstall failed: neither pip", out)
+        self.assertIn(f"pip install -e {self.propel.root}", out)
+        self.assertIn(f"uv pip install --python {sys.executable} -e {self.propel.root}", out)
+        self.assertIn(f"uv tool install --reinstall --editable {self.propel.root}", out)
+        self.assertIn("reinstall failed — see above", out)
+        # Matches the pip-failure path: init still runs, and the exit is 1.
+        self.assertEqual(len(rec.of("init")), 1)
+
+    def test_dry_run_names_the_installer_without_running_it(self):
+        self.run_install()
+        self.write_source_version("9.9.9")
+        result, rec = self.invoke(
+            ["update", "--no-pull", "--dry-run"], installed_version="0.1.0",
+            recorder=ChildRecorder(has_pip=False), uv_on_path=True,
+        )
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(rec.of("uv"), [])
+        self.assertIn(f"would use uv pip: {FAKE_UV} pip install --python", result.output)
+
+    def test_in_uv_tool_env_reads_the_receipt(self):
+        prefix = Path(self._tmp.name) / "toolenv"
+        prefix.mkdir()
+        with mock.patch.object(cli_mod.sys, "prefix", str(prefix)):
+            self.assertFalse(cli_mod._in_uv_tool_env())
+            (prefix / "uv-receipt.toml").write_text("[tool]\n")
+            self.assertTrue(cli_mod._in_uv_tool_env())
 
     def test_matching_versions_do_not_reinstall(self):
         self.run_install()
@@ -314,6 +424,7 @@ class UpdateNoPullTests(CommandTestCase):
             result.output,
         )
         self.assertIn("would reinstall", result.output.splitlines()[-1])
+        self.assertIn("would use pip:", result.output)
 
     def test_no_installed_metadata_skips_version_check(self):
         self.run_install()
@@ -451,6 +562,8 @@ class UpdatePullTests(CommandTestCase):
         self.assertEqual(result.exit_code, 1, result.output)
         out = result.output
         self.assertIn(f"pip install -e {self.clone}", out)
+        self.assertIn(f"uv pip install --python {sys.executable} -e {self.clone}", out)
+        self.assertIn(f"uv tool install --reinstall --editable {self.clone}", out)
         self.assertIn("pipx reinstall propel", out)
         self.assertIn("reinstall failed — see above", out)
         self.assertEqual(len(rec.of("init")), 1)

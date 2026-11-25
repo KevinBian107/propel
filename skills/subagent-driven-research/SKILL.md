@@ -125,6 +125,16 @@ After all stages complete, present audit results to the user.
 **Rules:**
 - Don't silently fix auditor findings. Present them first.
 - For clean passes: keep it brief.
+- **Docs: ask, don't write.** When a component's audits pass and the project has
+  a docs root (`docs/`, `documentation/`, or a README section) with pages that
+  reference the changed files, ask the docs question (`make-documentations`
+  Step 0) as a second question in the same AskUserQuestion call as the Gate 3
+  question: which pages would change, and what each update would cover. Write no
+  docs page before the answer. Only "update all" or "update only <page>" runs
+  `make-documentations`, on the pages chosen. Skip the question when no page
+  references the changed files, or when `.propel/docs.json` turns docs prompts
+  off (one `◇ Docs prompts off` line at the session's first trigger). Pages are
+  written, never committed.
 - Close the task's ledger entry when its Gate 3 passes:
   `bash .claude/scripts/task-queue.sh done <id> --status done`. If the human
   stops or defers the component, use `--status blocked` instead.

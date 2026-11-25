@@ -125,6 +125,17 @@ After running validation gates, present results to the user:
 **If all gates pass:**
 > "All 4 validation gates passed for [component]. Shape ✓, Gradient ✓, Overfit ✓, Regression ✓. Moving to next component?"
 
+**Docs, when all gates pass: ask, don't write.** If the project has a docs root
+(`docs/`, `documentation/`, or a README section) and a results page covers this
+component, ask the docs question (`make-documentations` Step 0) with the pass
+message above, as a second question in the same AskUserQuestion call: the page,
+and which sections and results its update would cover. Write nothing before the
+answer. Only "update all" or "update only <page>" runs `make-documentations`, on
+the pages chosen. Skip the question when there is no results page for the
+component, or when `.propel/docs.json` turns docs prompts off (one
+`◇ Docs prompts off` line at the session's first trigger). Pages are written,
+never committed.
+
 **If any gate fails:**
 ```markdown
 ## Validation Results: [Component]
